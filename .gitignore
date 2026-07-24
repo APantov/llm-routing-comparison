@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Secrets and environment
+.env
+.env.*
+*.key
+*.pem
+secrets.json
+credentials.json
+
+# Raw model-response cache.
+#
+# NOT ignored by default: cache/raw_calls.jsonl is the whole point of the cache
+# (it makes the repo reproducible without an API key). It is committed once real
+# results exist. Ignore the working artefacts around it instead.
+cache/*.tmp
+cache/*.lock
+cache/*.bak
+
+# Real results are money. They are backed up deliberately, not by accident.
+results.real.jsonl
+results.*.bak
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/

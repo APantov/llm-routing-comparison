@@ -1,0 +1,31 @@
+# Pinned, not floating. This is an evaluation repo: a number that cannot be
+# reproduced is not a number.
+#
+# Python: 3.10 or newer. Pin it and say so, because graders.grade_run_asserts
+# executes candidate code with [sys.executable, path] - the code grader's
+# verdict depends on which interpreter launched the eval. __pycache__ in this
+# tree previously held both cpython-310 and cpython-313 bytecode, so two
+# interpreters had already run it.
+#
+#     python3 -m venv .venv && . .venv/bin/activate    # (Windows: .venv\Scripts\activate)
+#     pip install -r requirements.txt
+#
+# MOCK MODE NEEDS NOTHING BELOW. It is pure standard library by design, so the
+# entire experiment reproduces on a bare interpreter with no network and no key:
+#
+#     python3 build_taskset.py && python3 sanity_check.py && python3 run_eval.py
+
+# --- real mode only (lazily imported inside models._client) ---
+anthropic==0.120.2
+
+# --- development ---
+pytest==9.1.1
+
+# --- deliberately absent ---
+# routellm: see STRATEGY_2026-07-29.md 2.2. Its pretrained `mf` router calls
+#   OpenAI's text-embedding-3-small on every prompt (routellm/routers/
+#   matrix_factorization/model.py) and pulls its checkpoint from HuggingFace.
+#   Both are live third-party network calls, so it cannot be added under a
+#   mock-only constraint. Not installed, not pinned, not imported.
+# numpy/scipy/matplotlib: not yet needed. plot.py and the paired statistics do
+#   not exist. Add them when they do, not in anticipation.
