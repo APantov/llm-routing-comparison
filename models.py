@@ -1,11 +1,22 @@
 """
-Model client. Two modes:
+Model client. Three modes:
 
-  MOCK  - no API key, no spend. Simulates a cheap and an expensive model with
-          realistic, correlated success rates. Lets you run the ENTIRE pipeline
-          end to end before spending a cent. Use this until everything works.
+  MOCK   - no API key, no spend. Simulates a cheap and an expensive model with
+           realistic, correlated success rates. Lets you run the ENTIRE pipeline
+           end to end before spending a cent. Use this until everything works.
 
-  REAL  - actual API calls. Flip MODE to "real" and set your key.
+  REAL   - actual API calls. Flip MODE to "real" and set your key.
+
+  REPLAY - serve every call from cache/raw_calls.jsonl and refuse to touch the
+           network. A miss is an error, not a fetch. This is what makes the repo
+           reproducible by someone with no API key, and it is what makes every
+           sweep after the first paid run cost nothing.
+
+EVERY call goes through response_cache first, in all three modes. Read the
+module docstring there before changing anything here: the cache is not a speed
+optimisation, it is what makes the paired statistics valid. Without it,
+always_cheap and cascade would be compared on different draws from the same
+model, and policy_oracle would bound a set of responses nobody else received.
 
 Every call returns a ModelResponse carrying tokens, latency and cost, because
 cost accounting is half the point of the project and retrofitting it is painful.
@@ -16,9 +27,14 @@ import os
 import random
 import sys
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 
-MODE = os.environ.get("ROUTER_MODE", "mock")  # "mock" or "real"
+import response_cache
+
+MODE = os.environ.get("ROUTER_MODE", "mock")  # "mock" | "real" | "replay"
+if MODE not in ("mock", "real", "replay"):
+    raise SystemExit(f"ROUTER_MODE must be mock, real or replay - got {MODE!r}")
+response_cache.configure(MODE)
 
 # Seed for the whole mock world. Every mock outcome is a pure hash of
 # (seed, task, tier, temperature, sample_idx), so a run is reproducible byte for
@@ -77,6 +93,13 @@ MODELS = {
 # answer as wrong, which reads as a capability result instead of a bug.
 MAX_TOKENS = 2048
 
+# The LLM-as-router call (policies.policy_llm_router) is a one-word
+# classification, so it gets its own tiny cap. This is the number that decides
+# whether "an LLM call would defeat the purpose" is true: at 8 output tokens the
+# router call cannot cost more than a rounding error, and the point of the
+# policy is to measure that rather than assert it.
+ROUTER_MAX_TOKENS = 8
+
 
 @dataclass
 class ModelResponse:
@@ -111,6 +134,31 @@ MOCK_SKILL = {
 # Real tiers from one provider are strongly but not perfectly correlated.
 MOCK_FAILURE_CORRELATION = 0.75
 
+# ---------------------------------------------------------------------------
+# Mock skill of the LLM-as-router classifier (policies.policy_llm_router).
+#
+# READ THIS BEFORE QUOTING ANY llm_router ACCURACY NUMBER FROM MOCK MODE.
+#
+# There is no way to simulate "Haiku reads the question and judges difficulty"
+# without deciding in advance how good that judgement is. So the mock router is
+# an oracle on the mock's own latent difficulty, corrupted at rate
+# 1 - MOCK_ROUTER_SKILL. Its accuracy in mock mode is therefore a RESTATEMENT OF
+# THIS CONSTANT, not a measurement of anything. 0.70 is a placeholder chosen to
+# sit between the predictive heuristic and the oracle; it is not evidence.
+#
+# What IS measurable in mock mode, and what the policy exists to measure, is the
+# COST AND LATENCY of the extra round trip - because those come from the price
+# table and the token counts, not from this constant. policies.py Decision #4
+# rejected LLM routing on the grounds that it "would add a full round trip and
+# defeat the purpose". That is a quantitative claim and this is what tests it.
+# ---------------------------------------------------------------------------
+MOCK_ROUTER_SKILL = 0.70
+
+# The mock router's notion of "hard": the upper half of the within-domain
+# difficulty percentile. Matches how MOCK_SKILL drives p_correct, so the router
+# is judging the same latent quantity the mock models are failing on.
+MOCK_ROUTER_HARD_PCT = 0.5
+
 
 def _wrong_answer(truth: str, rng: random.Random) -> str:
     """A plausible wrong answer, drawn from a small spread.
@@ -141,8 +189,36 @@ def _draw(*parts) -> random.Random:
     return random.Random(hashlib.md5(key.encode()).hexdigest())
 
 
+def _mock_route_call(tier: str, prompt: str, task: dict, sample_idx: int) -> ModelResponse:
+    """Simulate the LLM-as-router classification call.
+
+    See MOCK_ROUTER_SKILL. The label is fabricated from a constant; the tokens,
+    latency and price are not, and they are the part worth reading.
+    """
+    difficulty = task.get("difficulty_pct", 0.5)
+    truth_hard = difficulty >= MOCK_ROUTER_HARD_PCT
+    agrees = _draw(task["id"], tier, "router", sample_idx).random() < MOCK_ROUTER_SKILL
+    said_hard = truth_hard if agrees else not truth_hard
+
+    tokens_in = max(20, len(prompt) // 4)
+    tokens_out = 3  # "HARD" or "EASY", plus the stop
+    return ModelResponse(
+        text="HARD" if said_hard else "EASY",
+        tier=tier,
+        tokens_in=tokens_in,
+        tokens_out=tokens_out,
+        # Shorter than an answer call because there is almost nothing to
+        # generate, but still a full network round trip - which is the cost the
+        # policy exists to measure. A modelled constant, like every other mock
+        # latency in this file.
+        latency_s=0.35,
+        cost_usd=_price(tier, tokens_in, tokens_out),
+    )
+
+
 def _mock_call(
-    tier: str, prompt: str, task: dict, temperature: float, sample_idx: int
+    tier: str, prompt: str, task: dict, temperature: float, sample_idx: int,
+    kind: str = "answer",
 ) -> ModelResponse:
     """Simulate a model.
 
@@ -154,6 +230,9 @@ def _mock_call(
     tier-specific draw. Without the shared term, escalating would fix failures
     at a rate no real cascade achieves.
     """
+    if kind == "route":
+        return _mock_route_call(tier, prompt, task, sample_idx)
+
     # difficulty_pct is a within-domain percentile, so it means the same thing
     # for a math task and a code task. difficulty_proxy does not.
     difficulty = task.get("difficulty_pct", 0.5)
@@ -231,12 +310,14 @@ def _client():
 
 
 def _real_call(
-    tier: str, prompt: str, task: dict, temperature: float, sample_idx: int
+    tier: str, prompt: str, task: dict, temperature: float, sample_idx: int,
+    kind: str = "answer",
 ) -> ModelResponse:
-    # sample_idx is unused here: a real model at temperature > 0 is stochastic
-    # by nature and cannot be pinned. It exists so the mock and real backends
-    # share one signature, and as a reminder that real-mode results are NOT
-    # reproducible the way mock results now are.
+    # sample_idx does not pin a real model - sampling at temperature > 0 is
+    # stochastic and cannot be reproduced. What pins it is the response cache:
+    # the FIRST draw for a given sample_idx is stored and every later reader gets
+    # that one. So real mode is reproducible after the fact rather than by
+    # construction, which is the strongest guarantee a hosted API allows.
     global truncated_calls
     cfg = MODELS[tier]
 
@@ -245,7 +326,7 @@ def _real_call(
     # 400; omitting `thinking` on Opus 5 silently turns thinking ON.
     kwargs = {
         "model": cfg["id"],
-        "max_tokens": MAX_TOKENS,
+        "max_tokens": _max_tokens_for(kind),
         "messages": [{"role": "user", "content": prompt}],
     }
     if cfg["accepts_temperature"]:
@@ -262,9 +343,15 @@ def _real_call(
     # hit the cap. Count it loudly instead of letting it pass as a result.
     if msg.stop_reason == "max_tokens":
         truncated_calls += 1
+        cap = "ROUTER_MAX_TOKENS" if kind == "route" else "MAX_TOKENS"
+        consequence = (
+            "the routing decision falls back to EASY"
+            if kind == "route"
+            else "this will grade as wrong"
+        )
         print(
-            f"  !! TRUNCATED at max_tokens: {task['id']} on {tier}. "
-            f"This will grade as wrong. Raise MAX_TOKENS.",
+            f"  !! TRUNCATED at max_tokens: {task['id']} on {tier} ({kind}). "
+            f"{consequence}. Raise models.{cap}.",
             file=sys.stderr,
         )
 
@@ -297,27 +384,122 @@ PROMPTS = {
         "Write a Python function for this task. Return ONLY a python code "
         "block, no explanation.\n\n{q}\n\nYour code should pass these tests:\n{tests}"
     ),
+    # The LLM-as-router prompt. Deliberately austere:
+    #   - it shows the QUESTION ONLY, never the tests or the answer, so it sees
+    #     exactly what predict_is_hard sees and the comparison is fair;
+    #   - it forbids reasoning, because a router that thinks before routing is
+    #     just a slow expensive model and the whole premise is that it is cheap;
+    #   - one word out, so ROUTER_MAX_TOKENS can be 8 and the cost is bounded.
+    "route": (
+        "You are a difficulty classifier for a model router. Answer with "
+        "exactly one word, EASY or HARD, and nothing else.\n\n"
+        "HARD means a small fast model would probably get this wrong and it "
+        "should be sent to a larger model.\n\nProblem:\n{q}"
+    ),
 }
 
 
-def build_prompt(task: dict) -> str:
+def build_prompt(task: dict, kind: str = "answer") -> str:
+    """The exact text sent to the model.
+
+    This is what the cache is keyed on, so it must be a pure function of the
+    task and the kind. Anything that varies per run (a timestamp, a nonce, a
+    dict that iterates differently) would silently make every call a cache miss.
+    """
+    if kind == "route":
+        return PROMPTS["route"].format(q=task["prompt"])
     if task["domain"] == "code":
         tests = "\n".join(task["grader_payload"]["tests"])
         return PROMPTS["code"].format(q=task["prompt"], tests=tests)
     return PROMPTS["math"].format(q=task["prompt"])
 
 
+def _max_tokens_for(kind: str) -> int:
+    return ROUTER_MAX_TOKENS if kind == "route" else MAX_TOKENS
+
+
+# How many times each policy asked for a call, how many were served from the
+# cache, and how many actually reached a backend. The last one is the number
+# that costs money; the first is the number the cost table is built from. Read
+# response_cache's docstring for why those are different on purpose.
+call_stats = {"requested": 0, "from_cache": 0, "backend": 0}
+
+
+def reset_call_stats():
+    for k in call_stats:
+        call_stats[k] = 0
+
+
 def call(
-    tier: str, task: dict, temperature: float = 0.0, sample_idx: int = 0
+    tier: str, task: dict, temperature: float = 0.0, sample_idx: int = 0,
+    kind: str = "answer",
 ) -> ModelResponse:
-    """One model call.
+    """One model call, served from the response cache when it has been seen.
 
     sample_idx identifies WHICH draw this is for a given (task, tier,
     temperature). Callers that sample repeatedly - only the math verifier, so
-    far - must pass a distinct index per sample, or the mock will hand back the
-    same answer every time and self-consistency will be trivially unanimous.
+    far - must pass a distinct index per sample, or every sample is the same
+    cache entry and self-consistency becomes trivially unanimous.
+
+    kind selects the prompt template: "answer" solves the task, "route" asks the
+    cheap model to classify its difficulty. It is not in the cache key directly,
+    because the prompt text already differs and the prompt IS in the key.
+
+    Returns the full ModelResponse on a cache hit, cost included. The caller is
+    charged either way - see the response_cache docstring. Deduplication changes
+    what the harness spends, not what a policy costs.
     """
-    prompt = build_prompt(task)
-    if MODE == "mock":
-        return _mock_call(tier, prompt, task, temperature, sample_idx)
-    return _real_call(tier, prompt, task, temperature, sample_idx)
+    prompt = build_prompt(task, kind)
+
+    def keyfor(mode):
+        return response_cache.make_key(
+            mode=mode, model=MODELS[tier]["id"], prompt=prompt,
+            temperature=temperature, sample_idx=sample_idx,
+            max_tokens=_max_tokens_for(kind),
+            mock_seed=MOCK_SEED if mode == "mock" else None,
+        )
+
+    # Replay prefers real responses and falls back to mock ones, so that a mock
+    # cache can be used to exercise replay itself without an API key. Real and
+    # mock entries never collide, because `mode` is in the hash.
+    candidates = [keyfor("real"), keyfor("mock")] if MODE == "replay" else [keyfor(MODE)]
+    key = candidates[0]
+
+    call_stats["requested"] += 1
+    for k in candidates:
+        rec = response_cache.get(k)
+        if rec is not None:
+            call_stats["from_cache"] += 1
+            return ModelResponse(
+                text=rec["text"], tier=rec["tier"], tokens_in=rec["tokens_in"],
+                tokens_out=rec["tokens_out"], latency_s=rec["latency_s"],
+                cost_usd=rec["cost_usd"],
+            )
+
+    if MODE == "replay":
+        raise KeyError(
+            f"replay mode: no cached response for {task['id']} tier={tier} "
+            f"temp={temperature} sample={sample_idx} kind={kind}\n"
+            f"  key={key}\n"
+            f"  Replay never calls a backend. Either the cache is incomplete, or "
+            f"a prompt or parameter changed since it was populated.\n"
+            f"  Repopulate with: ROUTER_MODE=real python run_eval.py"
+        )
+
+    call_stats["backend"] += 1
+    backend = _mock_call if MODE == "mock" else _real_call
+    r = backend(tier, prompt, task, temperature, sample_idx, kind)
+
+    # Written immediately, not batched: a real run that dies halfway through
+    # must keep every response it paid for.
+    response_cache.put(key, {
+        # Not part of the key. Stored so the file can be grepped and audited by
+        # a human, and so a cache entry can be traced back to a task.
+        "task_id": task["id"], "domain": task["domain"], "kind": kind,
+        "mode": MODE, "mock_seed": MOCK_SEED if MODE == "mock" else None,
+        "model": MODELS[tier]["id"], "temperature": temperature,
+        "sample_idx": sample_idx, "prompt_sha256": hashlib.sha256(
+            prompt.encode("utf-8")).hexdigest(),
+        **asdict(r),
+    })
+    return r

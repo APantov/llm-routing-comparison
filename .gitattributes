@@ -1,0 +1,17 @@
+# Line endings are a reproducibility problem in this repo, not a style one.
+#
+# taskset.jsonl was generated on Windows and carried CRLF; results.jsonl was
+# generated on Linux and carried LF. Two artefacts of one experiment disagreed
+# about line endings, which means the same code on two machines produced
+# byte-different files. That makes a hash-based regression gate impossible and
+# it silently breaks any "the task set rebuilds byte-identically" claim.
+#
+# Fixed in two places: the writers pass newline="" so Python does no platform
+# translation, and git is told to leave these files alone rather than
+# normalising them on checkout.
+
+*.jsonl  text eol=lf
+*.py     text eol=lf
+*.md     text eol=lf
+*.txt    text eol=lf
+*.json   text eol=lf

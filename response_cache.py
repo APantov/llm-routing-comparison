@@ -1,0 +1,211 @@
+"""Content-addressed cache of raw model responses.
+
+WHY THIS EXISTS, in one paragraph, because it is easy to mistake for an
+optimisation and it is not one.
+
+Every policy calls the models independently. Per task, the *same* greedy cheap
+call at temperature 0 is made up to four separate times - by always_cheap, by
+cascade, by oracle, and by predictive when it routes cheap. Measured on this
+taskset: 796 calls, of which only 440 are distinct. In mock mode the duplicates
+are byte-identical for free, because models._draw is a pure hash. In real mode
+they would be 356 extra paid API calls returning 356 *different* answers.
+
+That second fact is the real problem, and it is a validity problem rather than a
+cost one. Every paired statistic this project needs - McNemar, paired bootstrap,
+the discordance tables - assumes the policies are compared on the same model
+outputs. Without this cache they are not: always_cheap and cascade would
+disagree partly because of decoding noise rather than because of policy, and
+policy_oracle would be bounding a different set of draws than the ones the other
+policies actually got, which is not a bound at all.
+
+So: one draw per distinct (model, prompt, temperature, sample_idx, seed), stored
+on disk, shared by every policy and every rerun.
+
+
+WHAT THE CACHE DOES *NOT* DO
+----------------------------
+It does not change what any policy costs. A cache hit returns the full
+ModelResponse including cost_usd, and the policy is charged for it exactly as if
+it had made the call. This is deliberate: cost_usd answers "what would this
+policy cost in production", where there is no cross-policy cache because only
+one policy is running. The cache reduces what *this harness* spends to measure
+that, not what the policy would spend to serve it.
+
+The two numbers are separate and both are reported:
+    run_eval  "total MODELLED cost"  - sum over policies, unchanged by caching
+    run_eval  "backend calls"        - what a real run would actually pay for
+
+
+KEY
+---
+Hashed over everything that determines a response and nothing that doesn't:
+
+    mode            a mock response and a real response are different objects
+    model id        not the tier name; the tier -> model mapping can change
+    prompt          the full prompt text, so editing PROMPTS invalidates cleanly
+    temperature
+    sample_idx      which independent draw this is
+    max_tokens      it decides truncation, which grades as a wrong answer
+    mock_seed       mock only; None in real mode
+
+Deliberately NOT in the key: task_id and tier. They are stored alongside for
+grepping, but two tasks that somehow produced an identical prompt should share a
+response, and the prompt is what the model actually saw.
+"""
+
+import hashlib
+import json
+import os
+import threading
+from pathlib import Path
+
+HERE = Path(__file__).parent
+CACHE_DIR = Path(os.environ.get("ROUTER_CACHE_DIR", HERE / "cache"))
+
+# Real and mock responses live in SEPARATE files even though they could not
+# collide (mode is in the hash). Two reasons, both practical rather than
+# theoretical: raw_calls.jsonl is the artefact that gets committed after the
+# paid run and it should contain only responses that were paid for; and a
+# fabricated response should never be one careless `git add` away from being
+# published as a measurement.
+REAL_PATH = CACHE_DIR / "raw_calls.jsonl"
+MOCK_PATH = CACHE_DIR / "raw_calls.mock.jsonl"
+
+# Off switch, for measuring the un-cached call count and for debugging.
+ENABLED = os.environ.get("ROUTER_CACHE", "1") not in ("0", "false", "no")
+
+# Set by configure(). PATH is written to; READ_PATHS are all read, in order,
+# later files winning - which is how replay mode reads the real cache and falls
+# back to the mock one.
+PATH = REAL_PATH
+READ_PATHS = [REAL_PATH]
+
+
+def configure(mode: str):
+    """Point the cache at the right file(s) for the run mode."""
+    global PATH, READ_PATHS, _store
+    if mode == "mock":
+        PATH, READ_PATHS = MOCK_PATH, [MOCK_PATH]
+    elif mode == "replay":
+        # Mock second so a real response always wins over a simulated one.
+        PATH, READ_PATHS = REAL_PATH, [MOCK_PATH, REAL_PATH]
+    else:
+        PATH, READ_PATHS = REAL_PATH, [REAL_PATH]
+    _store = None  # force a reload against the new paths
+
+# Fields that go into the key, in a fixed order. Order matters: the hash is the
+# identity of a stored response and must not change when a dict happens to
+# iterate differently.
+_KEY_FIELDS = ("mode", "model", "prompt", "temperature", "sample_idx", "max_tokens", "mock_seed")
+
+_store = None          # key -> record dict
+_lock = threading.Lock()
+_conflicts = []        # keys seen twice on disk with different payloads
+
+stats = {"lookups": 0, "hits": 0, "misses": 0, "writes": 0}
+
+
+def make_key(*, mode, model, prompt, temperature, sample_idx, max_tokens, mock_seed):
+    payload = {
+        "mode": mode,
+        "model": model,
+        "prompt": prompt,
+        "temperature": float(temperature),
+        "sample_idx": int(sample_idx),
+        "max_tokens": int(max_tokens),
+        "mock_seed": mock_seed,
+    }
+    blob = json.dumps({k: payload[k] for k in _KEY_FIELDS}, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()
+
+
+def _load():
+    """Read the cache file once, into memory.
+
+    Tolerant of a truncated final line: a real run that was killed mid-write
+    still holds hundreds of responses that were paid for, and refusing to load
+    them because the last one is half-written would be the worst possible
+    failure mode for this file.
+    """
+    global _store
+    if _store is not None:
+        return _store
+    _store = {}
+    del _conflicts[:]
+    for path in READ_PATHS:
+        if not path.exists():
+            continue
+        with path.open("r", encoding="utf-8") as f:
+            for lineno, line in enumerate(f, 1):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except json.JSONDecodeError:
+                    print(f"  !! response_cache: skipping unparseable line {lineno} in {path.name}")
+                    continue
+                key = rec.get("key")
+                if key is None:
+                    continue
+                prev = _store.get(key)
+                if prev is not None and prev.get("text") != rec.get("text"):
+                    # Same inputs, different output. In mock mode this is
+                    # impossible unless the mock changed; in real mode it means
+                    # the file was appended to by two runs that saw different
+                    # model behaviour. Either way it silently invalidates every
+                    # paired comparison, so say so rather than picking one.
+                    _conflicts.append(key)
+                _store[key] = rec
+    if _conflicts:
+        print(
+            f"  !! response_cache: {len(_conflicts)} key(s) have conflicting "
+            f"responses across {', '.join(p.name for p in READ_PATHS)}. Paired "
+            f"statistics are NOT valid until this is resolved. Later entries won."
+        )
+    return _store
+
+
+def get(key):
+    """Return the stored record for `key`, or None."""
+    if not ENABLED:
+        return None
+    stats["lookups"] += 1
+    rec = _load().get(key)
+    if rec is None:
+        stats["misses"] += 1
+        return None
+    stats["hits"] += 1
+    return rec
+
+
+def put(key, record):
+    """Append a record and make it visible immediately.
+
+    Appended and flushed per call rather than batched at the end of the run: a
+    real run that dies halfway through must keep every response it paid for.
+    """
+    if not ENABLED:
+        return
+    store = _load()
+    with _lock:
+        store[key] = record
+        PATH.parent.mkdir(parents=True, exist_ok=True)
+        # newline="" so this file is byte-identical on Windows and Linux. The
+        # repo already carries one artefact written with CRLF and one with LF.
+        with PATH.open("a", encoding="utf-8", newline="") as f:
+            f.write(json.dumps({"key": key, **record}, ensure_ascii=False) + "\n")
+        stats["writes"] += 1
+
+
+def size():
+    return len(_load())
+
+
+def conflicts():
+    return list(_conflicts)
+
+
+def reset_stats():
+    for k in stats:
+        stats[k] = 0

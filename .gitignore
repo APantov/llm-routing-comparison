@@ -16,9 +16,15 @@ credentials.json
 
 # Raw model-response cache.
 #
-# NOT ignored by default: cache/raw_calls.jsonl is the whole point of the cache
-# (it makes the repo reproducible without an API key). It is committed once real
-# results exist. Ignore the working artefacts around it instead.
+# cache/raw_calls.jsonl (REAL responses) is deliberately NOT ignored. It is the
+# whole point: committing it makes every number in this repo reproducible by
+# someone with no API key, via ROUTER_MODE=replay. Commit it after the paid run.
+#
+# cache/raw_calls.mock.jsonl (SIMULATED responses) is ignored. It regenerates
+# for free from a pure hash in seconds, so committing it would add half a
+# megabyte of fabricated model output to a repo whose headline risk is a
+# simulated number being mistaken for a measured one.
+cache/raw_calls.mock.jsonl
 cache/*.tmp
 cache/*.lock
 cache/*.bak
