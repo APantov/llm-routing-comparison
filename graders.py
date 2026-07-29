@@ -9,6 +9,8 @@ Every task is scored deterministically, which means:
 This is the single biggest reason the task domains were chosen as they were.
 """
 
+import hashlib
+import os
 import re
 import subprocess
 import sys
@@ -16,6 +18,32 @@ import tempfile
 from pathlib import Path
 
 CODE_TIMEOUT_S = 10
+
+# ---------------------------------------------------------------------------
+# Memoisation of grade().
+#
+# grade(task, response) is a pure function, so grading the same response twice
+# can only produce the same verdict. Two places do exactly that, both of them
+# hot:
+#
+#   1. The code cascade grades once inside verify_code and once again in the
+#      cascade after acceptance, launching the subprocess grader twice per task
+#      for a verdict that cannot differ.
+#   2. The degradation sweep replays the same 40 cheap responses at 6 corruption
+#      levels x N repeats. Un-memoised that is tens of thousands of subprocess
+#      launches to re-derive a few hundred distinct answers.
+#
+# The assumption this rests on: candidate code is deterministic. It holds here
+# because MBPP reference solutions are pure functions and the mock emits either
+# the reference solution or a stub. If a real model ever returns code that reads
+# the clock or calls random(), this memo would hide the flakiness rather than
+# surface it - so it can be switched off.
+#
+#     ROUTER_GRADE_MEMO=0 python3 run_eval.py
+# ---------------------------------------------------------------------------
+MEMO_ENABLED = os.environ.get("ROUTER_GRADE_MEMO", "1") not in ("0", "false", "no")
+_memo = {}
+memo_stats = {"lookups": 0, "hits": 0}
 
 
 def extract_final_int(text: str):
@@ -169,4 +197,20 @@ GRADERS = {
 
 
 def grade(task: dict, response: str) -> bool:
-    return GRADERS[task["grader"]](response, task["grader_payload"])
+    if not MEMO_ENABLED:
+        return GRADERS[task["grader"]](response, task["grader_payload"])
+    # Keyed on the task id AND the response, because the payload (the asserts,
+    # the expected answer) belongs to the task. Hashing the response rather than
+    # storing it keeps the memo small when responses are long.
+    key = (
+        task["id"],
+        task["grader"],
+        hashlib.sha1((response or "").encode("utf-8")).hexdigest(),
+    )
+    memo_stats["lookups"] += 1
+    if key in _memo:
+        memo_stats["hits"] += 1
+        return _memo[key]
+    verdict = GRADERS[task["grader"]](response, task["grader_payload"])
+    _memo[key] = verdict
+    return verdict

@@ -174,7 +174,12 @@ def main():
     add_difficulty_pct(tasks)
     rng.shuffle(tasks)
 
-    with open(OUT, "w") as f:
+    # newline="" so this file is byte-identical on Windows and Linux. It was
+    # previously written with Python's default translation, so the shipped
+    # taskset.jsonl carried CRLF while results.jsonl carried LF - the same code
+    # produced different bytes on different machines, which makes any
+    # hash-based regression gate impossible.
+    with open(OUT, "w", encoding="utf-8", newline="") as f:
         for t in tasks:
             f.write(json.dumps(t) + "\n")
 
