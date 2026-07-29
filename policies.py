@@ -519,6 +519,37 @@ def policy_llm_router(task):
     )
 
 
+# ---------------------------------------------------------------------------
+# DECISION #8: RouteLLM's pretrained router (STRATEGY 2.2).
+#
+# A published learned router, trained on Chatbot Arena preference data, with its
+# threshold calibrated to predictive's expensive-call rate so the comparison is
+# cost-matched. See routellm_router.py for which of RouteLLM's five variants is
+# used and why, and for the score cache that makes it a one-time cost.
+#
+# This policy makes NO routing call of its own at serving time on the bert path:
+# the score is a local forward pass, cached to disk. So unlike llm_router it
+# adds no round trip, which is the argument for a learned router over an LLM one.
+#
+# It is only registered when real scores exist. There is deliberately no
+# fallback: a router that guesses when its model is missing is not a router, and
+# a row in results.jsonl labelled `routellm` that was produced by a coin flip
+# would be the worst kind of number in this repo.
+# ---------------------------------------------------------------------------
+
+def policy_routellm(task):
+    import routellm_router
+
+    tier = "expensive" if routellm_router.routes_expensive(task) else "cheap"
+    r = models.call(tier, task)
+    return PolicyResult(
+        task_id=task["id"], policy="routellm",
+        correct=grade(task, r.text),
+        cost_usd=r.cost_usd, latency_s=r.latency_s,
+        calls=[tier],
+    )
+
+
 def policy_oracle(task):
     """Hindsight-optimal: try both, keep the cheap one if it worked.
 
@@ -549,6 +580,7 @@ POLICIES = {
     "random_matched": policy_random_matched,
     "random_50": policy_random_50,
     "predictive": policy_predictive,
+    "routellm": policy_routellm,
     "llm_router": policy_llm_router,
     "cascade": policy_cascade,
     "cascade_degraded": policy_cascade_degraded,

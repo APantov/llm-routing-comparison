@@ -21,11 +21,26 @@ anthropic==0.120.2
 # --- development ---
 pytest==9.1.1
 
+# --- optional: the RouteLLM comparison only (STRATEGY 2.2) ---
+#
+# NOT installed by default and not needed to reproduce any number in this repo.
+# It pulls torch, transformers, datasets and litellm - roughly a gigabyte - for
+# one policy, and cache/routellm_scores.jsonl makes that a one-time cost:
+# once the scores are committed, `routellm` runs for everyone with none of this
+# installed. Install it only to (re)score.
+#
+#     pip install routellm==0.2.0
+#     python3 routellm_router.py --score        # bert variant, no API key
+#
+# Use the `bert` variant. Of RouteLLM's five routers only `bert` and
+# `causal_llm` run locally; `mf` and `sw_ranking` call OpenAI's
+# text-embedding-3-small on EVERY prompt, and `causal_llm` needs the gated
+# ~16GB Meta-Llama-3-8B. See routellm_router.py for the full table.
+#
+# routellm==0.2.0
+
 # --- deliberately absent ---
-# routellm: see STRATEGY_2026-07-29.md 2.2. Its pretrained `mf` router calls
-#   OpenAI's text-embedding-3-small on every prompt (routellm/routers/
-#   matrix_factorization/model.py) and pulls its checkpoint from HuggingFace.
-#   Both are live third-party network calls, so it cannot be added under a
-#   mock-only constraint. Not installed, not pinned, not imported.
+# openai: needed ONLY for RouteLLM's `mf` variant, which this project does not
+#   use by default. routellm pulls it in transitively.
 # numpy/scipy/matplotlib: not yet needed. plot.py and the paired statistics do
 #   not exist. Add them when they do, not in anticipation.

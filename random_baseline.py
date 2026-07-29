@@ -88,9 +88,15 @@ def main():
     print(f"{args.seeds} seeds over {len(tasks)} tasks; random_matched calibrated to "
           + ", ".join(f"{d}={r:.0%}" for d, r in sorted(rates.items())), file=sys.stderr)
 
+    import routellm_router
+    if routellm_router.available(tasks):
+        routellm_router.calibrate(tasks, rates)
+
     models.reset_call_stats()
-    fixed = {n: fixed_policy(tasks, n)
-             for n in ("always_cheap", "always_expensive", "predictive", "llm_router", "oracle")}
+    names = ["always_cheap", "always_expensive", "predictive", "llm_router", "oracle"]
+    if routellm_router.available(tasks):
+        names.insert(3, "routellm")
+    fixed = {n: fixed_policy(tasks, n) for n in names}
 
     results = {}
     for name, fn in (("random_matched", policies.policy_random_matched),
@@ -109,7 +115,8 @@ def main():
     for name, (accs, costs, _) in results.items():
         print(f"{name:<18} {_mean(accs):>9.1%} {_sd(accs):>7.1%} "
               f"{_pct(accs, 0.05):>8.1%} {_pct(accs, 0.95):>8.1%} {_mean(costs):>12.6f}")
-    for name in ("always_cheap", "predictive", "llm_router", "oracle", "always_expensive"):
+    for name in [n for n in ("always_cheap", "predictive", "routellm", "llm_router",
+                             "oracle", "always_expensive") if n in fixed]:
         f = fixed[name]
         print(f"{name:<18} {f['all']:>9.1%} {'-':>7} {'-':>8} {'-':>8} {f['cost']:>12.6f}")
 
@@ -122,7 +129,7 @@ def main():
     print(f"{'router':<16} {'domain':<8} {'random':>8} {'router':>8} {'oracle':>8} {'skill':>9}")
     print("-" * 62)
     rm_accs, _, rm_domain = results["random_matched"]
-    for router in ("predictive", "llm_router"):
+    for router in [n for n in ("predictive", "routellm", "llm_router") if n in fixed]:
         for domain in ("all", "math", "code"):
             lo = _mean(rm_accs) if domain == "all" else _mean(rm_domain[domain])
             mid, hi = fixed[router][domain], fixed["oracle"][domain]

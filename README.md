@@ -40,9 +40,24 @@ ROUTER_MODE=replay python3 sweep_degraded.py   # every sweep point, $0
 | `models.py` | Model client, mock / real / replay, cost accounting | plumbing |
 | `response_cache.py` | One draw per distinct call, shared by every policy | plumbing |
 | `run_eval.py` | Batch runner, spend cap, report | plumbing |
-| `policies.py` | The nine policies + the three verifiers | **yours** |
+| `policies.py` | The ten policies + the three verifiers | **yours** |
 | `sweep_degraded.py` | The experiment: cascade quality vs verifier quality | **yours** |
 | `random_baseline.py` | The null hypothesis, over many seeds | **yours** |
+| `routellm_router.py` | RouteLLM's pretrained router, threshold-matched to `predictive` | **yours** |
+
+### The RouteLLM comparison
+
+`routellm` sits out unless `cache/routellm_scores.jsonl` exists. To populate it
+once — no API key, local inference, one checkpoint download:
+
+```bash
+pip install routellm==0.2.0
+python3 routellm_router.py --score     # bert variant
+python3 run_eval.py                    # the policy joins the table
+```
+
+The scores are committed, so after that anyone can reproduce the routing
+decisions with no key, no HuggingFace access, no torch and no GPU.
 
 ## The decisions you own
 
@@ -53,6 +68,7 @@ ROUTER_MODE=replay python3 sweep_degraded.py   # every sweep point, $0
 5. **Verifier corruption rate** (`policies.py`) — the manipulated variable
 6. **Random baseline seeds** (`policies.py`) — the null the others are measured against
 7. **LLM-as-router** (`policies.py`) — the router decision #4 rejected, now measured
+8. **RouteLLM variant + threshold** (`routellm_router.py`) — a learned router, cost-matched
 
 Change one, re-run, watch the numbers move. That is how you learn what they do.
 

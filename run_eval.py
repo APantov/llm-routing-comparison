@@ -135,7 +135,13 @@ def applicable(name, task):
     holding tasks, models, grader and prompts fixed, so that verifier quality
     stops being confounded with math-vs-code. Running it on math would put the
     confound straight back.
+
+    routellm runs only when real cached scores exist for the task. It is skipped
+    rather than approximated: see policies.DECISION #8.
     """
+    if name == "routellm":
+        import routellm_router
+        return routellm_router.available([task])
     allowed = POLICY_DOMAINS.get(name)
     return allowed is None or task["domain"] in allowed
 
@@ -200,7 +206,7 @@ def routing_skill(by_policy, tag):
             rs = [r for r in rs if r["domain"] == domain]
         return (sum(r["correct"] for r in rs) / len(rs)) if rs else None
 
-    routers = [n for n in ("predictive", "llm_router") if by_policy.get(n)]
+    routers = [n for n in ("predictive", "routellm", "llm_router") if by_policy.get(n)]
     if not routers or not by_policy.get("random_matched") or not by_policy.get("oracle"):
         return
 
@@ -233,7 +239,7 @@ def report(rows):
     # random policies sit next to predictive on purpose: they are what
     # predictive has to beat before its accuracy means anything.
     order = [
-        "always_cheap", "random_matched", "random_50", "predictive",
+        "always_cheap", "random_matched", "random_50", "predictive", "routellm",
         "llm_router", "cascade_degraded", "cascade", "oracle", "always_expensive",
     ]
 
@@ -414,6 +420,24 @@ def main():
         + ", ".join(f"{d}={r:.0%}" for d, r in sorted(rates.items())),
         file=sys.stderr,
     )
+
+    # RouteLLM shares the same calibration target, so its threshold is set from
+    # the same rates rather than from its own default. If it has no scores it
+    # sits out; it is never approximated.
+    import routellm_router
+    if routellm_router.available(tasks):
+        th = routellm_router.calibrate(tasks, rates)
+        print(
+            f"routellm ({routellm_router.cached_variant()}) calibrated to the same rates: "
+            + ", ".join(f"{d}=score>={v:.4f}" for d, v in sorted(th.items())),
+            file=sys.stderr,
+        )
+    else:
+        print(
+            "routellm: SKIPPED - no cached scores. Populate once with\n"
+            "  python3 routellm_router.py --score      (bert variant, no API key)",
+            file=sys.stderr,
+        )
 
     rows = run(tasks)
     write_jsonl(RESULTS, rows)
