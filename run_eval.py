@@ -60,16 +60,30 @@ REAL_BANNER = """\
   arrives, so this run can be replayed for free forever after.
 ================================================================"""
 
-REPLAY_BANNER = """\
+REPLAY_REAL_BANNER = """\
 ================================================================
   REPLAY MODE - served entirely from cache/raw_calls.jsonl.
   No network call. No spend. These are the SAME responses the
   paid run received, so the numbers are the paid run's numbers.
 ================================================================"""
 
+REPLAY_MOCK_BANNER = """\
+================================================================
+  REPLAY MODE, BUT THE CACHE IS SIMULATED.
+
+  cache/raw_calls.jsonl holds no real responses, so this replay
+  is being served from raw_calls.mock.jsonl. The numbers below
+  are FABRICATED, exactly as in mock mode. This is useful for
+  testing the replay path; it is not a result.
+================================================================"""
+
 
 def banner():
-    return {"mock": MOCK_BANNER, "real": REAL_BANNER, "replay": REPLAY_BANNER}[models.MODE]
+    if models.MODE != "replay":
+        return MOCK_BANNER if models.MODE == "mock" else REAL_BANNER
+    # Say which it is. A replay banner that claims real responses while serving
+    # simulated ones is the single most dangerous label in this repo.
+    return REPLAY_REAL_BANNER if response_cache.REAL_PATH.exists() else REPLAY_MOCK_BANNER
 
 
 def provenance():
@@ -83,6 +97,14 @@ def provenance():
     """
     return {
         "mode": models.MODE,
+        # The single most important bit on the row. `mode` alone is ambiguous:
+        # a replay is real if the cache was populated by a paid run and
+        # fabricated if it was populated by the mock, and those two look
+        # identical in every other field. A reader should never have to infer
+        # which one they are holding.
+        "simulated": models.MODE == "mock" or (
+            models.MODE == "replay" and not response_cache.REAL_PATH.exists()
+        ),
         "mock_seed": models.MOCK_SEED if models.MODE == "mock" else None,
         "k": policies.SELF_CONSISTENCY_K,
         "agreement_threshold": policies.AGREEMENT_THRESHOLD,
@@ -218,11 +240,13 @@ def report(rows):
     # Tag EVERY table, not just the top of the report. A screenshot is usually
     # a crop of one table, and a crop that loses the banner is exactly how a
     # simulated number ends up in a README as if it were measured.
-    tag = {
-        "mock": "### MOCK MODE - SIMULATED, NOT MEASURED ###",
-        "real": "### REAL MODE - live API calls ###",
-        "replay": "### REPLAY MODE - cached responses from a real run ###",
-    }[models.MODE]
+    if models.MODE == "replay":
+        tag = ("### REPLAY MODE - cached responses from a real run ###"
+               if response_cache.REAL_PATH.exists()
+               else "### REPLAY OF A MOCK CACHE - SIMULATED, NOT MEASURED ###")
+    else:
+        tag = ("### MOCK MODE - SIMULATED, NOT MEASURED ###" if models.MODE == "mock"
+               else "### REAL MODE - live API calls ###")
 
     print()
     print(banner())
@@ -344,11 +368,19 @@ def guard_clobber(force: bool):
         return
     try:
         with RESULTS.open(encoding="utf-8") as f:
-            existing = {json.loads(l).get("mode") for l in f if l.strip()}
+            rows = [json.loads(l) for l in f if l.strip()]
     except (json.JSONDecodeError, OSError):
         return
-    # `replay` counts as real: those rows describe responses that were paid for.
-    if existing & {"real", "replay"}:
+    # Guard on `simulated`, not on `mode`. A replay of a real cache is money;
+    # a replay of a mock cache is not, and blocking the second would train the
+    # habit of reaching for --force, which defeats the guard on the first.
+    # Rows written before `simulated` existed fall back to the old mode test.
+    def is_real(r):
+        if "simulated" in r:
+            return not r["simulated"]
+        return r.get("mode") == "real"
+
+    if any(is_real(r) for r in rows):
         sys.exit(
             f"\nREFUSING TO RUN.\n"
             f"  {RESULTS.name} holds REAL results, which cost money and cannot be\n"
