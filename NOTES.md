@@ -35,6 +35,16 @@ ladder was run) and everything after that is free and reproducible for anyone, v
 
 ### 2. The task set is too small for the comparisons being made
 
+> **Superseded in part — read [ROUTABLE_2026-07-30.md](ROUTABLE_2026-07-30.md) first.**
+> "Too small" is the second-order problem. Cross-tabulating cheap-tier success
+> against expensive-tier success on the ten tasks with real answers from both rungs
+> gives `both succeed = 10, routable = 0`: not one task where the choice of rung
+> changed the outcome, so the best and worst conceivable routers score identically
+> and every comparison is a tie by construction. The ceiling on the whole
+> experiment is `routable + inverted`, and on real data that is 0 points with a
+> 95% upper bound of 27.8%. **More tasks cannot fix a ceiling of zero.** Fix the
+> task set first; the two-arm probe that decides it costs $0.44.
+
 This is now measured rather than suspected. `python3 stats.py` runs exact McNemar
 tests and paired bootstraps over every pre-registered comparison, and on the
 held-out half **none of them reaches significance**. Not one. The accuracy gaps

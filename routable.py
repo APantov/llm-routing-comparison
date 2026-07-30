@@ -1,0 +1,260 @@
+"""Routable-fraction analysis: is there anything for a router to decide?
+
+Every routing result in this repo is a comparison between policies that choose
+which rung to call. That comparison can only carry information on tasks where the
+choice CHANGES THE OUTCOME. Cross-tabulate the cheap rung's verdict against the
+expensive rung's verdict and the task set falls into four cells:
+
+    both_ok      cheap right, expensive right   -> any router scores 1. Free.
+    routable     cheap wrong, expensive right   -> the ONLY cell routing can win
+    both_fail    cheap wrong, expensive wrong   -> any router scores 0. Hopeless.
+    inverted     cheap right, expensive wrong   -> routing UP loses. Noise, or not.
+
+`both_ok` and `both_fail` are ties by construction: the best conceivable router
+and the worst conceivable router score identically on them. So the entire
+accuracy dynamic range of the experiment is
+
+    ceiling = |routable| + |inverted|
+
+and if that is two points, no sample size and no router cleverness produces a
+publishable accuracy result on this task set. This script measures it.
+
+    python3 routable.py                       # mock, current ROUTER_LADDER
+    python3 routable.py --ladders all         # mock, all three ladders
+    python3 routable.py --real                # grade the real cached responses
+    python3 routable.py --taskset pool.jsonl  # any candidate task set
+
+Mock mode costs nothing. --real reads `cache/raw_calls.<ladder>.jsonl` and grades
+what is already on disk; it never calls a model, so it also costs nothing.
+"""
+
+import argparse
+import json
+import math
+import os
+import sys
+from collections import Counter, defaultdict
+from pathlib import Path
+
+HERE = Path(__file__).parent
+
+# ---------------------------------------------------------------------------
+# Target band for the routable fraction.
+#
+# NOT the same quantity as the pilot gate's failure rate, and the difference is
+# the point of this file. The gate measures P(cheap fails); this measures
+# P(cheap fails AND expensive succeeds). The first is an upper bound on the
+# second, and the gap between them is everything the expensive rung cannot fix.
+#
+# 0.15 floor: below this the whole experiment has under 15 points of dynamic
+# range, so a 5-point difference between routers needs n in the thousands.
+# 0.45 ceiling: above this the cheap rung is failing so often that always_cheap
+# is not a serious baseline and the interesting comparison stops being routing.
+ROUTABLE_FLOOR = 0.15
+ROUTABLE_CEILING = 0.45
+
+
+def wilson(k, n, z=1.96):
+    """Wilson score interval. Behaves at k=0 and k=n, where Wald does not."""
+    if n == 0:
+        return (0.0, 1.0)
+    p = k / n
+    d = 1 + z * z / n
+    centre = (p + z * z / (2 * n)) / d
+    half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / d
+    return (max(0.0, centre - half), min(1.0, centre + half))
+
+
+def mcnemar_exact(b, c):
+    """Two-sided exact McNemar on the discordant pair (b, c).
+
+    b = routable (cheap wrong, expensive right), c = inverted. Under the null
+    that the two rungs are equally accurate, b ~ Binomial(b + c, 0.5). This is
+    the significance test for `always_expensive` beating `always_cheap`, which
+    is the strongest accuracy claim the task set could ever support.
+    """
+    n = b + c
+    if n == 0:
+        return 1.0
+    k = min(b, c)
+    tail = sum(math.comb(n, i) for i in range(0, k + 1)) / (2 ** n)
+    return min(1.0, 2 * tail)
+
+
+def load_tasks(path):
+    return [json.loads(l) for l in open(path, encoding="utf-8") if l.strip()]
+
+
+def crosstab(verdicts):
+    """verdicts: list of (cheap_ok, exp_ok). Returns the four counts."""
+    c = Counter(verdicts)
+    return {
+        "both_ok": c[(True, True)],
+        "routable": c[(False, True)],
+        "both_fail": c[(False, False)],
+        "inverted": c[(True, False)],
+    }
+
+
+def summarise(cells, n_label=""):
+    n = sum(cells.values())
+    if n == 0:
+        return None
+    routable = cells["routable"]
+    inverted = cells["inverted"]
+    lo, hi = wilson(routable, n)
+    clo, chi = wilson(routable + inverted, n)
+    return {
+        "n": n,
+        "cells": cells,
+        "cheap_acc": (cells["both_ok"] + inverted) / n,
+        "exp_acc": (cells["both_ok"] + routable) / n,
+        "cheap_fail_rate": (cells["routable"] + cells["both_fail"]) / n,
+        "routable_frac": routable / n,
+        "routable_ci": (lo, hi),
+        "inverted_frac": inverted / n,
+        "ceiling": (routable + inverted) / n,
+        "ceiling_ci": (clo, chi),
+        # Of the tasks the cheap rung gets wrong, the share the expensive rung
+        # actually rescues. This is the number that says whether "make it harder"
+        # helps: if it is low, harder tasks add both_fail, not routable.
+        "rescue_rate": routable / (routable + cells["both_fail"]) if (routable + cells["both_fail"]) else float("nan"),
+        "mcnemar_p": mcnemar_exact(routable, inverted),
+        "label": n_label,
+    }
+
+
+def fmt(s):
+    c = s["cells"]
+    lo, hi = s["routable_ci"]
+    return (
+        f"n={s['n']:<4} "
+        f"both_ok={c['both_ok']:<4} routable={c['routable']:<4} "
+        f"both_fail={c['both_fail']:<4} inverted={c['inverted']:<3} | "
+        f"cheap={s['cheap_acc']:6.1%} exp={s['exp_acc']:6.1%} | "
+        f"routable={s['routable_frac']:6.1%} [{lo:.1%},{hi:.1%}] | "
+        f"ceiling={s['ceiling']:6.1%} | rescue={s['rescue_rate']:6.1%} | "
+        f"McNemar p={s['mcnemar_p']:.3f}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Mock path: the mock's verdict is a pure function of (task, tier), so this
+# needs no run_eval and no cache priming.
+# ---------------------------------------------------------------------------
+def mock_verdicts(tasks, ladder):
+    os.environ["ROUTER_LADDER"] = ladder
+    os.environ["ROUTER_MODE"] = "mock"
+    for mod in ("models", "policies", "response_cache"):
+        sys.modules.pop(mod, None)
+    import models
+    from graders import grade
+
+    out = {}
+    for t in tasks:
+        row = {}
+        for tier in models.TIERS:
+            r = models.call(tier, t)
+            row[tier] = grade(t, r.text)
+        out[t["id"]] = row
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Real path: grade what the paid run already put on disk. No calls.
+# ---------------------------------------------------------------------------
+def real_verdicts(tasks, ladder):
+    from graders import grade
+
+    path = HERE / "cache" / f"raw_calls.{ladder}.jsonl"
+    if not path.exists():
+        return {}
+    by_id = {t["id"]: t for t in tasks}
+    out = defaultdict(dict)
+    for line in open(path, encoding="utf-8"):
+        if not line.strip():
+            continue
+        d = json.loads(line)
+        # Greedy answers only: temperature 0, sample 0. The temperature-0.8
+        # self-consistency samples are a different action and belong to the
+        # cascade, not to the tier-choice question this file asks.
+        if d.get("kind") != "answer" or d.get("temperature") not in (0, 0.0):
+            continue
+        if d.get("sample_idx") not in (0, None):
+            continue
+        task = by_id.get(d["task_id"])
+        if task is None:
+            continue
+        out[d["task_id"]][d["tier"]] = grade(task, d["text"])
+    return out
+
+
+def report(verdicts, tasks, header, lo_tier="cheap", hi_tier="expensive"):
+    by_id = {t["id"]: t for t in tasks}
+    print(f"\n=== {header} ===")
+    groups = defaultdict(list)
+    for tid, row in verdicts.items():
+        if lo_tier not in row or hi_tier not in row:
+            continue
+        pair = (row[lo_tier], row[hi_tier])
+        groups["all"].append(pair)
+        groups[by_id[tid]["domain"]].append(pair)
+        lvl = (by_id[tid].get("predict_features") or {}).get("level")
+        if lvl is not None:
+            groups[f"math level {lvl}"].append(pair)
+
+    out = {}
+    order = ["all"] + sorted(k for k in groups if k != "all")
+    for key in order:
+        s = summarise(crosstab(groups[key]), key)
+        if s:
+            out[key] = s
+            print(f"  {key:<16} {fmt(s)}")
+    return out
+
+
+def verdict_line(s):
+    lo, hi = s["routable_ci"]
+    if hi < ROUTABLE_FLOOR:
+        return f"TOO EASY - routable fraction is below {ROUTABLE_FLOOR:.0%} and the CI does not reach it"
+    if lo > ROUTABLE_CEILING:
+        return f"TOO HARD - routable fraction is above {ROUTABLE_CEILING:.0%} and the CI does not reach it"
+    if lo >= ROUTABLE_FLOOR and hi <= ROUTABLE_CEILING:
+        return f"IN BAND - routable fraction sits inside [{ROUTABLE_FLOOR:.0%}, {ROUTABLE_CEILING:.0%}]"
+    return f"UNRESOLVED - CI straddles a boundary of [{ROUTABLE_FLOOR:.0%}, {ROUTABLE_CEILING:.0%}]; need more tasks"
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--taskset", default="taskset.jsonl")
+    ap.add_argument("--ladders", default=os.environ.get("ROUTER_LADDER", "claude"))
+    ap.add_argument("--real", action="store_true")
+    ap.add_argument("--json", default=None)
+    args = ap.parse_args()
+
+    tasks = load_tasks(HERE / args.taskset)
+    ladders = ["claude", "deepseek", "wide"] if args.ladders == "all" else args.ladders.split(",")
+
+    dump = {}
+    for lad in ladders:
+        if args.real:
+            os.environ["ROUTER_LADDER"] = lad
+            v = real_verdicts(tasks, lad)
+            if not v:
+                print(f"\n=== REAL, ladder={lad} === no cached responses")
+                continue
+            dump[f"real:{lad}"] = report(v, tasks, f"REAL (cached responses), ladder={lad}")
+        else:
+            v = mock_verdicts(tasks, lad)
+            dump[f"mock:{lad}"] = report(v, tasks, f"MOCK - SIMULATED, NOT MEASURED, ladder={lad}")
+
+    for k, v in dump.items():
+        if "all" in v:
+            print(f"\n{k:<16} {verdict_line(v['all'])}")
+
+    if args.json:
+        Path(args.json).write_text(json.dumps(dump, indent=1), encoding="utf-8")
+
+
+if __name__ == "__main__":
+    main()

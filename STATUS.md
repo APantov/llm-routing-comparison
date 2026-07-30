@@ -164,6 +164,17 @@ from "too hard" from "fine". It spans the entire band. That is what step 4b is f
 
 ### Step 4b — the difficulty probe (5 minutes, about $0.01–$0.09)
 
+> **Read [ROUTABLE_2026-07-30.md](ROUTABLE_2026-07-30.md) before running this.**
+> This probe measures the wrong quantity. `P(cheap fails)` is `routable +
+> both_fail`, and the gate cannot see the split — a task set where the cheap rung
+> fails 40% and the expensive rung fixes none of it passes cleanly and is worth
+> nothing. Run the **two-arm** probe instead (`always_cheap` *and*
+> `always_expensive`, then `python3 routable.py --real`). It costs **$0.44** for
+> 100 tasks on `wide` rather than $0.01, and it is the only version that answers
+> the question. The mock reading below is worse than uninformative: `difficulty_pct`
+> is a rank within the sampled set, so the mock cannot represent task difficulty
+> at all.
+
 **This is the actual decision point**, and it is the cheapest meaningful thing in
 the whole project. The pilot gate depends only on the *cheap rung's* failure rate,
 so there is no need to run eleven policies to find it — run one, over all 100
