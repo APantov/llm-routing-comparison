@@ -1,16 +1,17 @@
 """RouteLLM's pretrained routers, as a policy in this experiment.
 
-STRATEGY_2026-07-29.md 2.2. Replaces the project's weakest link - a hand-tuned
-heuristic with r=+0.28 on the code half - with a published learned router,
-trained on Chatbot Arena preference data, at zero training cost.
+The weakest link in the project is the hand-written predictive heuristic, whose
+signal on the code half is barely better than random. This replaces it with a
+published learned router, trained on Chatbot Arena preference data, at zero
+training cost.
 
 The interesting outcome is the unflattering one. RouteLLM's routers were trained
 on human preference between GPT-4-class and Mixtral-class models on open-ended
 chat. This applies them to Haiku 4.5 vs Opus 5 on objectively-graded competition
 maths and MBPP. That is squarely out of distribution, and if the learned router
-loses to `level >= 5`, that is a real finding: preference-trained routers
-transfer poorly to objectively-graded reasoning, because preference is not
-correctness.
+loses to a one-line threshold on MATH500's difficulty level, that is a real
+finding rather than a disappointment: preference-trained routers transfer poorly
+to objectively-graded reasoning, because preference is not correctness.
 
 
 WHICH VARIANT, AND WHY - read this before changing it
@@ -40,8 +41,8 @@ credentials. So importing RouteLLM's router classes AT ALL fails without an
 OPENAI_API_KEY, including for the bert router that never uses one. This module
 sets a placeholder key before importing on the bert path. No call is ever made
 with it - BERTRouter.calculate_strong_win_rate only tokenises and runs a local
-forward pass. If you are tempted to remove that, you will spend an evening on a
-credentials error from a code path you are not using.
+forward pass. Removing that line produces a credentials error from a code path
+that makes no API calls, which is a confusing hour to spend.
 
 
 THE SCORE CACHE
@@ -51,10 +52,10 @@ cached exactly like a model response, in cache/routellm_scores.jsonl. This is
 what makes the whole thing a one-time cost:
 
   - on the mf path, each prompt is embedded by OpenAI ONCE, ever;
-  - the scores file is small (one float per task) and is COMMITTED, so anyone
-    can reproduce the routing decisions with no API key, no HuggingFace access,
-    no torch and no GPU. That is a stronger reproducibility property than the
-    router itself has.
+  - the scores file is small, one float per task, and it is committed to the
+    repo, so the routing decisions reproduce with no API key, no HuggingFace
+    access, no torch and no GPU. That is a stronger reproducibility property
+    than the router itself has.
 
 If every task is already scored, this module never imports routellm, never
 touches the network, and never loads a model.
@@ -258,14 +259,13 @@ def calibrate(tasks, target_rates):
     """Pick the score threshold that reproduces predictive's expensive-call rate.
 
     RouteLLM's own threshold is a free parameter, so comparing its default
-    against a heuristic tuned to a particular escalation rate would compare
-    two different spending levels and call the difference quality. Calibrating
-    to a matched rate is what makes the comparison like-for-like, and it is what
-    STRATEGY 2.2 specifies.
+    against a heuristic tuned to a particular escalation rate would compare two
+    different spending levels and then call the difference quality. Calibrating
+    to a matched rate is what makes the comparison like-for-like.
 
     Per domain rather than global, because predictive's rate differs by domain
-    (math 40%, code 35%) and a single global threshold would let the router
-    spend unevenly across the two halves while the heuristic could not.
+    and a single global threshold would let the router spend unevenly across the
+    two halves while the heuristic could not.
 
     Concretely: take the (1 - rate) quantile of the scores in that domain, so
     exactly `rate` of tasks score at or above it. Ties can make the realised

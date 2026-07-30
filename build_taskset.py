@@ -1,17 +1,25 @@
 """
-Build a mixed task set for the cascade-router evaluation.
+Build the mixed task set for the routing evaluation.
 
-Two domains, deliberately chosen for different verification regimes:
+Two domains, chosen for their different verification regimes:
 
   math (MATH500, levels 3-5)
                -> graded by exact match on the normalised final answer.
-                  NO runtime ground truth, so the cascade needs a PROXY verifier.
+                  There is NO ground truth available at runtime, so a cascade
+                  has to fall back on a PROXY verifier.
 
   code (MBPP sanitized)
-               -> graded by executing assert statements.
-                  Verifier is FREE and PERFECT at runtime (just run the tests).
+               -> graded by executing the shipped assert statements.
+                  The runtime verifier is FREE and PERFECT: just run the tests.
 
-That asymmetry is the point of the experiment, not an accident of dataset choice.
+That asymmetry is the point of the experiment rather than an accident of dataset
+choice. It is the only reason the two halves of the task set are comparable on
+anything interesting.
+
+Output is taskset.jsonl, written with LF endings on every platform so the file
+is byte-identical wherever it is built.
+
+    python3 build_taskset.py
 """
 
 import json
@@ -26,8 +34,9 @@ SEED = 20260728
 N_MATH = 60
 N_CODE = 40
 
-# GSM8K was rejected: modern cheap models score in the low 90s there, so the
-# cascade has nothing to route. MATH500 levels 3-5 leaves 367 candidates.
+# GSM8K was rejected as the math source: current cheap models score in the low
+# 90s on it, which leaves a cascade almost nothing to route. MATH500 restricted
+# to levels 3-5 leaves 367 candidates and a workable failure rate.
 MIN_MATH_LEVEL = 3
 
 
@@ -43,16 +52,16 @@ def load_math500():
                     "id": f"math-{i}",
                     "domain": "math",
                     "prompt": row["problem"],
-                    # Answers are fractions, radicals and tuples, not just
-                    # integers - hence the string grader, not extract_final_int.
+                    # Answers are fractions, radicals and tuples as well as
+                    # integers, so the grader compares normalised strings.
                     "grader": "exact_match_str",
                     "grader_payload": {"answer": row["answer"]},
                     # MATH500 ships a 1-5 difficulty level. Unlike a reference
-                    # solution's length this is shipped WITH the question, so
-                    # the predictive router may use it without leaking.
+                    # solution's length, this arrives WITH the question, so the
+                    # predictive router may use it without leaking the answer.
                     "difficulty_proxy": row["level"],
                     "subject": row["subject"],
-                    # See note on predict_features in load_mbpp.
+                    # See the note on predict_features in load_mbpp.
                     "predict_features": {
                         "level": row["level"],
                         "prompt_chars": len(row["problem"]),
@@ -65,11 +74,13 @@ def load_math500():
 def load_mbpp():
     """Sanitized MBPP (427 hand-verified items), not the full 974.
 
-    The full set contains prompts that under-specify the task - most often by
-    not naming the function the asserts call. Both tiers fail those equally,
-    which is cost with no routing signal and inflates the cheap-model failure
-    rate that Phase 2 gates on. Note the format differs from mbpp.jsonl: a JSON
-    array, 'prompt' not 'text', and 'test_imports' is a list.
+    The full set contains prompts that under-specify the task, most often by not
+    naming the function the asserts will call. Both tiers fail those equally,
+    which is cost with no routing signal, and it inflates the cheap-model
+    failure rate the pilot gate reads.
+
+    Note the sanitized format differs from mbpp.jsonl: it is a JSON array, the
+    question field is 'prompt' rather than 'text', and 'test_imports' is a list.
     """
     with open(DATA / "sanitized-mbpp.json", encoding="utf-8") as f:
         rows = json.load(f)
@@ -90,24 +101,23 @@ def load_mbpp():
                     "tests": tests,
                     "setup": "\n".join(row.get("test_imports") or []),
                 },
-                # !! LEAK for the predictive router: this is the reference
-                # solution's line count, unavailable before answering. Fine
-                # for stratified sampling and the mock, not fine as a router
-                # feature. See RUNBOOK step 6.
+                # This is the reference solution's line count, which is NOT
+                # available before answering. Fine for stratified sampling and
+                # for driving the mock's success rate; it would be a leak as a
+                # router feature, which is why the router cannot reach it.
                 "difficulty_proxy": len(row["code"].splitlines()),
-                # Everything the predictive router is allowed to see. Separated
-                # into its own field on purpose: the router reads ONLY from
-                # here, so the leak above cannot be reintroduced by someone
-                # reaching for difficulty_proxy because it happens to be handy.
-                # Every entry must be derivable from the question alone.
+                # Everything the predictive router is allowed to see, in its own
+                # field on purpose: the router reads ONLY from here, so the leak
+                # above cannot be reintroduced by someone reaching for
+                # difficulty_proxy because it happens to be nearby. Every entry
+                # must be derivable from the question alone.
                 "predict_features": {
                     "prompt_chars": len(row["prompt"]),
                     "n_asserts": len(tests),
                 },
-                # Reference solution. Used ONLY by the mock model, which
-                # needs something that genuinely passes the asserts in
-                # order to simulate a correct answer. Never shown to a
-                # real model - see models.py.
+                # Reference solution, used ONLY by the mock model, which needs
+                # something that genuinely passes the asserts in order to
+                # simulate a correct answer. Never shown to a real model.
                 "_ref_code": row["code"],
             }
         )
@@ -117,16 +127,16 @@ def load_mbpp():
 def add_difficulty_pct(tasks):
     """Rank difficulty WITHIN each domain and store it as a 0-1 percentile.
 
-    Necessary because the raw proxies are not comparable across domains:
-    math counts MATH500 levels (3-5), code counts lines of reference solution
-    (2-19). Any threshold expressed in raw units means something completely
-    different in each domain - a rule like 'hard if proxy >= 5' classifies
-    almost every code task as hard and only half the math tasks.
+    Necessary because the raw proxies are not comparable across domains: math
+    counts MATH500 levels (3-5), code counts lines of reference solution (2-26).
+    A threshold expressed in raw units means something completely different in
+    each domain, so a rule like "hard if proxy >= 5" would classify almost every
+    code task as hard and only half the math tasks.
 
-    TIES SHARE A PERCENTILE. Necessary since the math proxy became `level`:
-    only three distinct values across 60 tasks, so ~20 tasks tie at each one.
-    Ranking them by position would break those ties on file order, and the
-    mock's p_correct and the predictive router's threshold would both then be
+    TIES SHARE A PERCENTILE. This matters because the math proxy is `level`:
+    only three distinct values across 60 tasks, so roughly 20 tasks tie at each
+    one. Ranking them by position would break those ties on file order, and both
+    the mock's success rate and the predictive router's threshold would then be
     reading sort artefacts as difficulty.
     """
     for domain in ("math", "code"):
@@ -141,7 +151,7 @@ def add_difficulty_pct(tasks):
         counts = Counter(t["difficulty_proxy"] for t in sub)
         for t in sub:
             p = t["difficulty_proxy"]
-            # mid-rank of the tied block, so a level sits at its centre of mass
+            # Mid-rank of the tied block, so a level sits at its centre of mass.
             mid = first_rank[p] + (counts[p] - 1) / 2
             t["difficulty_pct"] = round(mid / n, 4)
     return tasks
@@ -150,9 +160,9 @@ def add_difficulty_pct(tasks):
 def stratified_sample(tasks, n, rng):
     """Sample across the difficulty range rather than uniformly at random.
 
-    A router evaluated only on mid-difficulty tasks tells you nothing:
-    you need genuinely easy items (where escalating is pure waste) and
-    genuinely hard ones (where staying cheap is a failure).
+    A router evaluated only on mid-difficulty tasks reveals nothing. The set
+    needs genuinely easy items, where escalating is pure waste, and genuinely
+    hard ones, where staying cheap is a failure.
     """
     tasks = sorted(tasks, key=lambda t: t["difficulty_proxy"])
     buckets = 4
@@ -174,11 +184,10 @@ def main():
     add_difficulty_pct(tasks)
     rng.shuffle(tasks)
 
-    # newline="" so this file is byte-identical on Windows and Linux. It was
-    # previously written with Python's default translation, so the shipped
-    # taskset.jsonl carried CRLF while results.jsonl carried LF - the same code
-    # produced different bytes on different machines, which makes any
-    # hash-based regression gate impossible.
+    # newline="" so this file is byte-identical on Windows and Linux. Without
+    # it, Python translates \n to \r\n on Windows, the same code produces
+    # different bytes on different machines, and any hash-based regression gate
+    # becomes impossible.
     with open(OUT, "w", encoding="utf-8", newline="") as f:
         for t in tasks:
             f.write(json.dumps(t) + "\n")

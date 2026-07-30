@@ -1,25 +1,28 @@
 """Content-addressed cache of raw model responses.
 
-WHY THIS EXISTS, in one paragraph, because it is easy to mistake for an
-optimisation and it is not one.
+WHY THIS EXISTS, because it is easy to mistake for a speed optimisation and it
+is not one.
 
 Every policy calls the models independently. Per task, the *same* greedy cheap
-call at temperature 0 is made up to four separate times - by always_cheap, by
-cascade, by oracle, and by predictive when it routes cheap. Measured on this
-taskset: 796 calls, of which only 440 are distinct. In mock mode the duplicates
-are byte-identical for free, because models._draw is a pure hash. In real mode
-they would be 356 extra paid API calls returning 356 *different* answers.
+call at temperature 0 is made several separate times over: by always_cheap, by
+cascade, by oracle, and by every one-shot router that happens to route cheap.
+run_eval prints the exact counts at the end of a run ("requested" versus
+"reached a backend"), and the gap is large.
+
+In mock mode those duplicates are byte-identical for free, because the mock is a
+pure hash of its inputs. In real mode they would be hundreds of extra paid API
+calls returning hundreds of *different* answers.
 
 That second fact is the real problem, and it is a validity problem rather than a
-cost one. Every paired statistic this project needs - McNemar, paired bootstrap,
-the discordance tables - assumes the policies are compared on the same model
-outputs. Without this cache they are not: always_cheap and cascade would
-disagree partly because of decoding noise rather than because of policy, and
-policy_oracle would be bounding a different set of draws than the ones the other
-policies actually got, which is not a bound at all.
+cost one. Every paired statistic this project wants - McNemar, a paired
+bootstrap, a discordance table - assumes the policies are compared on the same
+model outputs. Without this cache they are not: always_cheap and cascade would
+disagree partly because of decoding noise rather than because of policy, and the
+oracle would be bounding a different set of draws than the ones the other
+policies actually received, which is not a bound at all.
 
-So: one draw per distinct (model, prompt, temperature, sample_idx, seed), stored
-on disk, shared by every policy and every rerun.
+So: one draw per distinct (mode, model, prompt, temperature, sample_idx, seed),
+stored on disk, shared by every policy and every rerun.
 
 
 WHAT THE CACHE DOES *NOT* DO
@@ -27,18 +30,19 @@ WHAT THE CACHE DOES *NOT* DO
 It does not change what any policy costs. A cache hit returns the full
 ModelResponse including cost_usd, and the policy is charged for it exactly as if
 it had made the call. This is deliberate: cost_usd answers "what would this
-policy cost in production", where there is no cross-policy cache because only
-one policy is running. The cache reduces what *this harness* spends to measure
-that, not what the policy would spend to serve it.
+policy cost in production", and in production there is no cross-policy cache
+because only one policy is running. The cache reduces what *this harness* spends
+to measure that, not what the policy would spend to serve it.
 
-The two numbers are separate and both are reported:
-    run_eval  "total MODELLED cost"  - sum over policies, unchanged by caching
-    run_eval  "backend calls"        - what a real run would actually pay for
+Both numbers are reported separately by run_eval:
+
+    "total attributed cost"   sum over policies, unchanged by caching
+    "reached a backend"       what this run would actually have paid for
 
 
 KEY
 ---
-Hashed over everything that determines a response and nothing that doesn't:
+Hashed over everything that determines a response and nothing that does not:
 
     mode            a mock response and a real response are different objects
     model id        not the tier name; the tier -> model mapping can change
@@ -48,7 +52,7 @@ Hashed over everything that determines a response and nothing that doesn't:
     max_tokens      it decides truncation, which grades as a wrong answer
     mock_seed       mock only; None in real mode
 
-Deliberately NOT in the key: task_id and tier. They are stored alongside for
+Deliberately NOT in the key: task_id and tier. Both are stored alongside for
 grepping, but two tasks that somehow produced an identical prompt should share a
 response, and the prompt is what the model actually saw.
 """
@@ -63,38 +67,37 @@ HERE = Path(__file__).parent
 CACHE_DIR = Path(os.environ.get("ROUTER_CACHE_DIR", HERE / "cache"))
 
 # Real and mock responses live in SEPARATE files even though they could not
-# collide (mode is in the hash). Two reasons, both practical rather than
-# theoretical: raw_calls.jsonl is the artefact that gets committed after the
-# paid run and it should contain only responses that were paid for; and a
-# fabricated response should never be one careless `git add` away from being
-# published as a measurement.
+# collide, since `mode` is in the hash. Two practical reasons: the real file is
+# the artefact that gets committed after a paid run and it should contain only
+# responses that were paid for; and a fabricated response should never be one
+# careless `git add` away from being published as a measurement.
+#
+# Both are PLACEHOLDERS: configure() rewrites them with the ladder name folded in,
+# so the real paths are cache/raw_calls.<ladder>.jsonl and
+# cache/raw_calls.<ladder>.mock.jsonl. Nothing should read these before configure().
 REAL_PATH = CACHE_DIR / "raw_calls.jsonl"
 MOCK_PATH = CACHE_DIR / "raw_calls.mock.jsonl"
 
-# Off switch, for measuring the un-cached call count and for debugging.
+# Set by configure() from the selected ladder. The cache key already contains the
+# model id, so two ladders can never return each other's responses; the suffix is
+# about keeping the FILES separate, so that deleting one ladder's mock cache does
+# not disturb another's, and so a committed real cache says which ladder paid for
+# it. Both are practical concerns rather than correctness ones.
+LADDER = ""
+
+# Off switch, for measuring the un-cached call count and for debugging. Note that
+# replay mode cannot work with the cache disabled, since replay is nothing but a
+# cache read.
 ENABLED = os.environ.get("ROUTER_CACHE", "1") not in ("0", "false", "no")
 
-# Set by configure(). PATH is written to; READ_PATHS are all read, in order,
-# later files winning - which is how replay mode reads the real cache and falls
-# back to the mock one.
+# Set by configure(). PATH is written to; READ_PATHS are all read, in order, with
+# later files winning. That ordering is how replay mode reads the real cache and
+# falls back to the mock one.
 PATH = REAL_PATH
 READ_PATHS = [REAL_PATH]
 
-
-def configure(mode: str):
-    """Point the cache at the right file(s) for the run mode."""
-    global PATH, READ_PATHS, _store
-    if mode == "mock":
-        PATH, READ_PATHS = MOCK_PATH, [MOCK_PATH]
-    elif mode == "replay":
-        # Mock second so a real response always wins over a simulated one.
-        PATH, READ_PATHS = REAL_PATH, [MOCK_PATH, REAL_PATH]
-    else:
-        PATH, READ_PATHS = REAL_PATH, [REAL_PATH]
-    _store = None  # force a reload against the new paths
-
 # Fields that go into the key, in a fixed order. Order matters: the hash is the
-# identity of a stored response and must not change when a dict happens to
+# identity of a stored response and must not change because a dict happened to
 # iterate differently.
 _KEY_FIELDS = ("mode", "model", "prompt", "temperature", "sample_idx", "max_tokens", "mock_seed")
 
@@ -102,7 +105,22 @@ _store = None          # key -> record dict
 _lock = threading.Lock()
 _conflicts = []        # keys seen twice on disk with different payloads
 
-stats = {"lookups": 0, "hits": 0, "misses": 0, "writes": 0}
+
+def configure(mode: str, ladder: str = ""):
+    """Point the cache at the right file(s) for the run mode and ladder."""
+    global PATH, READ_PATHS, REAL_PATH, MOCK_PATH, LADDER, _store
+    LADDER = ladder
+    suffix = f".{ladder}" if ladder else ""
+    REAL_PATH = CACHE_DIR / f"raw_calls{suffix}.jsonl"
+    MOCK_PATH = CACHE_DIR / f"raw_calls{suffix}.mock.jsonl"
+    if mode == "mock":
+        PATH, READ_PATHS = MOCK_PATH, [MOCK_PATH]
+    elif mode == "replay":
+        # Mock first so that a real response always wins over a simulated one.
+        PATH, READ_PATHS = REAL_PATH, [MOCK_PATH, REAL_PATH]
+    else:
+        PATH, READ_PATHS = REAL_PATH, [REAL_PATH]
+    _store = None  # force a reload against the new paths
 
 
 def make_key(*, mode, model, prompt, temperature, sample_idx, max_tokens, mock_seed):
@@ -120,7 +138,7 @@ def make_key(*, mode, model, prompt, temperature, sample_idx, max_tokens, mock_s
 
 
 def _load():
-    """Read the cache file once, into memory.
+    """Read the cache file(s) once, into memory.
 
     Tolerant of a truncated final line: a real run that was killed mid-write
     still holds hundreds of responses that were paid for, and refusing to load
@@ -151,10 +169,11 @@ def _load():
                 prev = _store.get(key)
                 if prev is not None and prev.get("text") != rec.get("text"):
                     # Same inputs, different output. In mock mode this is
-                    # impossible unless the mock changed; in real mode it means
-                    # the file was appended to by two runs that saw different
-                    # model behaviour. Either way it silently invalidates every
-                    # paired comparison, so say so rather than picking one.
+                    # impossible unless the mock itself changed; in real mode it
+                    # means the file was appended to by two runs that saw
+                    # different model behaviour. Either way it silently
+                    # invalidates every paired comparison, so say so rather than
+                    # quietly picking one.
                     _conflicts.append(key)
                 _store[key] = rec
     if _conflicts:
@@ -170,13 +189,7 @@ def get(key):
     """Return the stored record for `key`, or None."""
     if not ENABLED:
         return None
-    stats["lookups"] += 1
-    rec = _load().get(key)
-    if rec is None:
-        stats["misses"] += 1
-        return None
-    stats["hits"] += 1
-    return rec
+    return _load().get(key)
 
 
 def put(key, record):
@@ -191,21 +204,10 @@ def put(key, record):
     with _lock:
         store[key] = record
         PATH.parent.mkdir(parents=True, exist_ok=True)
-        # newline="" so this file is byte-identical on Windows and Linux. The
-        # repo already carries one artefact written with CRLF and one with LF.
+        # newline="" so this file is byte-identical on Windows and Linux.
         with PATH.open("a", encoding="utf-8", newline="") as f:
             f.write(json.dumps({"key": key, **record}, ensure_ascii=False) + "\n")
-        stats["writes"] += 1
 
 
 def size():
     return len(_load())
-
-
-def conflicts():
-    return list(_conflicts)
-
-
-def reset_stats():
-    for k in stats:
-        stats[k] = 0

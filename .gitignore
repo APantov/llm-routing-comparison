@@ -6,36 +6,75 @@ __pycache__/
 venv/
 env/
 
-# Secrets and environment
+# Secrets and environment.
+#
+# The negation on the last line is load-bearing: `.env.*` matches `.env.example`,
+# so without it the committed template would be silently ignored and every fresh
+# clone would have no idea which keys the project wants. Order matters in a
+# gitignore - the exception has to come after the rule it overrides.
 .env
 .env.*
+!.env.example
 *.key
 *.pem
 secrets.json
 credentials.json
 
+# Local editor / agent settings. Machine-specific, not part of the experiment.
+.claude/
+.idea/
+.vscode/
+
+# ---------------------------------------------------------------------------
+# Simulated outputs.
+#
+# results.jsonl and sweep_degraded.jsonl are regenerated in seconds from a pure
+# hash, so committing them adds nothing reproducible. They are ignored for a
+# stronger reason than that: while mock mode is the only mode that has been run,
+# every number in them is FABRICATED, and a committed file full of plausible
+# percentages is the single most likely way a simulated figure gets mistaken for
+# a measured one.
+#
+# Once a real run exists, commit its results deliberately - as results.real.jsonl,
+# or by force-adding this file with the `simulated: false` rows in it - rather
+# than letting a mock run overwrite it. run_eval.guard_clobber blocks the
+# accidental version of that mistake.
+# ---------------------------------------------------------------------------
+results.jsonl
+results.probe.jsonl
+sweep_degraded.jsonl
+frontier.jsonl
+results.*.bak
+
+# Figures are generated from the jsonl above by plot.py, in seconds, with no
+# dependencies. While the inputs are simulated the figures are too, and a chart is
+# far more likely than a table to be screenshotted and quoted without its caption.
+# Commit them once there is a real run behind them.
+figures/
+
+# ---------------------------------------------------------------------------
 # Raw model-response cache.
 #
 # cache/raw_calls.jsonl (REAL responses) is deliberately NOT ignored. It is the
 # whole point: committing it makes every number in this repo reproducible by
 # someone with no API key, via ROUTER_MODE=replay. Commit it after the paid run.
 #
-# cache/raw_calls.mock.jsonl (SIMULATED responses) is ignored. It regenerates
-# for free from a pure hash in seconds, so committing it would add half a
-# megabyte of fabricated model output to a repo whose headline risk is a
-# simulated number being mistaken for a measured one.
-cache/raw_calls.mock.jsonl
+# cache/routellm_scores.jsonl is likewise NOT ignored. It is small, it is real
+# output from a local model, and committing it is what lets the routellm policy
+# run without torch, a checkpoint download, or a GPU.
+#
+# cache/raw_calls.mock.jsonl (SIMULATED responses) IS ignored. It regenerates for
+# free in seconds, so committing it would add half a megabyte of fabricated model
+# output to the repo for no reproducibility gain.
+# ---------------------------------------------------------------------------
+# One cache file per ladder, so `raw_calls.wide.jsonl` is real and committable
+# while `raw_calls.wide.mock.jsonl` is fabricated and ignored.
+cache/*.mock.jsonl
 cache/*.tmp
 cache/*.lock
 cache/*.bak
 
-# Real results are money. They are backed up deliberately, not by accident.
-results.real.jsonl
-results.*.bak
-
-# OS / editor
+# OS
 .DS_Store
 Thumbs.db
 *.swp
-.idea/
-.vscode/

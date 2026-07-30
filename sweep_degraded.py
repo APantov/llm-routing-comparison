@@ -3,56 +3,54 @@
 THIS IS THE EXPERIMENT. Everything else in the repo is scaffolding for it.
 
 The project's stated contribution is that verifier quality is the manipulated
-variable. Before this script it had two levels of that variable and they were
-perfectly confounded with task domain:
+variable. With only the two natural verifiers there are two levels of that
+variable, and they are perfectly confounded with task domain:
 
     perfect verifier | code | MBPP    | run asserts | $0 to verify
-    proxy   verifier | math | MATH500 | exact match | 4 extra cheap calls
+    proxy   verifier | math | MATH500 | exact match | k-1 extra cheap calls
 
 Five things differ between those rows, so "the code cascade beats
-always_expensive and the math cascade doesn't" cannot be attributed to verifier
+always_expensive and the math cascade does not" cannot be attributed to verifier
 quality. It can only be attributed to "code is different from math", which is a
-between-subjects comparison with no controls and the most attackable claim in
-the project.
+between-subjects comparison with no controls and the most attackable claim the
+project could make.
 
-This sweep fixes that by moving verifier quality WITHIN the code domain. Same 40
+This sweep fixes that by moving verifier quality WITHIN the code domain. Same
 tasks, same two models, same grader, same prompts, same cost structure - only
 verify_code's fidelity moves, from perfect to a coin flip. The output is a curve
-rather than two points, and a two-point trend is not a trend.
+rather than two points, and two points are not a trend.
 
     p = 0.00   verifier is verify_code, unchanged. Identical to `cascade`.
     p = 1.00   verifier ignores the tests entirely and flips a coin. Zero
                information, AUC 0.5.
 
-p is the probability the verifier ignores the test result, so the effective
-error rate is p/2 and effective AUC is roughly 1 - p/2.
+p is the probability the verifier ignores the test result, so the effective error
+rate is p/2 and the effective AUC is roughly 1 - p/2.
 
 FREE, because of the response cache: every point in the sweep reuses the same
-cheap and expensive greedy responses. The sweep makes zero additional model
-calls after the first point, in mock mode and in real mode alike. That property
-is the entire reason the cache had to exist before any money was spent.
+cheap and expensive responses. The sweep makes zero additional model calls after
+the first point, in mock mode and in real mode alike. That property is the entire
+reason the cache had to exist before any money was spent.
 
-    python3 sweep_degraded.py                  # mock
+    python3 sweep_degraded.py                      # mock
     ROUTER_MODE=replay python3 sweep_degraded.py   # from a paid run, free
 """
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
 import models
 import policies
-import response_cache
 import run_eval
 
 HERE = Path(__file__).parent
 OUT = HERE / "sweep_degraded.jsonl"
 
-# The corruption levels. Spaced to resolve the low end, because that is where
-# the break-even lives: a verifier does not have to be very good before
-# cascading stops paying, and a linear grid would put four of five points in the
-# region where the answer is already obvious.
+# The corruption levels. Spaced to resolve the low end, because that is where the
+# break-even lives: a verifier does not have to be very good before cascading
+# stops paying, and a linear grid would put most of its points in the region where
+# the answer is already obvious.
 SWEEP = [0.0, 0.1, 0.25, 0.5, 0.75, 1.0]
 
 
@@ -98,14 +96,15 @@ def run_point(tasks, p, repeats):
     """One sweep point, averaged over `repeats` independent corruption draws.
 
     Averaging is not cosmetic smoothing. At p > 0 the verifier's verdict is a
-    random variable, so a single draw at n=40 estimates the mean with a standard
+    random variable, so a single draw at this n estimates the mean with a standard
     error of several accuracy points - enough to invert two adjacent points of a
     curve whose true shape is monotonic. Repeating the draw and reporting the
-    spread says how much of what you see is mechanism and how much is luck.
+    spread separates the part of the curve that is mechanism from the part that
+    is luck.
 
     Only seed 0's per-task rows are written out, because those are the ones the
     paired statistics need to line up with results.jsonl. The other draws
-    contribute to the mean and the spread and then are discarded.
+    contribute to the mean and the spread, then are discarded.
     """
     reps = [run_replicate(tasks, p, s) for s in range(repeats)]
     stats = [s for s, _ in reps]
@@ -150,6 +149,8 @@ def main():
 
     tasks = run_eval.load_tasks(domain=args.domain)
     print(run_eval.banner(), file=sys.stderr)
+    for line in models.ladder_summary():
+        print(line, file=sys.stderr)
     print(f"sweeping verifier corruption over {SWEEP} on {len(tasks)} {args.domain} tasks, "
           f"{args.repeats} draws each", file=sys.stderr)
 
@@ -162,15 +163,14 @@ def main():
         stats, rows = run_point(tasks, p, args.repeats)
         points.append(stats)
         all_rows.extend(rows)
-    # Leave the module as we found it: these are globals and a later import in
+    # Leave the module as we found it: these are globals, and a later import in
     # the same process must not inherit a swept value.
     policies.VERIFIER_CORRUPTION = 0.0
     policies.VERIFIER_CORRUPTION_SEED = 0
 
     run_eval.write_jsonl(OUT, all_rows)
 
-    tag = ("### MOCK MODE - SIMULATED, NOT MEASURED ###" if models.MODE == "mock"
-           else f"### {models.MODE.upper()} MODE ###")
+    tag = run_eval.tag()
     print()
     print(run_eval.banner())
     print()
@@ -196,9 +196,8 @@ def main():
               f"   $/correct {r['cost_per_task'] / r['accuracy']:>10.6f}")
 
     # Break-even: the corruption level past which the cascade no longer beats
-    # always_expensive on cost per correct answer. This is the engineering
-    # answer the whole sweep exists to produce - the minimum verifier quality at
-    # which cascading is worth building.
+    # always_expensive. This is the engineering answer the whole sweep exists to
+    # produce - the minimum verifier quality at which cascading is worth building.
     ae = ref["always_expensive"]
     ae_per_correct = ae["cost_per_task"] / ae["accuracy"]
     print()
@@ -212,19 +211,19 @@ def main():
     if not beaten:
         print("  (a) $/correct : never beats always_expensive at any p tested.")
     elif len(beaten) == len(points):
-        print(f"  (a) $/correct : beats always_expensive at EVERY p tested, down to a "
-              f"pure coin flip.")
-        print(f"                  That is a fact about the 5x price ratio, not about the")
-        print(f"                  verifier - a coin flip still sends half the traffic cheap.")
+        print("  (a) $/correct : beats always_expensive at EVERY p tested, down to a "
+              "pure coin flip.")
+        print("                  That is a fact about the price ratio, not about the")
+        print("                  verifier - a coin flip still sends half the traffic cheap.")
     else:
         worst = max(s["verifier_corruption"] for s in beaten)
         print(f"  (a) $/correct : beats always_expensive up to p={worst:.2f} "
               f"(effective AUC {1 - worst / 2:.3f}).")
 
-    # (b) matched accuracy. The comparison the project actually claims to make.
-    #     A cost saving is only a saving if quality held; once accuracy drops
-    #     below the expensive tier the cascade is buying its savings with
-    #     correctness and the two policies are no longer comparable on cost.
+    # (b) matched accuracy. The comparison the project actually claims to make. A
+    #     cost saving is only a saving if quality held; once accuracy drops below
+    #     the expensive tier, the cascade is buying its savings with correctness
+    #     and the two policies are no longer comparable on cost.
     tol = 1.0 / points[0]["n"]  # one task
     matched = [s for s in points if s["accuracy"] >= ae["accuracy"] - tol]
     if not matched:
@@ -239,10 +238,10 @@ def main():
         print(f"                  where it is {saving:.0%} cheaper. Past that the cascade is")
         print(f"                  paying for its savings in correctness, so (a) flatters it.")
 
-    # Monotonicity is a claim about the mechanism, so check it rather than
-    # eyeball the table. Accuracy should fall and escalation should rise as the
-    # verifier degrades; at n=40 a one-task wobble is expected and is not
-    # evidence against the mechanism.
+    # Monotonicity is a claim about the mechanism, so check it rather than eyeball
+    # the table. Accuracy should fall and escalation should rise as the verifier
+    # degrades; at this n a one-task wobble is expected and is not evidence
+    # against the mechanism.
     print()
     print(f"monotonicity check over {len(points)} points (1 task = {1 / len(tasks):.1%}):")
     for field, direction, want in (
@@ -261,8 +260,8 @@ def main():
         print(f"  {field:<16} {direction} monotonically: {verdict:<20} "
               f"{fmt(vals[0])} -> {fmt(vals[-1])}   (single draw: "
               f"{'monotonic' if bad1 == 0 else f'{bad1} inversion(s)'})")
-    print("  'single draw' is seed 0 alone - the shape you would have seen from")
-    print("  one realisation, which is what n=40 buys you without repeats.")
+    print("  'single draw' is seed 0 alone - the shape one realisation would have")
+    print("  shown, which is what this n buys without repeats.")
 
     st = models.call_stats
     print()
