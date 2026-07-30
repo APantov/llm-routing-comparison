@@ -28,17 +28,19 @@ credentials.json
 # ---------------------------------------------------------------------------
 # Simulated outputs.
 #
-# results.jsonl and sweep_degraded.jsonl are regenerated in seconds from a pure
-# hash, so committing them adds nothing reproducible. They are ignored for a
-# stronger reason than that: while mock mode is the only mode that has been run,
-# every number in them is FABRICATED, and a committed file full of plausible
-# percentages is the single most likely way a simulated figure gets mistaken for
-# a measured one.
+# results.probe.jsonl, sweep_degraded.jsonl and frontier.jsonl are regenerated in
+# seconds from a pure hash, so committing them adds nothing reproducible. They are
+# ignored for a stronger reason than that: while they hold mock output, every
+# number in them is FABRICATED, and a committed file full of plausible percentages
+# is the single most likely way a simulated figure gets mistaken for a measured
+# one.
 #
-# Once a real run exists, commit its results deliberately - as results.real.jsonl,
-# or by force-adding this file with the `simulated: false` rows in it - rather
-# than letting a mock run overwrite it. run_eval.guard_clobber blocks the
-# accidental version of that mistake.
+# results.jsonl is STILL LISTED HERE but is force-added to git as of 30 July 2026,
+# because it now holds 47 `simulated: false` rows from the real plumbing run -
+# data that cost money and cannot be regenerated for free. The ignore rule stays
+# so that a mock run's output is not staged by accident;
+# `git add -f results.jsonl` is the deliberate act that publishes a real run, and
+# run_eval.guard_clobber blocks a mock run from overwriting it in the first place.
 # ---------------------------------------------------------------------------
 results.jsonl
 results.probe.jsonl

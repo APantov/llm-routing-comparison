@@ -449,6 +449,59 @@ def report(rows):
                   + ". Run more tasks:")
             print("    python3 run_eval.py --policy always_cheap --split all")
 
+        # Per domain as well as overall, because the two halves can fail this gate
+        # in opposite directions and the aggregate would hide it. The code half is
+        # the one to watch: it carries the perfect verifier, so the whole
+        # verifier-quality experiment lives there, and MBPP is a much older and
+        # more saturated benchmark than MATH500.
+        by_domain = defaultdict(list)
+        for r in cheap:
+            by_domain[r["domain"]].append(r)
+        if len(by_domain) > 1:
+            print("  per domain (the aggregate can hide a split verdict):")
+            for domain in sorted(by_domain):
+                rs = by_domain[domain]
+                dn = len(rs)
+                df = 1 - sum(r["correct"] for r in rs) / dn
+                dse = (df * (1 - df) / dn) ** 0.5
+                dlo, dhi = max(0.0, df - 1.96 * dse), min(1.0, df + 1.96 * dse)
+                if df == 0.0:
+                    dhi = min(1.0, 3.0 / dn)
+                elif df == 1.0:
+                    dlo = max(0.0, 1.0 - 3.0 / dn)
+                if dhi < FAILURE_RATE_FLOOR:
+                    verdict = "TOO EASY"
+                elif dlo > FAILURE_RATE_CEILING:
+                    verdict = "TOO HARD"
+                elif FAILURE_RATE_FLOOR <= dlo and dhi <= FAILURE_RATE_CEILING:
+                    verdict = "in band"
+                else:
+                    verdict = "unresolved"
+                note = "  <- the verifier experiment lives here" if domain == "code" else ""
+                print(f"    {domain:<6} {df:>6.1%}  CI [{dlo:.0%}, {dhi:.0%}]  "
+                      f"n={dn:<4} {verdict}{note}")
+
+        # Failure rate by difficulty band, which is the number that says HOW to fix
+        # a failing gate rather than merely that it failed. If the cheap model only
+        # starts failing at the top of the range, the fix is to keep that band and
+        # drop the rest; if it never fails anywhere, the dataset itself has to go.
+        # This is the whole reason the probe is worth paying for once the direction
+        # is already obvious.
+        print("  by difficulty band - where the cheap model starts to struggle:")
+        for domain in sorted(by_domain):
+            rs = by_domain[domain]
+            bands = defaultdict(list)
+            for r in rs:
+                bands[r.get("difficulty")].append(r)
+            cells = []
+            for band in sorted(bands, key=lambda b: (b is None, b)):
+                sub = bands[band]
+                bf = 1 - sum(x["correct"] for x in sub) / len(sub)
+                cells.append(f"{band}:{bf:.0%}(n={len(sub)})")
+            print(f"    {domain:<6} " + "  ".join(cells))
+        print("    math bands are MATH500 levels; code bands are reference-solution")
+        print("    line counts. Keep the bands that fail, drop the ones that do not.")
+
     # Two different numbers, and conflating them is the mistake the cache makes
     # easy. `attributed` is what the policies cost: every call charged to every
     # policy that made it, which is what a production deployment of one policy

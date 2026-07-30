@@ -141,9 +141,12 @@ the router beat a coin flip that spends the same money". This repo calls that
 
 **This is the part that matters most for reading anything this repo prints.**
 
-Calling real models costs money and needs an API key. Neither has been used yet.
-So the project runs in **mock mode**: instead of asking a real model, it makes up
-an answer.
+Calling real models costs money and needs an API key. Both have now been used
+once, briefly: a 5-task plumbing check on 30 July 2026 spent about 5 cents and
+saved 47 real replies to disk. But every policy got every one of those five tasks
+right, so that run settled nothing about accuracy — it only proved the wiring
+works. Everything the project *reports* still runs in **mock mode**: instead of
+asking a real model, it makes up an answer.
 
 It is not making up answers randomly. It looks at how hard the question is, and
 decides *by formula* how likely each model is to get it right — the cheap model
@@ -369,6 +372,7 @@ plotting library, so the whole repo still runs on a bare Python install.
 
 ## 13. What is still missing
 
-The honest list lives in [NOTES.md](NOTES.md). The short version: **the
-experiment has never been run against a real model**, so there is no result yet —
-only a machine that is ready to produce one.
+The honest list lives in [NOTES.md](NOTES.md). The short version: **the experiment
+has only ever been run against real models once, on five tasks, and every policy
+tied at 100%** — so there is no result yet, only a machine that has been proven to
+work and is ready to produce one.

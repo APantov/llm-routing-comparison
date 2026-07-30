@@ -13,17 +13,23 @@ Two ways to spend less on LLM inference, with opposite failure modes:
 and the variable this repo manipulates to find it is **verifier quality** — the
 one thing a cascade depends on and a predictive router does not have at all.
 
-> ### Status: no real model has been called
+> ### Status: a real plumbing run has happened; the experiment has not
 >
-> Everything in this repo currently runs in **mock mode**, which fabricates model
-> replies from answers already stored in the task set. The pipeline is complete
-> and verified end to end, but **no accuracy figure produced by it means anything
-> yet**, because no API key has been used and no model has been asked anything.
+> Real models **have** been called, once, as a plumbing check: 47 real responses
+> are cached in `cache/raw_calls.{wide,claude,deepseek}.jsonl` and `results.jsonl`
+> holds 47 rows with `"mode": "real"`, `"simulated": false`, for **$0.0481** of
+> spend. That run covered 5 reported tasks on the `wide` ladder and **every policy
+> scored 100%**, so it carries no accuracy information at all. What it does
+> establish is that keys resolve, both providers answer, prompts parse, the graders
+> score real output, the cache writes, nothing truncates, and real latency runs
+> 3–7x the constant the mock stipulates.
 >
-> Every simulated number is labelled as such: at the top and bottom of every run,
-> above every table, and in a `"simulated": true` field on every output row.
-> `results.jsonl` is deliberately not committed, so no fabricated percentage is
-> published here. See [NOTES.md](NOTES.md) for what a real run would change.
+> Every *reported* accuracy figure below still comes from **mock mode**, which
+> fabricates model replies from answers already stored in the task set. Those
+> figures mean nothing about any model. Every simulated number is labelled as such:
+> at the top and bottom of every run, above every table, and in a
+> `"simulated": true` field on every output row. See [NOTES.md](NOTES.md) for what
+> a full real run would change.
 >
 > **Coming back to this cold? Read [STATUS.md](STATUS.md).** It says what state the
 > project is in, what to run next in order, what the paid run costs, and what to
@@ -339,5 +345,6 @@ not a replication.
 ## Open issues
 
 Tracked honestly in [NOTES.md](NOTES.md), including the ones that would weaken
-the headline. The largest is at the top of this file: nothing has been measured
-yet.
+the headline. The largest is at the top of this file: apart from one 5-task
+plumbing run in which every policy tied at 100%, no accuracy figure here has been
+measured against a real model.

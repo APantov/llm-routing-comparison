@@ -6,17 +6,25 @@ much each one would change a conclusion.
 
 ## Blocking
 
-### 1. No real model has been called
+### 1. Real models have been called once, and the run was degenerate
 
-Every number the repo can currently produce is simulated. The pipeline is
-complete and verified, but there is no result. Everything below is written on the
-assumption that this is fixed first.
+The plumbing check has been done. On 30 July 2026, `ROUTER_MODE=real
+ROUTER_LADDER=wide run_eval.py --limit 10` produced **47 real model responses**
+(cached in `cache/raw_calls.wide.jsonl` 45, `.claude.jsonl` 1, `.deepseek.jsonl` 1)
+and **47 rows in `results.jsonl`** with `"mode": "real"`, `"simulated": false`, for
+**$0.0481**. So the repo is past "nothing has ever been called".
 
-The path is already built and costs almost nothing to walk:
+It is not past "there is no result". All eleven policies scored **100% on all five
+reported tasks**, so that run contains zero accuracy information — every pairwise
+comparison is a tie by construction and the routing-skill denominator is 0/0. Every
+accuracy figure the repo *reports* is still simulated. Everything below is written
+on the assumption that a real run at usable scale is what is missing.
+
+The remaining path costs little:
 
 ```bash
 cp .env.example .env      # then paste your key in; .env is gitignored
-ROUTER_MODE=real python3 run_eval.py --limit 10   # plumbing check
+# ROUTER_MODE=real python3 run_eval.py --limit 10   # plumbing check — DONE, $0.048
 ROUTER_MODE=real python3 run_eval.py --policy always_cheap --split all  # the gate
 ROUTER_MODE=real python3 run_eval.py              # full run
 ```

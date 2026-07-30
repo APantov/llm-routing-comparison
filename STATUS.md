@@ -10,16 +10,34 @@ If you only read one section, read [§2 Do this next](#2-do-this-next).
 
 ## 1. Where the project is
 
-**The machine is finished. The experiment has not been run.**
+**The machine is finished. The plumbing has been checked against real models. The
+experiment has not been run.**
 
 Everything works end to end: 100 tasks, 11 policies, three model ladders, a
 calibration split, a cost-quality frontier, paired significance tests, a
 degradation sweep, and figures. All of it reproduces byte-for-byte on a bare
 Python install with no API key and no network.
 
-**And every accuracy number it currently prints is fabricated.** Mock mode invents
-model replies from constants in `models.py`. Nothing has called a real model. That
-is the one thing standing between this repo and a result.
+**Step 4a below has been done.** `ROUTER_MODE=real ROUTER_LADDER=wide python3
+run_eval.py --limit 10` was run on 30 July 2026. It produced 47 real model
+responses across `cache/raw_calls.{wide,claude,deepseek}.jsonl` (45 / 1 / 1) and
+47 rows in `results.jsonl` carrying `"mode": "real"`, `"simulated": false`, at a
+total cost of **$0.0481**. Five tasks are reported (`code-475`, `code-86`,
+`math-105`, `math-331`, `math-92`); the cache covers ten because `fit_estimators`
+also calls on the calibration half.
+
+**That run carries no accuracy information.** Every policy scored 100% on all five
+tasks, so the routing-skill denominator is 0/0 and every comparison is a tie by
+construction. What it did establish, which is the point of a plumbing check: keys
+resolve, both providers answer, prompts parse, the graders score real output, the
+cache writes and replays field-for-field, nothing truncated (max 621 output tokens
+against `MAX_TOKENS = 2048`), and **real latency is ~2.7s mean against the 0.4–0.9s
+the mock stipulates — 3–7x the modelled figure.**
+
+**Every accuracy number this repo reports is still fabricated.** Mock mode invents
+model replies from constants in `models.py`, and the one real run is too small and
+too degenerate to replace any of them. That is the one thing standing between this
+repo and a result.
 
 What is *already* real, even in mock mode:
 
@@ -112,9 +130,15 @@ python3 frontier.py && python3 stats.py && python3 plot.py
 
 `figures/frontier.svg` and `figures/degradation.svg` are written. Open them.
 
-### Step 4a — plumbing check (2 minutes, about $0.02)
+### Step 4a — plumbing check (2 minutes, about $0.02) — **DONE, 30 July 2026**
 
-Ten tasks, everything wired up, just to prove the keys work and nothing errors:
+Ten tasks, everything wired up, just to prove the keys work and nothing errors.
+This has been run on the `wide` ladder: it cost **$0.0481**, wrote 47 real
+responses to `cache/raw_calls.{wide,claude,deepseek}.jsonl` and 47 `simulated:
+false` rows to `results.jsonl`, and passed on every check below (no truncation,
+graders ran, cache replays field-for-field). Every policy scored 100% on all five
+reported tasks, which is exactly the non-result a plumbing check is allowed to
+produce. Re-run it only if the ladder or the prompts change.
 
 ```bash
 pip install -r requirements.txt
@@ -350,17 +374,26 @@ Written down now so you can check your predictions later. This is the honest par
 | `policies.py` | changing what a policy does — `DECISION #2`–`#9` |
 | `build_taskset.py` | changing how many tasks, or which |
 
-Everything generated is gitignored: `results.jsonl`, `frontier.jsonl`,
-`sweep_degraded.jsonl`, `figures/`, and the mock caches. Nothing fabricated is
-committed, which is deliberate — a plausible percentage in a repo is how a
-simulated number ends up quoted as a measurement.
+Everything *fabricated* is gitignored: `frontier.jsonl`, `sweep_degraded.jsonl`,
+`results.probe.jsonl`, `figures/`, and the mock caches (`raw_calls.*.mock.jsonl`).
+That is deliberate — a plausible percentage sitting in a repo is how a simulated
+number ends up quoted as a measurement.
+
+The real artefacts are the exception and are **force-added to git** despite the
+ignore rule: `results.jsonl` (47 rows, all `simulated: false`) and
+`cache/raw_calls.{wide,claude,deepseek}.jsonl` (47 real responses, $0.0481 of
+spend). They cost money, they cannot be regenerated for free, and `ROUTER_MODE=replay`
+reproduces the paid run from them field-for-field. Note the consequence: a mock run
+with `--force` would overwrite `results.jsonl`, and the clobber guard is what stops
+that — if it ever gets bypassed, `git checkout results.jsonl` is the recovery.
 
 ---
 
 ## 7. One-paragraph summary
 
-The pipeline is done and verified; no model has been called, so no accuracy number
-means anything yet. Before spending money, raise the task count to the full 794
+The pipeline is done and verified, and one 5-task plumbing run against real models
+has confirmed it end to end for $0.05 — but every policy tied at 100% on it, so no
+accuracy number means anything yet. Before spending more, raise the task count to the full 794
 available in the data you already have, because the current n=100 cannot resolve
 any of the comparisons and the bigger run costs roughly the same. Then pilot on 10
 tasks (~$0.14), read the failure-rate gate, and do the full run (~$1.50 per
