@@ -37,14 +37,32 @@ Matched on accuracy, against simply always paying for the best model:
 
 | ladder | effective price ratio | cascade vs always-best | verdict |
 |---|---|---|---|
-| `deepseek` v4-flash → v4-pro | 3.1x | **+33%** (costs more) | just route |
-| `claude` Haiku 4.5 → Sonnet 5 → Opus 5 | 6.5x | −12% | cascade |
-| `wide` DeepSeek v4-flash → Opus 5 | 46x | **−74%** | cascade |
+| `deepseek` v4-flash → v4-pro | 3.11x | **costs more** | just route |
+| `claude` Haiku 4.5 → Sonnet 5 → Opus 5 | 6.5x | cheaper | cascade |
+| `wide` DeepSeek v4-flash → Opus 5 | 46.4x | **much cheaper** | cascade |
 
-**The sign flips.** Cascading pays in proportion to the price gap it exploits.
-A cascade always pays for the cheap call *and* for verifying it — fixed costs —
-and what they buy is the *chance* to skip an expensive call. Below roughly 3x,
-the fixed costs swamp the saving.
+**The sign flips, and the sign is the finding.** Cascading pays in proportion
+to the price gap it exploits. A cascade always pays for the cheap call *and*
+for verifying it — fixed costs — and what they buy is the *chance* to skip an
+expensive call. Below roughly 3x, the fixed costs swamp the saving.
+
+The magnitudes are deliberately not in that table, because they depend on the
+task set and this one was rebuilt on 6 August. On the 30 July set the figures
+were +33% / −12% / −74%; a mock frontier run over the current set gives
+roughly +10% / −46% / −66%. Every sign held; not one magnitude did.
+
+So the router computes them rather than quoting them. Price ratios come from
+the price table (exact, no run needed); the cost and AUC figures are derived
+from `frontier.jsonl` when a run for that ladder is on disk, and fall back to
+the 30 July constants **labelled with their date** when it is not:
+
+```bash
+$ llm-router --findings | jq '.ratio | {verdict, economics_source}'
+{ "verdict": "cascade", "economics_source": "historical" }
+
+$ python frontier.py && llm-router --findings | jq '.ratio.economics_source'
+"frontier.jsonl"
+```
 
 The router exposes this rather than hiding it: ask it and it will tell you not
 to cascade.
@@ -326,11 +344,18 @@ would otherwise produce plausible, wrong, paid-for numbers.
 
 Matched on accuracy, against simply always paying for the best rung:
 
-| ladder | ratio | cascade vs always-best |
-|---|---|---|
-| `deepseek` | 3.1x | cascade costs **33% more** |
-| `claude` | 6.5x effective | cascade **12% cheaper** |
-| `wide` | 46x effective | cascade **74% cheaper** |
+| ladder | ratio | 30 July task set | current task set |
+|---|---|---|---|
+| `deepseek` | 3.11x | **+33%** (costs more) | **+10%** (costs more) |
+| `claude` | 6.5x effective | −12% | −46% |
+| `wide` | 46.4x effective | −74% | −66% |
+
+Both columns are mock-mode figures. The right-hand one is what
+`python frontier.py` produces today; the left is what it produced before the
+6 August rebuild swapped the code half to MBPP+ and the maths half to level 5.
+**Every sign held across that rebuild and not one magnitude did**, which is
+why the router derives these rather than quoting them — see
+`router_agent/findings.py`.
 
 **The sign flips.** Cascading pays in proportion to the price gap it exploits, and
 below roughly 3x the wasted cheap call and its verification cost more than they

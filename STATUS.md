@@ -216,11 +216,18 @@ The repo can now switch model ladders with an environment variable, and doing so
 **flips the project's headline conclusion**. Matched on accuracy, against simply
 always paying for the best model:
 
-| ladder | rungs | price ratio | cascade vs always-best, same accuracy |
-|---|---|---|---|
-| `deepseek` | v4-flash → v4-pro | 3.1x | cascade costs **33% more** |
-| `claude` | Haiku 4.5 → Sonnet 5 → Opus 5 | 5x list, 6.5x effective | cascade **12% cheaper** |
-| `wide` | DeepSeek v4-flash → Opus 5 | 36x list, 46x effective | cascade **74% cheaper** |
+| ladder | rungs | price ratio | 30 July set | current set |
+|---|---|---|---|---|
+| `deepseek` | v4-flash → v4-pro | 3.11x | **+33%** | **+10%** |
+| `claude` | Haiku 4.5 → Sonnet 5 → Opus 5 | 5x list, 6.5x effective | −12% | −46% |
+| `wide` | DeepSeek v4-flash → Opus 5 | 35.7x list, 46.4x effective | −74% | −66% |
+
+Positive means the cascade costs MORE at matched accuracy. Both columns are
+mock. **Read the sign, not the magnitude** — the 6 August rebuild moved every
+one of these numbers while flipping none of their signs, which is the finding
+holding and its calibration not. `router_agent/findings.py` derives the current
+column from `frontier.jsonl` when a run for the ladder is on disk, and falls
+back to the 30 July column *labelled with its date* when it is not.
 
 That is the answer to "when is each architecture worth it", and it is a sharper
 answer than a single ladder could ever have given:

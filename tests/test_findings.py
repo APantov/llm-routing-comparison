@@ -82,9 +82,47 @@ class TestProbe:
         assert findings.load_probe(str(tmp_path / "nope.jsonl")) is None
 
 
+class TestPriceRatios:
+    """Exact arithmetic over the price table - no run, no mode, no task set."""
+
+    @pytest.mark.parametrize("ladder,list_r,eff_r", [
+        # Haiku $1.00 -> Opus $5.00 in; Opus is on the newer tokenizer (1.30).
+        ("claude", 5.0, 6.5),
+        # Both DeepSeek rungs share a tokenizer, so list == effective.
+        ("deepseek", 3.11, 3.11),
+        # DeepSeek $0.14 -> Opus $5.00, plus the tokenizer asymmetry.
+        ("wide", 35.71, 46.43),
+    ])
+    def test_matches_the_documented_ratios(self, ladder, list_r, eff_r):
+        r = findings.price_ratios(ladder)
+        assert r["list_ratio"] == pytest.approx(list_r, abs=0.02)
+        assert r["effective_ratio"] == pytest.approx(eff_r, abs=0.02)
+
+    def test_effective_is_never_below_list_on_a_mixed_tokenizer_ladder(self):
+        """The asymmetry works against escalation, so it can only widen the gap."""
+        for ladder in ("claude", "wide"):
+            r = findings.price_ratios(ladder)
+            assert r["effective_ratio"] >= r["list_ratio"]
+
+    def test_unknown_ladder_returns_none(self):
+        assert findings.price_ratios("nonexistent") is None
+
+    def test_ratios_are_ordered_deepseek_claude_wide(self):
+        order = [findings.price_ratios(l)["effective_ratio"]
+                 for l in ("deepseek", "claude", "wide")]
+        assert order == sorted(order)
+
+
 class TestRatioVerdict:
     def test_sign_flips_across_ladders(self):
-        """The repository's headline: cascading pays in proportion to the gap."""
+        """The repository's headline: cascading pays in proportion to the gap.
+
+        Asserted on the SIGN only. The magnitudes moved substantially in the
+        6 August task-set rebuild (claude -12% -> about -46%), which is why
+        `ratio_verdict` derives them from a frontier run when one is on disk
+        rather than quoting a constant. The sign survived; pinning a magnitude
+        here would just re-create the staleness in the test suite.
+        """
         assert findings.ratio_verdict("deepseek")["verdict"] == "route"
         assert findings.ratio_verdict("claude")["verdict"] == "cascade"
         assert findings.ratio_verdict("wide")["verdict"] == "cascade"
@@ -93,23 +131,61 @@ class TestRatioVerdict:
         assert findings.ratio_verdict("deepseek")["cascade_vs_always_best_pct"] > 0
         assert findings.ratio_verdict("wide")["cascade_vs_always_best_pct"] < 0
 
-    def test_wider_ratio_means_bigger_saving(self):
-        rows = [findings.RATIO_FINDING[k] for k in ("deepseek", "claude", "wide")]
-        ratios = [r["effective_ratio"] for r in rows]
-        savings = [r["cascade_vs_always_best_pct"] for r in rows]
-        assert ratios == sorted(ratios)
-        # Monotonically more favourable to the cascade as the ratio widens.
-        assert savings == sorted(savings, reverse=True)
+    def test_every_verdict_declares_where_it_came_from(self):
+        for ladder in ("deepseek", "claude", "wide"):
+            v = findings.ratio_verdict(ladder)
+            assert v["economics_source"] in ("frontier.jsonl", "historical")
+            # Nothing here is real accuracy data, whatever its source.
+            assert v["economics_simulated"] is True
+
+    def test_only_wide_claims_real_accuracy_data(self):
+        assert findings.ratio_verdict("wide")["accuracy_data_is_real"] is True
+        assert findings.ratio_verdict("claude")["accuracy_data_is_real"] is False
+        assert findings.ratio_verdict("deepseek")["accuracy_data_is_real"] is False
 
     def test_unknown_ladder_is_honest_about_it(self):
         v = findings.ratio_verdict("nonexistent")
         assert v["known"] is False
-        assert "crossover" in v["note"] or "3.0" in v["note"]
+        assert "not in models.LADDERS" in v["note"]
 
-    def test_only_wide_claims_real_accuracy_data(self):
-        assert findings.RATIO_FINDING["wide"]["measured"] is True
-        assert findings.RATIO_FINDING["claude"]["measured"] is False
-        assert findings.RATIO_FINDING["deepseek"]["measured"] is False
+
+class TestFrontierEconomics:
+    def test_missing_file_degrades_rather_than_crashes(self, tmp_path):
+        findings.frontier_economics.cache_clear()
+        assert findings.frontier_economics(str(tmp_path / "nope.jsonl")) is None
+
+    def test_incomplete_file_is_rejected(self, tmp_path):
+        """A frontier missing a family cannot produce a comparison."""
+        import json as _json
+        p = tmp_path / "partial.jsonl"
+        p.write_text(_json.dumps({
+            "family": "cascade", "cost_per_task": 0.01, "accuracy": 0.9,
+            "ladder": "claude", "simulated": True,
+        }), encoding="utf-8")
+        findings.frontier_economics.cache_clear()
+        assert findings.frontier_economics(str(p)) is None
+
+    def test_derives_sign_and_labels_simulation(self, tmp_path):
+        import json as _json
+        rows = [
+            {"family": "always_cheap", "cost_per_task": 0.001, "accuracy": 0.70},
+            {"family": "always_expensive", "cost_per_task": 0.010, "accuracy": 0.90},
+            # A cascade that reaches the same accuracy for a quarter of the money.
+            {"family": "cascade", "cost_per_task": 0.0025, "accuracy": 0.90},
+            {"family": "random", "cost_per_task": 0.001, "accuracy": 0.70},
+            {"family": "random", "cost_per_task": 0.010, "accuracy": 0.90},
+        ]
+        for r in rows:
+            r.update(ladder="claude", simulated=True, n=50, split="eval")
+        p = tmp_path / "frontier.jsonl"
+        p.write_text("\n".join(_json.dumps(r) for r in rows), encoding="utf-8")
+
+        findings.frontier_economics.cache_clear()
+        econ = findings.frontier_economics(str(p))
+        assert econ["ladder"] == "claude"
+        assert econ["verdict"] == "cascade"
+        assert econ["cascade_vs_always_best_pct"] == pytest.approx(-75.0)
+        assert econ["simulated"] is True
 
 
 class TestSummary:

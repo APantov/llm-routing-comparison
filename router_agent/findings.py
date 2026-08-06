@@ -30,68 +30,242 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PROBE_PATH = REPO_ROOT / "results.probe.jsonl"
+FRONTIER_PATH = REPO_ROOT / "frontier.jsonl"
 
 
 # ---------------------------------------------------------------------------
-# The ratio finding - the headline, and the one the router acts on
+# Price ratios - exact, and the only part of the finding that needs no run
 # ---------------------------------------------------------------------------
 
-# Source: STATUS.md §1 and README "The finding this made possible". These come
-# from the verified price tables and the escalation logic rather than from
-# MOCK_SKILL, which is why STATUS.md expects them to survive a real run - but
-# only `wide` has real accuracy data behind it, so `measured` is set per row.
-RATIO_FINDING = {
-    "deepseek": {
-        "rungs": "v4-flash -> v4-pro",
-        "list_ratio": 3.1,
-        "effective_ratio": 3.1,
-        "cascade_vs_always_best_pct": +33.0,
-        "verdict": "route",
-        "auc_gain_over_random_pct": 7.2,
-        "measured": False,
-    },
-    "claude": {
-        "rungs": "Haiku 4.5 -> Sonnet 5 -> Opus 5",
-        "list_ratio": 5.0,
-        "effective_ratio": 6.5,
-        "cascade_vs_always_best_pct": -12.0,
-        "verdict": "cascade",
-        "auc_gain_over_random_pct": 4.8,
-        "measured": False,
-    },
-    "wide": {
-        "rungs": "DeepSeek v4-flash -> Opus 5",
-        "list_ratio": 36.0,
-        "effective_ratio": 46.0,
-        "cascade_vs_always_best_pct": -74.0,
-        "verdict": "cascade",
-        "auc_gain_over_random_pct": 8.8,
-        "measured": True,
-    },
-}
+def price_ratios(ladder: str) -> dict | None:
+    """The top rung's price over the bottom rung's, from the price table.
+
+    Computed rather than recorded, because it is pure arithmetic over
+    `models.MODEL_SPECS` and therefore cannot drift from the ladder it
+    describes. Nothing here depends on a run, a mode, or a task set.
+
+    `effective` folds in the tokenizer asymmetry the benchmark models: Claude
+    4.7 and later emit roughly 30% more tokens for identical text, so on the
+    `claude` and `wide` ladders the rungs disagree about how long the same
+    prompt is. That works against escalation, so ignoring it would under-price
+    exactly the rung a cascade escalates to.
+    """
+    import models
+
+    ids = models.LADDERS.get(ladder)
+    if not ids:
+        return None
+    bottom, top = models.MODEL_SPECS[ids[0]], models.MODEL_SPECS[ids[-1]]
+    list_ratio = top["price_in"] / bottom["price_in"]
+    effective = (
+        (top["price_in"] * top["tokenizer_factor"])
+        / (bottom["price_in"] * bottom["tokenizer_factor"])
+    )
+    return {
+        "rungs": " -> ".join(ids),
+        "list_ratio": round(list_ratio, 2),
+        "effective_ratio": round(effective, 2),
+    }
+
 
 # Below roughly this effective price ratio, the cascade's fixed costs - the
 # wasted cheap call, plus verification - exceed what skipping an expensive call
-# saves. The number is where the sign flips between the deepseek and claude
-# ladders, so treat it as "between 3.1 and 6.5, nearer the bottom" rather than
-# as a measured constant.
+# saves.
+#
+# Deliberately NOT used to compute a verdict. The `deepseek` ladder sits at
+# 3.1x and the cascade still loses there, so the true crossover is somewhere
+# above 3.1 and below `claude`'s 6.5 - a single threshold would get deepseek
+# wrong. Treat this as "around 3x, and the sign is what to check" rather than
+# as a decision boundary.
 CROSSOVER_RATIO = 3.0
 
 
+# ---------------------------------------------------------------------------
+# The economics - derived from a frontier run, or quoted from a historical one
+# ---------------------------------------------------------------------------
+
+# Recorded 30 July 2026 from README "The finding this made possible" and
+# STATUS.md §1.
+#
+# THESE ARE SUPERSEDED and are kept only as a fallback and a comparison point.
+# They were produced BEFORE the 6 August task-set rebuild (sanitized MBPP ->
+# MBPP+, MATH500 level 3 -> level 5), and a mock frontier run over the current
+# task set gives materially different magnitudes - `claude` moves from -12% to
+# about -46%, `deepseek` from +33% to about +10%.
+#
+# The SIGN survives on all three ladders, which is the actual finding: cascading
+# pays in proportion to the price gap, and below roughly 3x it loses. The
+# magnitudes do not survive, which is exactly why they are no longer presented
+# as current.
+HISTORICAL_ECONOMICS = {
+    "deepseek": {"cascade_vs_always_best_pct": +33.0,
+                 "auc_gain_over_random_pct": 7.2, "verdict": "route"},
+    "claude": {"cascade_vs_always_best_pct": -12.0,
+               "auc_gain_over_random_pct": 4.8, "verdict": "cascade"},
+    "wide": {"cascade_vs_always_best_pct": -74.0,
+             "auc_gain_over_random_pct": 8.8, "verdict": "cascade"},
+}
+HISTORICAL_AS_OF = "2026-07-30"
+HISTORICAL_NOTE = (
+    "quoted from the 30 July 2026 frontier run, which predates the 6 August "
+    "task-set rebuild. The sign is reliable; the magnitude is not. Run "
+    "`python frontier.py` on this ladder to derive current figures."
+)
+
+
+@lru_cache(maxsize=4)
+def frontier_economics(path: str | None = None) -> dict | None:
+    """Derive the cascade's economics from a frontier run, if one is on disk.
+
+    Returns None when `frontier.jsonl` is absent - it is gitignored, because
+    while the inputs are simulated so is every number in it.
+
+    Two quantities, both computed with `frontier.py`'s own hull and AUC code
+    rather than a reimplementation, so the router and the report can never
+    disagree about what they mean:
+
+      cascade_vs_always_best_pct
+          The cheapest cascade setting that is at least as accurate as always
+          paying for the top rung, against that rung's cost. Negative means the
+          cascade is cheaper at matched accuracy. This is the headline.
+      auc_gain_over_random_pct
+          Mean accuracy across the whole shared budget range, minus the same
+          for a cost-matched coin flip. Answers "how good is this at every
+          budget" rather than "at the budget somebody tuned it to".
+
+    The file holds ONE ladder at a time - `frontier.py` overwrites it per run -
+    so the ladder it was generated for is returned alongside, and the caller
+    must check it matches the one they are asking about.
+    """
+    p = Path(path) if path else FRONTIER_PATH
+    if not p.exists():
+        return None
+
+    try:
+        rows = [json.loads(l) for l in p.open(encoding="utf-8") if l.strip()]
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not rows:
+        return None
+
+    families: dict[str, list] = {}
+    for r in rows:
+        families.setdefault(r.get("family", ""), []).append(r)
+
+    needed = ("always_cheap", "always_expensive", "cascade", "random")
+    if any(f not in families for f in needed):
+        return None
+
+    # Imported here rather than at module scope: `frontier` pulls in policies,
+    # run_eval and splits, and `findings` is imported by the MCP server on
+    # every start. The probe path and the price ratios must stay cheap.
+    import frontier as frontier_mod
+
+    def points(name):
+        return [(p_["cost_per_task"], p_["accuracy"]) for p_ in families[name]]
+
+    # The same budget interval frontier.py integrates over: cheapest rung to
+    # most expensive rung.
+    lo = min(c for c, _ in points("always_cheap"))
+    hi = max(c for c, _ in points("always_expensive"))
+
+    random_auc = frontier_mod.auc(frontier_mod.upper_hull(points("random")), lo, hi)
+    cascade_auc = frontier_mod.auc(frontier_mod.upper_hull(points("cascade")), lo, hi)
+
+    expensive = max(
+        families["always_expensive"],
+        key=lambda p_: (p_["accuracy"], -p_["cost_per_task"]),
+    )
+    matched = [
+        p_ for p_ in families["cascade"]
+        if p_["accuracy"] >= expensive["accuracy"] - 1e-9
+    ]
+    cost_pct = None
+    if matched and expensive["cost_per_task"] > 0:
+        cheapest = min(matched, key=lambda p_: p_["cost_per_task"])
+        cost_pct = round(
+            100.0 * (cheapest["cost_per_task"] - expensive["cost_per_task"])
+            / expensive["cost_per_task"], 1
+        )
+
+    auc_gain = (
+        None if random_auc is None or cascade_auc is None
+        else round(100.0 * (cascade_auc - random_auc), 1)
+    )
+
+    return {
+        "ladder": rows[0].get("ladder"),
+        "cascade_vs_always_best_pct": cost_pct,
+        "auc_gain_over_random_pct": auc_gain,
+        "verdict": (
+            None if cost_pct is None else ("cascade" if cost_pct < 0 else "route")
+        ),
+        # Every row of a mock frontier carries simulated: true. If ANY row is
+        # simulated the derived figure is, so this is `any`, not `all`.
+        "simulated": any(r.get("simulated", True) for r in rows),
+        "n": rows[0].get("n"),
+        "split": rows[0].get("split"),
+        "source": "frontier.jsonl",
+    }
+
+
 def ratio_verdict(ladder: str) -> dict:
-    """Should this ladder cascade or route? The product's core decision."""
-    row = RATIO_FINDING.get(ladder)
-    if row is None:
+    """Should this ladder cascade or route? The product's core decision.
+
+    Assembled from three sources of decreasing reliability, each labelled:
+
+      price ratios   exact arithmetic over the price table. Always present.
+      frontier       derived from `frontier.jsonl` if a run for THIS ladder is
+                     on disk. Current, but simulated while the inputs are.
+      historical     the 30 July constants. Superseded; sign only.
+    """
+    ratios = price_ratios(ladder)
+    if ratios is None:
         return {
             "ladder": ladder,
             "known": False,
             "note": (
-                f"no measurement for ladder {ladder!r}; the crossover sits near "
-                f"an effective price ratio of {CROSSOVER_RATIO}x - above it "
-                f"cascade, below it route"
+                f"unknown ladder {ladder!r} - not in models.LADDERS, so not "
+                f"even its price ratio can be computed"
             ),
         }
-    return {"ladder": ladder, "known": True, **row}
+
+    out: dict = {"ladder": ladder, "known": True, **ratios}
+
+    live = frontier_economics()
+    if live and live.get("ladder") == ladder and live.get("verdict"):
+        out.update({
+            "cascade_vs_always_best_pct": live["cascade_vs_always_best_pct"],
+            "auc_gain_over_random_pct": live["auc_gain_over_random_pct"],
+            "verdict": live["verdict"],
+            "economics_source": "frontier.jsonl",
+            "economics_simulated": live["simulated"],
+            "economics_n": live.get("n"),
+        })
+    else:
+        hist = HISTORICAL_ECONOMICS.get(ladder)
+        if hist is None:
+            out.update({
+                "verdict": None,
+                "economics_source": None,
+                "note": (
+                    "no frontier run on disk for this ladder and no historical "
+                    "figure; run `python frontier.py` to derive one"
+                ),
+            })
+        else:
+            out.update({
+                **hist,
+                "economics_source": "historical",
+                "economics_simulated": True,
+                "economics_as_of": HISTORICAL_AS_OF,
+                "economics_note": HISTORICAL_NOTE,
+            })
+
+    # Only `wide` has real accuracy data behind any of this, and even there the
+    # frontier itself has never been run against real models.
+    out["accuracy_data_is_real"] = ladder == "wide"
+    return out
 
 
 # ---------------------------------------------------------------------------
