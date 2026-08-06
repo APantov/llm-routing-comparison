@@ -1,11 +1,45 @@
 # STATUS — read this first
 
-Written 30 July 2026, **updated 6 August 2026 after the two-arm probe**. This is
-the "you just woke up and forgot everything" file. It answers four questions in
-order: where the project is, what to do next, what it will cost, and what to
-expect when you do it.
+Written 30 July 2026, **updated 6 August 2026 after the two-arm probe and the
+agent layer**. This is the "you just woke up and forgot everything" file. It
+answers four questions in order: where the project is, what to do next, what it
+will cost, and what to expect when you do it.
 
 If you only read one section, read [§2 Do this next](#2-do-this-next).
+
+> ## 0. The repository now has two halves
+>
+> Everything below §1 is about **the experiment**, and none of it has changed.
+>
+> There is now also **a product**: `router_agent/`, a LangGraph cascade and an
+> MCP server that implement what the experiment found. It is documented in
+> [ARCHITECTURE.md](ARCHITECTURE.md); the short version:
+>
+> - It calls `models.call` rather than opening its own connections, so it
+>   shares the price table, the response cache and replay. A dollar figure it
+>   reports means the same thing as a dollar figure in the tables below.
+> - It required **one** edit to the research core: a `general` domain prompt, a
+>   `code_untested` prompt, and a live-query branch in `_mock_call`. None of it
+>   is reachable from `build_taskset.py` output, and
+>   `scripts/check_core_unchanged.py` proves that by fingerprinting every mock
+>   response the task set can produce (100 tasks × 3 ladders × 4 samples × 2
+>   temperatures, byte-identical). It runs in CI.
+> - `python scripts/demo.py` replays three real routing traces for **$0.00** —
+>   a cascade verifying at the cheap rung, a cascade escalating, and a cascade
+>   using caller-supplied tests as an exact verifier. **$0.0276 of live API
+>   calls** were spent to record them, and they are committed.
+>
+> **The product surfaced one thing the experiment had not stated.**
+> `policies.predict_is_hard` routes maths on MATH500's shipped `level` field —
+> a difficulty label written by someone who had already solved the problem, and
+> one that no user query carries. So the `predictive` row in `results.jsonl` is
+> an **upper bound** on what a deployable predictive router could score. That
+> favours the cascade, and it is a real structural difference rather than a
+> measurement artefact: a cascade needs no difficulty label because it finds
+> out by trying. See `router_agent/live.py`.
+>
+> Spend to date is now **$1.39**: $1.36 on the experiment, $0.0276 on the three
+> recorded demo traces.
 
 ---
 

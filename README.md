@@ -1,6 +1,118 @@
-# Cascade vs Predictive Routing
+# LLM Routing: a measured benchmark, and the router it argues for
 
-Measuring when each LLM routing architecture is worth its cost.
+**A cost-aware LLM routing service (LangGraph + MCP), and the 100-task
+benchmark that decides its policy.**
+
+Answer at the cheapest model that can be *verified* to have got it right;
+escalate only when verification fails. Whether that beats simply paying for
+the best model is not a matter of opinion — it depends on the price ratio
+between your models, and this repository measures where the crossover is.
+
+```bash
+pip install -e ".[agent]"
+python build_taskset.py
+python -m router_agent.cli --demo      # real model output, no API key, $0.00
+```
+
+```
+  classify  domain=math, start=cheap, verifier=self_consistency
+  answer    cheap (deepseek-v4-flash) answered
+  verify    self_consistency -> REJECT
+  escalate  cheap -> expensive
+  answer    expensive (claude-opus-5) answered
+  finalize  done: exhausted_ladder
+
+  verdict   UNVERIFIED
+  answered  expensive - claude-opus-5
+  cost      $0.059111  (2 calls, 1 escalation)
+```
+
+That demo runs against **318 real model responses committed to this
+repository**, so it needs no API key, no account and no money — and it is real
+output, not a simulation.
+
+## The finding the router implements
+
+Matched on accuracy, against simply always paying for the best model:
+
+| ladder | effective price ratio | cascade vs always-best | verdict |
+|---|---|---|---|
+| `deepseek` v4-flash → v4-pro | 3.1x | **+33%** (costs more) | just route |
+| `claude` Haiku 4.5 → Sonnet 5 → Opus 5 | 6.5x | −12% | cascade |
+| `wide` DeepSeek v4-flash → Opus 5 | 46x | **−74%** | cascade |
+
+**The sign flips.** Cascading pays in proportion to the price gap it exploits.
+A cascade always pays for the cheap call *and* for verifying it — fixed costs —
+and what they buy is the *chance* to skip an expensive call. Below roughly 3x,
+the fixed costs swamp the saving.
+
+The router exposes this rather than hiding it: ask it and it will tell you not
+to cascade.
+
+```bash
+$ llm-router --findings | jq .ratio.verdict     # on the deepseek ladder
+"route"
+```
+
+## Two halves
+
+| | |
+|---|---|
+| **The experiment** (repo root) | 100 tasks, 11 policies, 3 ladders, cost-quality frontiers, paired significance tests. Pure standard library in mock mode. |
+| **The product** (`router_agent/`) | A LangGraph cascade and an MCP server, built on the same substrate, implementing what the experiment found. |
+
+They share one model client, one price table and one response cache — which is
+what makes a dollar figure from the router mean the same thing as a dollar
+figure in the tables below. See [ARCHITECTURE.md](ARCHITECTURE.md).
+
+### What the product had to solve that the benchmark did not
+
+A served query has no ground truth, no difficulty label, and usually no tests.
+Three consequences, each documented where it bites:
+
+1. **No correctness, only verification.** `RouteOutcome` has no `correct`
+   field. It reports `verified` — a verifier's opinion — plus a
+   `verified_meaning` string stating what was and was not measured.
+2. **The benchmark's predictive router had an unfair advantage.** It routes on
+   MATH500's shipped difficulty label, which no user query carries. The
+   `predictive` numbers below are therefore an *upper bound* on a deployable
+   predictive router.
+3. **The perfect verifier usually isn't available.** "Run the tests" is free
+   and exact in the benchmark only because MBPP+ ships them. Self-consistency
+   transfers unchanged; running tests does not. `sweep_degraded.py` is the
+   experiment that prices that loss.
+
+## Using it
+
+```bash
+llm-router --demo                          # real cached data, no key, $0
+llm-router "What is 17 * 23?"              # needs ROUTER_MODE=real + a key
+llm-router --estimate "prove X"            # price every policy, no calls
+llm-router --findings                      # what the benchmark measured
+llm-router "..." --approve-above 0.01      # pause for approval before spending
+```
+
+As an MCP server, so any MCP client can route through it:
+
+```json
+{
+  "mcpServers": {
+    "llm-routing": {
+      "command": "llm-router-mcp",
+      "env": { "ROUTER_LADDER": "wide", "ROUTER_MODE": "replay" }
+    }
+  }
+}
+```
+
+It offers four tools (`route_query`, `estimate_cost`, `compare_policies`,
+`explain_routing`), four resources under `routing://`, and a prompt that walks
+a client through choosing a policy. `ROUTER_MODE=replay` is the safe thing to
+register: it cannot spend money.
+
+---
+
+# The experiment
 
 Two ways to spend less on LLM inference, with opposite failure modes:
 
@@ -331,6 +443,24 @@ than quietly omitted.
 | `routellm_router.py` | RouteLLM's pretrained router, cost-matched to `predictive` |
 | `plot.py` | SVG figures from the standard library, no matplotlib |
 | `sanity_check.py` | regression gate: reference answers, equivalent formattings, and near-miss wrong answers. Exits non-zero if a grader is broken *or* too lax |
+
+And the product layer, which depends on the above but is never depended on by
+it — see [ARCHITECTURE.md](ARCHITECTURE.md):
+
+| file | what it is |
+|---|---|
+| `router_agent/live.py` | query → task dict; where the missing difficulty label is documented |
+| `router_agent/verifiers.py` | verification without ground truth |
+| `router_agent/pricing.py` | cost projection, calibrated on the probe's measured token counts |
+| `router_agent/findings.py` | the benchmark's results, recomputed from committed data rather than transcribed |
+| `router_agent/state.py` | graph state; reducers that keep cost accounting correct across the cascade loop |
+| `router_agent/nodes.py` | one function per node, testable without LangGraph |
+| `router_agent/graph.py` | the cyclic graph: answer → verify → escalate → answer |
+| `router_agent/engine.py` | the façade the CLI and MCP server share |
+| `router_agent/cli.py` | `llm-router` |
+| `router_agent/mcp_server.py` | four tools, four resources, one prompt |
+| `scripts/check_core_unchanged.py` | proves the agent layer's one edit to `models.py` cannot move a benchmark number |
+| `tests/` | pytest, agent layer only — the research core keeps `sanity_check.py` |
 
 ## The tuneable decisions
 

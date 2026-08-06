@@ -1,0 +1,70 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "llm-routing"
+version = "0.2.0"
+description = "A cost-aware LLM routing service, and the benchmark that decides its policy"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Asen" }]
+keywords = ["llm", "routing", "cascade", "langgraph", "mcp", "evaluation"]
+
+# NOTHING HERE BY DEFAULT, AND THAT IS THE POINT.
+#
+# The research core (build_taskset, graders, models, policies, run_eval,
+# frontier, stats, plot, sanity_check) is pure standard library in mock mode.
+# A bare `pip install .` must not change that: the whole reproducibility claim
+# is that anyone can clone this repo, run it on a bare interpreter with no
+# network and no key, and get the same numbers byte for byte.
+#
+# Every dependency below is therefore optional and named for the one thing it
+# unlocks. See requirements.txt for the long-form reasoning on each.
+dependencies = []
+
+[project.optional-dependencies]
+# The LangGraph routing engine (router_agent.graph). Needed to serve a query.
+agent = ["langgraph>=1.2,<2"]
+
+# The MCP server, so any MCP client can call the router as a tool.
+mcp = ["mcp>=2.0,<3"]
+
+# Real mode: calling Anthropic and DeepSeek. Both go through the Anthropic SDK,
+# because DeepSeek is reached via its Anthropic-format endpoint.
+real = ["anthropic==0.120.2"]
+
+# Grading the MBPP+ code half. Every expanded evalplus test program opens with
+# `import numpy as np` and compares floats with np.allclose.
+code = ["numpy>=2.0"]
+
+dev = ["pytest>=8", "llm-routing[agent,mcp,code]"]
+
+# Everything except the API SDK, which is the only extra that can spend money.
+all = ["llm-routing[agent,mcp,code]"]
+
+[project.scripts]
+llm-router = "router_agent.cli:main"
+llm-router-mcp = "router_agent.mcp_server:main"
+
+[project.urls]
+Homepage = "https://github.com/asen/llm-routing-comparison"
+
+[tool.setuptools]
+# The research core is a flat set of scripts at the repo root, deliberately:
+# each one is runnable on its own and reads top to bottom. Only the agent layer
+# is a package.
+packages = ["router_agent"]
+py-modules = [
+    "build_taskset", "graders", "models", "policies", "response_cache",
+    "splits", "run_eval", "frontier", "stats", "sweep_degraded",
+    "routellm_router", "plot", "routable", "sanity_check",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Mock mode is the default for tests - deterministic, offline, free - and it is
+# set in tests/conftest.py rather than here, because `models` reads
+# ROUTER_MODE at import time and conftest runs before the first import.
+filterwarnings = ["ignore::DeprecationWarning"]

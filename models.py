@@ -599,6 +599,36 @@ def _mock_call(
     draw = MOCK_FAILURE_CORRELATION * shared + (1 - MOCK_FAILURE_CORRELATION) * rng.random()
     correct = draw < p_correct
 
+    # SERVING ONLY - a live query, which has no ground truth to perturb.
+    #
+    # Everything above this point simulates a model by starting from the known
+    # answer and corrupting it with probability 1 - p_correct. A query typed by
+    # a user has no known answer, so that construction is unavailable and the
+    # mock CANNOT simulate correctness for it. Saying so explicitly beats
+    # raising KeyError three frames down.
+    #
+    # What it can still simulate, and what router_agent actually needs from
+    # mock mode, is SELF-AGREEMENT: a capable rung converges on one answer
+    # across draws, a weak rung scatters. Self-consistency verification is
+    # therefore exercised for real, on obviously-fake content. The text is
+    # marked so it can never be mistaken for a model's opinion.
+    if task.get("_live"):
+        token = "A" if correct else rng.choice(["B", "C", "D"])
+        note = f"[MOCK - simulated response, ROUTER_MODE=mock. Not a real answer.]"
+        if task["domain"] == "math":
+            text = f"{note} Reasoning... the answer is $\\boxed{{{token}}}$"
+        elif task["domain"] == "code":
+            text = f"# {note}\n```python\ndef solution():\n    return {token!r}\n```"
+        else:
+            text = f"{note} The answer is {token}."
+        tokens_in = _mock_tokens_in(tier, prompt)
+        tokens_out = MOCK_TOKENS_OUT[tier]
+        return ModelResponse(
+            text=text, tier=tier, tokens_in=tokens_in, tokens_out=tokens_out,
+            latency_s=MOCK_LATENCY_S[tier],
+            cost_usd=_price(tier, tokens_in, tokens_out),
+        )
+
     if task["domain"] == "math":
         truth = task["grader_payload"]["answer"]
         answer = truth if correct else _wrong_answer(truth, rng)
@@ -783,6 +813,25 @@ PROMPTS = {
         "HARD means a small fast model would probably get this wrong and it "
         "should be sent to a larger model.\n\nProblem:\n{q}"
     ),
+    # SERVING ONLY - never reached by the evaluation.
+    #
+    # The task set contains exactly two domains, math and code, and
+    # build_taskset.py is what writes them; no row in taskset.jsonl has domain
+    # "general". So this template cannot move a single number in the
+    # experiment, and it is safe to read every result in this repo as though
+    # it did not exist.
+    #
+    # It exists because router_agent serves arbitrary user queries, which have
+    # no ground truth and no answer protocol. Sending those through the math
+    # template would demand a \boxed{} answer for "summarise this email".
+    "general": "{q}",
+    # Code with no caller-supplied tests. Same reasoning: serving only. The
+    # evaluation always has asserts, because the asserts ARE the MBPP
+    # specification, so this branch is unreachable from build_taskset output.
+    "code_untested": (
+        "Write Python for this task. Return ONLY a python code block, no "
+        "explanation.\n\n{q}"
+    ),
 }
 
 
@@ -796,8 +845,15 @@ def build_prompt(task: dict, kind: str = "answer") -> str:
     if kind == "route":
         return PROMPTS["route"].format(q=task["prompt"])
     if task["domain"] == "code":
-        tests = "\n".join(task["grader_payload"]["tests"])
+        tests = "\n".join(task.get("grader_payload", {}).get("tests", []))
+        if not tests:
+            # Serving only - see PROMPTS["code_untested"]. Every task from
+            # build_taskset.py carries asserts, so this is unreachable from the
+            # evaluation.
+            return PROMPTS["code_untested"].format(q=task["prompt"])
         return PROMPTS["code"].format(q=task["prompt"], tests=tests)
+    if task["domain"] == "general":
+        return PROMPTS["general"].format(q=task["prompt"])
     return PROMPTS["math"].format(q=task["prompt"])
 
 

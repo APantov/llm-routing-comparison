@@ -1,0 +1,120 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+# No API keys anywhere in this file, and that is a deliberate property rather
+# than an omission. Every job below runs in mock or replay mode, so CI cannot
+# spend money, cannot leak a key, and cannot be made to by a pull request from
+# a fork.
+env:
+  ROUTER_MODE: mock
+
+jobs:
+  research-core:
+    name: "research core (bare interpreter, no deps)"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      # Nothing is installed on purpose. The core claim of the research half is
+      # that it reproduces on a bare interpreter with no network and no key; a
+      # CI job that pip-installs first would never notice that breaking.
+      - name: numpy only (the MBPP+ graders need it)
+        run: python -m pip install numpy
+
+      - name: Build the task set
+        run: python build_taskset.py
+
+      - name: Regression gate
+        # Exits non-zero if a grader is broken OR too lax. This is the gate
+        # that failed to catch a real grader bug in July 2026 by only testing
+        # grade(GT, GT); it now checks equivalent formattings and near-misses.
+        run: python sanity_check.py
+
+      - name: Splits are deterministic
+        run: python splits.py
+
+  agent-layer:
+    name: "agent layer (langgraph + mcp)"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+
+      - name: Install
+        run: python -m pip install -e ".[dev]" anyio
+
+      - name: Build the task set
+        run: python build_taskset.py
+
+      - name: Tests
+        run: python -m pytest tests/ -v
+
+      - name: The mock change cannot move a benchmark number
+        # Guards the one edit the agent layer made to the research core: a
+        # `general` domain and a live-query branch in the mock. Both are
+        # unreachable from build_taskset output, and this proves it by
+        # fingerprinting every mock response the task set can produce.
+        run: python scripts/check_core_unchanged.py
+
+  demo:
+    name: "demo runs with no API key"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install -e ".[agent]" numpy
+      - run: python build_taskset.py
+
+      # The property worth protecting: someone who clones this repository with
+      # no account, no key and no money can watch the router escalate over
+      # genuine model output, because the responses are committed.
+      - name: Replay demo, math
+        run: python -m router_agent.cli --demo --quiet
+      - name: Replay demo, code
+        run: python -m router_agent.cli --demo --domain code --quiet
+
+      # The three canonical traces. Fails if any scenario misses the cache,
+      # which is how a prompt change that silently invalidates the paid-for
+      # responses gets caught.
+      - name: The three routing scenarios replay from committed data
+        run: python scripts/demo.py
+      - name: Cost estimation is free
+        run: python -m router_agent.cli --estimate "What is 17 times 23?"
+      - name: Findings load from the committed data
+        run: python -m router_agent.cli --findings
+
+  mcp-server:
+    name: "MCP server starts and registers"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install -e ".[agent,mcp]" numpy
+      - run: python build_taskset.py
+      - name: Tools, resources and prompts register
+        run: python scripts/check_mcp_server.py
