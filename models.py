@@ -372,11 +372,33 @@ def ladder_summary():
 # cascade and in favour of routing cheap.
 # ---------------------------------------------------------------------------
 
-# With thinking disabled, replies are short. 2048 is generous headroom rather
-# than a tuned value, because truncation is the expensive failure here: a
-# cut-off math answer loses its \boxed{} and the grader scores a correct answer
-# as wrong, which reads as a capability result instead of a bug.
-MAX_TOKENS = 2048
+# Truncation is the expensive failure here: a cut-off math answer loses its
+# \boxed{} and the grader scores a correct answer as wrong, which reads as a
+# capability result instead of a bug.
+#
+# Was 2048, on the reasoning that replies are short with thinking disabled.
+# MEASURED on 6 August 2026 against 118 real responses on the `wide` ladder, and
+# 2048 was not enough once the maths half moved to MATH500 level 5:
+#
+#   code            mean  55 tokens out
+#   maths           mean 650 tokens out
+#   at the 2048 cap 2 of 118 calls (math-422 on cheap, math-103 on expensive)
+#
+# Both truncations were inspected rather than assumed. Neither was a degenerate
+# loop: both were coherent level-5 derivations that simply ran long, and the
+# Opus one was a few hundred tokens short of its \boxed{}. So the cap was
+# binding on real work, not catching pathology.
+#
+# 1.7% sounds ignorable and is not, because the truncations are not randomly
+# distributed. They land on the HARDEST tasks, which are exactly the ones that
+# decide the routable fraction, and they bias it directionally: a truncated
+# cheap answer reads as "the cheap rung failed" and inflates `routable`.
+#
+# 4096 leaves headroom over the observed maths tail. Raising it invalidates the
+# response cache, since max_tokens is part of the cache key - see
+# response_cache._KEY_FIELDS. That is why this number is worth getting right
+# once rather than tuning later.
+MAX_TOKENS = 4096
 
 # The LLM-as-router call (policies.policy_llm_router) is a one-word
 # classification, so it gets its own tiny cap. This is the number that decides

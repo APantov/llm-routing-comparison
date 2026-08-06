@@ -13,18 +13,31 @@ Two ways to spend less on LLM inference, with opposite failure modes:
 and the variable this repo manipulates to find it is **verifier quality** — the
 one thing a cascade depends on and a predictive router does not have at all.
 
-> ### Status: a real plumbing run has happened; the experiment has not
+> ### Status: the task set has been measured against real models; the policies have not
 >
-> Real models **have** been called, once, as a plumbing check: 47 real responses
-> are cached in `cache/raw_calls.{wide,claude,deepseek}.jsonl` and `results.jsonl`
-> holds 47 rows with `"mode": "real"`, `"simulated": false`, for **$0.0481** of
-> spend. That run covered 5 reported tasks on the `wide` ladder and **every policy
-> scored 100%**, so it carries no accuracy information at all. What it does
-> establish is that keys resolve, both providers answer, prompts parse, the graders
-> score real output, the cache writes, nothing truncates, and real latency runs
-> 3–7x the constant the mock stipulates.
+> **Two of the eleven policies have real numbers, as of 6 August 2026.** A two-arm
+> probe ran `always_cheap` and `always_expensive` over all 100 tasks on the `wide`
+> ladder (DeepSeek v4-flash → Opus 5): 200 real calls, **$0.9234**, 318 responses
+> now cached in `cache/raw_calls.wide.jsonl`.
 >
-> Every *reported* accuracy figure below still comes from **mock mode**, which
+> | | n=100 | code (40) | math (60) |
+> |---|---|---|---|
+> | `always_cheap` | 77.0% | 75.0% | 78.3% |
+> | `always_expensive` | 87.0% | 85.0% | 88.3% |
+> | **routable** (cheap wrong, expensive right) | **13.0%** | 12.5% | 13.3% |
+> | ceiling over `always_cheap` | 16.0% | 15.0% | 16.7% |
+>
+> 95% CI on routable [7.8%, 21.0%], McNemar **p = 0.021**. This is what the task
+> set hardening bought: on 30 July the same cross-tab read `both_ok=10,
+> routable=0`. Swapping the code half to **MBPP+** and the maths half to **MATH500
+> level 5** moved it to 13%, and — because those changes hit disjoint task subsets
+> — the near-identical per-domain figures show each worked on its own.
+>
+> Read it soberly: 13% sits *below* the 15% floor `routable.py` asks for. There is
+> a real routing signal and it is thin. Every policy here is competing over a
+> 16-point band.
+>
+> Every *other* accuracy figure below still comes from **mock mode**, which
 > fabricates model replies from answers already stored in the task set. Those
 > figures mean nothing about any model. Every simulated number is labelled as such:
 > at the top and bottom of every run, above every table, and in a
@@ -47,7 +60,7 @@ byte-deterministic — including the figures.
 ```bash
 python3 build_taskset.py     # builds taskset.jsonl from data/
 python3 sanity_check.py      # regression gate: must print 40/40 and 60/60
-python3 run_eval.py --policy always_cheap --split all   # difficulty probe
+python3 routable.py          # is there anything left for a router to decide?
 python3 splits.py            # the calibration / evaluation split
 python3 run_eval.py          # every policy, reported on the held-out half
 python3 frontier.py          # cost-quality curves and the AUC comparison
@@ -63,6 +76,18 @@ ROUTER_LADDER=claude   python3 run_eval.py   # 1x / 3x / 5x  (default)
 ROUTER_LADDER=deepseek python3 run_eval.py   # 1x / 3.1x, one provider
 ROUTER_LADDER=wide     python3 run_eval.py   # 1x / 36x, cross-provider
 ```
+
+> **Shell note.** `ROUTER_LADDER=x python3 ...` is bash syntax and does nothing on
+> Windows PowerShell. Rather than remember three shells' worth of syntax, put the
+> setting in `.env` and drop the prefix entirely — the repo loads it, and a real
+> environment variable still overrides it:
+>
+> ```
+> ROUTER_LADDER=deepseek
+> ROUTER_MODE=real
+> ```
+>
+> Every command below then works unchanged in bash, PowerShell and cmd.
 
 Real mode. Do these in order — the second one is the decision point, and it costs
 one or two orders of magnitude less than a full run:
@@ -87,13 +112,22 @@ Then, in order — the second is the decision point and costs far less than a ru
 # 1. plumbing check: keys resolve, prompts parse, nothing truncates
 ROUTER_MODE=real python3 run_eval.py --limit 10
 
-# 2. difficulty probe: does the task set discriminate at all? ~$0.01-$0.09
-ROUTER_MODE=real python3 run_eval.py --policy always_cheap --split all
+# 2. the two-arm probe: is there anything for a router to decide? ~$0.92
+ROUTER_MODE=real python3 run_eval.py \
+    --policy always_cheap --policy always_expensive --split all
+ROUTER_MODE=replay python3 routable.py --real --ladders wide
 ```
 
-The probe answers the pilot gate on its own, because the gate depends only on the
-cheap rung's failure rate. Ten tasks cannot answer it — at n=10 that rate carries a
-±28-point confidence interval, which spans the entire acceptable band.
+**Run both arms, not one.** The single-arm version measures `P(cheap fails)`,
+which is `routable + both_fail` — it cannot tell a task the expensive rung would
+fix from one it would fail too, and only the first kind is worth routing. This
+repo has a concrete demonstration of the difference: the 6 August probe reports a
+23.0% cheap failure rate that reads as comfortably in band, while the routable
+fraction is 13.0% and reads as below it. Ten of those 23 failures are tasks
+neither rung can solve. See [ROUTABLE_2026-07-30.md](ROUTABLE_2026-07-30.md).
+
+Ten tasks cannot answer this either — at n=10 the rate carries a ±28-point
+confidence interval, which spans the entire acceptable band.
 
 Every response from that paid run lands in `cache/raw_calls.<ladder>.jsonl`, one
 file per ladder so they never mix. Afterwards everything is free forever, and
@@ -113,8 +147,17 @@ A full run over all 100 tasks and every policy is under $2 per ladder; see
 
 | domain | source | n | grading | runtime verifier |
 |---|---|---|---|---|
-| math | MATH500, levels 3–5 | 60 | exact match on the normalised answer | **proxy** — self-consistency over k samples |
-| code | sanitized MBPP | 40 | execute the shipped asserts | **free and perfect** — just run the tests |
+| math | MATH500, level 5 | 60 | exact match on the normalised answer | **proxy** — self-consistency over k samples |
+| code | MBPP+ | 40 | execute the expanded evalplus suite | **free and perfect** — just run the tests |
+
+Both difficulty settings were raised on 6 August 2026, because the probe showed
+the cheap rung solving essentially everything at the previous ones. MBPP+ is the
+same 378 problems as sanitized MBPP with roughly 35x more test cases, so the swap
+moves exactly one variable — how thorough the marking is — and the model is still
+shown the original thin asserts as its specification. The easier originals remain
+one flag away: `--code mbpp --min-math-level 3`. See [DATASETS.md](DATASETS.md).
+Grading the code half now needs **numpy**, because the expanded suites compare
+floats with `np.allclose`.
 
 No LLM judge anywhere. Every verdict is deterministic, so results are
 reproducible byte for byte and there is no judge to calibrate.

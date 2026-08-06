@@ -1,8 +1,9 @@
 # STATUS — read this first
 
-Written 30 July 2026. This is the "you just woke up and forgot everything" file.
-It answers four questions in order: where the project is, what to do next, what it
-will cost, and what to expect when you do it.
+Written 30 July 2026, **updated 6 August 2026 after the two-arm probe**. This is
+the "you just woke up and forgot everything" file. It answers four questions in
+order: where the project is, what to do next, what it will cost, and what to
+expect when you do it.
 
 If you only read one section, read [§2 Do this next](#2-do-this-next).
 
@@ -10,34 +11,70 @@ If you only read one section, read [§2 Do this next](#2-do-this-next).
 
 ## 1. Where the project is
 
-**The machine is finished. The plumbing has been checked against real models. The
-experiment has not been run.**
+**The machine is finished. The task set has been hardened. The two-arm probe has
+been run against real models, and it says the task set now discriminates — but
+only just, and n=100 cannot close the question.**
 
 Everything works end to end: 100 tasks, 11 policies, three model ladders, a
 calibration split, a cost-quality frontier, paired significance tests, a
 degradation sweep, and figures. All of it reproduces byte-for-byte on a bare
 Python install with no API key and no network.
 
-**Step 4a below has been done.** `ROUTER_MODE=real ROUTER_LADDER=wide python3
-run_eval.py --limit 10` was run on 30 July 2026. It produced 47 real model
-responses across `cache/raw_calls.{wide,claude,deepseek}.jsonl` (45 / 1 / 1) and
-47 rows in `results.jsonl` carrying `"mode": "real"`, `"simulated": false`, at a
-total cost of **$0.0481**. Five tasks are reported (`code-475`, `code-86`,
-`math-105`, `math-331`, `math-92`); the cache covers ten because `fit_estimators`
-also calls on the calibration half.
+### The probe result, 6 August 2026 — the first real accuracy data in this repo
 
-**That run carries no accuracy information.** Every policy scored 100% on all five
-tasks, so the routing-skill denominator is 0/0 and every comparison is a tie by
-construction. What it did establish, which is the point of a plumbing check: keys
-resolve, both providers answer, prompts parse, the graders score real output, the
-cache writes and replays field-for-field, nothing truncated (max 621 output tokens
-against `MAX_TOKENS = 2048`), and **real latency is ~2.7s mean against the 0.4–0.9s
-the mock stipulates — 3–7x the modelled figure.**
+`python run_eval.py --policy always_cheap --policy always_expensive --split all`
+on the `wide` ladder (DeepSeek v4-flash → Opus 5), all 100 tasks, both arms.
+200 real calls, **$0.9234**, written to `results.probe.jsonl` and cached in
+`cache/raw_calls.wide.jsonl`.
 
-**Every accuracy number this repo reports is still fabricated.** Mock mode invents
-model replies from constants in `models.py`, and the one real run is too small and
-too degenerate to replace any of them. That is the one thing standing between this
-repo and a result.
+| cell | n=100 | code (40) | math (60) | meaning |
+|---|---|---|---|---|
+| `both_ok` | 74 | 29 | 45 | tie — nothing to route |
+| **`routable`** | **13** | **5** | **8** | **cheap wrong, expensive right — the only cell where escalating pays** |
+| `both_fail` | 10 | 5 | 5 | tie |
+| `inverted` | 3 | 1 | 2 | escalating *loses* |
+
+- **routable = 13.0%**, 95% CI [7.8%, 21.0%]. Ceiling (the most any router can add
+  over `always_cheap`) = **16.0%**. McNemar **p = 0.021**.
+- `always_cheap` **77.0%**, `always_expensive` **87.0%**.
+- Per domain: code 12.5% routable, math 13.3%. **Nearly identical**, which matters
+  — see below.
+
+**This is a real change and it is the point of the 31 July / 6 August work.** On
+30 July the cross-tab over the ten tasks that had both arms cached was
+`both_ok=10, routable=0`: nothing to route, at p≈0.02. Hardening both halves —
+MBPP+ on code, MATH500 level 5 on maths — moved the routable fraction from
+effectively zero to 13%.
+
+**Both hardenings worked, and worked independently.** They apply to disjoint task
+subsets, so the per-domain split de-confounds them: MBPP+ lifted the code half and
+level 5 lifted the maths half, and the two landed within a point of each other.
+Neither change is carrying the other.
+
+### But read the verdict carefully
+
+`routable.py` returns **UNRESOLVED**: the CI straddles the 15% floor of its
+[15%, 45%] band. Note *which side the point estimate is on* — 13.0% is **below**
+the floor, so more tasks would most likely resolve this as *just under* the
+threshold rather than over it.
+
+The gate `run_eval.py` prints is friendlier — cheap-model failure rate 23.0%
+[15%, 31%], "leans in band" against a 20–55% target. **Prefer the routable
+figure.** `P(cheap fails)` is `routable + both_fail`, and 10 of those 23 failures
+are tasks the expensive rung cannot fix either. That is the exact confusion
+[ROUTABLE_2026-07-30.md](ROUTABLE_2026-07-30.md) was written to warn about.
+
+So the honest reading: **there is now a real routing signal, it is statistically
+detectable at n=100 (p=0.021), and it is thin.** A perfect oracle beats
+`always_cheap` by 16 points and `always_expensive` beats it by 10. Every policy in
+the repo is competing over that 16-point band.
+
+### What is still not measured
+
+The probe ran **two** policies. The other nine — every cascade, every predictive
+router, the degradation sweep, the frontier — have still never been run against a
+real model. Their accuracy figures remain mock-mode fabrications and are labelled
+as such everywhere.
 
 What is *already* real, even in mock mode:
 
@@ -46,7 +83,40 @@ What is *already* real, even in mock mode:
 - the graders, the caching, the escalation logic, the statistics
 
 So the cost conclusions below are trustworthy. The accuracy conclusions are not,
-and are labelled as such everywhere.
+except for the two arms in the table above, and everything is labelled.
+
+### What the probe cost, and why it was 2x the estimate
+
+`ROUTABLE_2026-07-30.md` priced this probe at **$0.44**. It came in at **$0.9234**,
+and the reason is worth carrying forward because it repriced the whole project:
+
+| domain | mean output tokens | cost per call |
+|---|---|---|
+| code | 55 | $0.0012 |
+| maths (level 5) | 650 | $0.0078 |
+
+**Maths costs 6.5x what code costs**, because level-5 problems produce long
+derivations and Opus 5 charges $25/MTok on output. The $0.44 estimate was built
+from the old, easier task set, where the modelled reply was 80–120 tokens. The
+prediction in §5 that real runs would come in "2–3x higher" is confirmed — and
+every cost figure in §3 that was extrapolated from the mock is low for the same
+reason.
+
+**`MAX_TOKENS` was raised from 2048 to 4096 on 6 August 2026**, and this is the
+second thing the probe paid to discover. At 2048, two of the first 118 real
+responses truncated — both coherent level-5 derivations that simply ran long, one
+of them a few hundred tokens short of its `\boxed{}`. 1.7% sounds ignorable and is
+not: truncations land on the hardest tasks, which are exactly the ones that decide
+the routable fraction, and a truncated cheap answer reads as "the cheap rung
+failed" and inflates it. Note the consequence before you touch that constant
+again — `max_tokens` is in the response-cache key, so changing it **invalidates
+every cached response and re-charges the whole run**. That is what the first
+$0.39 of the 6 August spend bought.
+
+One call still truncated at 4096 (`math-96`, cheap rung). It was inspected rather
+than assumed: DeepSeek was doing hand bisection on a cubic at "Step 15" and not
+converging. That is a genuine capability failure, correctly graded wrong, and it
+sits in `both_fail` — so it does not touch the routable count either way.
 
 ### The finding that made the ladder work worth doing
 
@@ -94,11 +164,36 @@ So the current honest summary is: *cost differences are measurable at n=100,
 accuracy differences are not.* Do not quote an accuracy gap as a finding until
 §2 step 5 is done.
 
+The probe is the one exception, and it is instructive: the cheap-vs-expensive gap
+**is** significant at n=100 (McNemar p=0.021) because it is the largest gap in the
+project. Every policy comparison is a contest over the 16-point band inside it,
+and those are the ones n=100 cannot resolve.
+
 ---
 
 ## 2. Do this next
 
 In order. Steps 1–3 are free and take about five minutes total.
+
+> **Where you actually are, 6 August 2026.** Steps 1–4b are done. The task set has
+> been hardened (MBPP+ code half, MATH500 level 5 maths half — both now the
+> defaults in `build_taskset.py`) and the two-arm probe has been run and read.
+> **Go to step 5**, but read [§4](#4-do-you-need-more-tasks) first: at
+> routable=13% the case for enlarging the task set before paying for a full run is
+> stronger than it was, not weaker.
+
+> **Shell note.** `ROUTER_LADDER=x python3 ...` is bash syntax and does nothing on
+> Windows PowerShell. Rather than remember three shells' worth of syntax, put the
+> setting in `.env` and drop the prefix entirely — the repo loads it, and a real
+> environment variable still overrides it:
+>
+> ```
+> ROUTER_LADDER=deepseek
+> ROUTER_MODE=real
+> ```
+>
+> Every command below then works unchanged in bash, PowerShell and cmd.
+
 
 ### Step 1 — confirm nothing rotted (2 min, free)
 
@@ -106,9 +201,14 @@ In order. Steps 1–3 are free and take about five minutes total.
 python3 build_taskset.py && python3 sanity_check.py
 ```
 
-Expect `40/40` and `60/60`, then `both graders score every reference answer
-correctly`. If either count is short, **stop** — every number downstream is invalid
-until it is fixed, and `sanity_check.py` exits non-zero to make that hard to miss.
+Expect `code source: mbppplus   math levels: >= 5`, then `40/40` and `60/60`, then
+`both graders score every reference answer correctly`. If either count is short,
+**stop** — every number downstream is invalid until it is fixed, and
+`sanity_check.py` exits non-zero to make that hard to miss.
+
+The code half needs **numpy** to grade, because every MBPP+ test program compares
+floats with `np.allclose`. The easier originals are still one flag away:
+`python3 build_taskset.py --code mbpp --min-math-level 3`.
 
 ### Step 2 — look at the three ladders (2 min, free)
 
@@ -162,56 +262,68 @@ and would read as a capability result.
 confidence interval of roughly ±28 points, so it cannot distinguish "too easy"
 from "too hard" from "fine". It spans the entire band. That is what step 4b is for.
 
-### Step 4b — the difficulty probe (5 minutes, about $0.01–$0.09)
+### Step 4b — the two-arm probe (5 minutes, $0.92) — **DONE, 6 August 2026**
 
-> **Read [ROUTABLE_2026-07-30.md](ROUTABLE_2026-07-30.md) before running this.**
-> This probe measures the wrong quantity. `P(cheap fails)` is `routable +
-> both_fail`, and the gate cannot see the split — a task set where the cheap rung
-> fails 40% and the expensive rung fixes none of it passes cleanly and is worth
-> nothing. Run the **two-arm** probe instead (`always_cheap` *and*
-> `always_expensive`, then `python3 routable.py --real`). It costs **$0.44** for
-> 100 tasks on `wide` rather than $0.01, and it is the only version that answers
-> the question. The mock reading below is worse than uninformative: `difficulty_pct`
-> is a rank within the sampled set, so the mock cannot represent task difficulty
-> at all.
+**This was the actual decision point**, and the numbers are in §1. Summary:
+routable **13.0%** [7.8%, 21.0%], ceiling 16.0%, McNemar p=0.021, cheap 77.0% /
+expensive 87.0%, code and maths agreeing at 12.5% / 13.3%.
 
-**This is the actual decision point**, and it is the cheapest meaningful thing in
-the whole project. The pilot gate depends only on the *cheap rung's* failure rate,
-so there is no need to run eleven policies to find it — run one, over all 100
-tasks:
+Re-run it only if the ladder, the prompts, the task set or `MAX_TOKENS` change —
+each of those invalidates the cached responses and re-charges the run.
 
 ```bash
+# both arms, all 100 tasks, writes results.probe.jsonl (never results.jsonl)
 ROUTER_LADDER=wide ROUTER_MODE=real python3 run_eval.py \
-    --policy always_cheap --split all
+    --policy always_cheap --policy always_expensive --split all
+
+# then the cross-tab, free, off the cache
+ROUTER_MODE=replay python3 routable.py --real --ladders wide
 ```
 
-100 calls on the bottom rung. About **$0.01** on a DeepSeek cheap rung, **$0.09**
-on Haiku. It writes to `results.probe.jsonl`, never touching `results.jsonl`, so it
-cannot corrupt a full run's rows.
+> **Do not use the one-arm version, and do not read the gate `run_eval.py`
+> prints.** See [ROUTABLE_2026-07-30.md](ROUTABLE_2026-07-30.md). `P(cheap fails)`
+> is `routable + both_fail`, and the one-arm gate cannot see the split. This run
+> is the concrete demonstration: it reports a 23.0% cheap failure rate that "leans
+> in band" against a 20–55% target, while the quantity that actually matters is
+> 13.0% and sits *below* its band. Ten of those 23 failures are tasks the
+> expensive rung cannot fix either.
 
-At n=100 the failure rate is resolved to about ±9 points, which is enough to place
-it in the band:
+How to read the routable fraction, against `routable.py`'s [15%, 45%] band:
 
-- **20–55%** → the task set discriminates. Go to step 5.
-- **below 20%** → the cheap model is too good here. Almost nothing to route, and
-  every policy collapses onto `always_cheap`. Fix by raising `MIN_MATH_LEVEL` to 4
-  or 5 in `build_taskset.py`, and by replacing the code half — see §4.
-- **above 55%** → too hard; everything escalates and every policy collapses onto
-  `always_expensive`. Lower `MIN_MATH_LEVEL` to 3.
+- **inside the band** → the task set discriminates. Go to step 5.
+- **below 15%** → too easy. Not "no experiment", but a thin one: every policy is
+  competing over a narrow ceiling and n must rise to see anything. **This is where
+  we are, at 13%, with the CI straddling the floor.**
+- **above 45%** → too hard; everything escalates and every policy collapses onto
+  `always_expensive`.
 
 Run the probe on **each ladder you care about**, because the answer is a property
 of the cheap rung, not of the task set alone: DeepSeek v4-flash and Haiku 4.5 will
-not fail on the same fraction.
+not fail on the same fraction. Only `wide` has been probed.
 
-In mock mode this reads 29%, comfortably in band — but that is a restatement of
-`MOCK_SKILL`, not evidence. The probe is the first time the number means anything,
-and §4 explains why there is real reason to expect it to come in low.
+### Step 5 — the full paid run
 
-### Step 5 — the full paid run (about 30 minutes, under $1)
+**Do [§4](#4-do-you-need-more-tasks) first.** At routable=13% with a 16-point
+ceiling, a full run at n=100 would be measuring nine policies against each other
+inside a band that n=100 already cannot resolve. Enlarging the task set costs the
+same order of magnitude and is the difference between a result and another
+"nothing is significant".
+
+Before any full run, note two things the probe changed:
+
+- **RouteLLM's cached scores no longer cover the task set.** The rebuild changed
+  every code id to `codeplus-*` and resampled the maths half, so `routellm` now
+  sits out with `SKIPPED - no cached scores`. Regenerate them first — it is free,
+  local, and needs no API key: `python3 routellm_router.py --score`.
+- **Budget from the measured per-call costs in §1, not from the table in §3.**
+  Maths is $0.0078/call and code $0.0012/call on `wide`. Self-consistency
+  verification samples the cheap rung k times per task, so the cascade policies
+  multiply the maths figure.
 
 ```bash
 ROUTER_LADDER=wide ROUTER_MODE=real python3 run_eval.py
-git add cache/raw_calls.wide.jsonl && git commit -m "raw responses, wide ladder"
+git add -f cache/raw_calls.wide.jsonl results.jsonl
+git commit -m "raw responses, wide ladder"
 ```
 
 Committing the cache is the important half. After that, **everything is free
@@ -236,6 +348,13 @@ how many once step 5 gives you real discordance counts.
 
 ## 3. What the runs cost
 
+> **These are MODELLED figures and the 6 August probe showed them to be low by
+> roughly 2.5x on the hardened task set.** The measured numbers are in §1: maths
+> **$0.0078/call**, code **$0.0012/call** on `wide`, against a modelled reply
+> length of 80–120 tokens that turned out to be 650 for level-5 maths. The
+> two-arm probe was priced here at $0.008 and cost **$0.9234**. Scale everything
+> below accordingly, and prefer a measured number wherever one exists.
+
 Modelled from the verified price tables, for all 100 tasks and every policy. The
 response cache deduplicates identical calls, so the number that costs money is
 *distinct* calls, not policy-attributed calls.
@@ -245,6 +364,11 @@ response cache deduplicates identical calls, so the number that costs money is
 | `deepseek` | 100 calls, **$0.004** | 772 calls, **$0.06** |
 | `wide` | 100 calls, **$0.004** | 540 calls, **$0.37** |
 | `claude` | 100 calls, **$0.049** | 640 calls, **$0.72** |
+
+**Actually spent to date: $1.36**, all on `wide`, all in
+`cache/raw_calls.wide.jsonl`. $0.0481 on the 30 July plumbing run, $0.39 on a
+two-arm probe at `MAX_TOKENS=2048` that was abandoned when it truncated, and
+$0.9234 on the probe that replaced it.
 
 The `wide` probe and the `deepseek` probe hit the SAME cheap rung
 (deepseek-v4-flash), so running both is redundant. There are only two distinct
@@ -279,74 +403,105 @@ two accuracy points. The gaps you care about are five or six points, which means
 they hinge on three or four tasks going one way rather than the other. `stats.py`
 confirms it: **nothing is significant.**
 
-### How many more
+### How many more — now answerable from real discordance counts
 
-To detect a five-point paired difference at the discordance rates seen here, you
-need roughly **400–600 tasks**, so 4–6x the current set. Get the real discordance
-counts from step 5 and the number becomes exact rather than a rule of thumb.
+The 6 August probe supplies what step 5 was supposed to: **16 discordant pairs per
+100 tasks** on the widest comparison in the project (13 routable + 3 inverted).
+
+That comparison is already significant (p=0.021). The ones that are not are the
+policy-vs-policy contests *inside* the 16-point ceiling, and they are strictly
+harder — a cascade and a predictive router disagree on far fewer than 16 tasks per
+100, because both spend most of the set agreeing with `always_cheap` on the 74
+`both_ok` tasks.
+
+Concretely, on the routable fraction itself (p̂ = 13.0%):
+
+| n | 95% CI on routable | resolves the [15%, 45%] band? |
+|---|---|---|
+| 100 | [7.8%, 21.0%] | no — straddles the floor |
+| 504 (the whole pool) | ≈ [10.1%, 15.9%] | still straddles, barely |
+| ~1100 | ≈ [11.0%, 15.0%] | yes — would settle it as *below* band |
+
+So enlarging to the full pool tightens everything materially but does **not** by
+itself move the task set into the band. That is not an argument against doing it;
+it is an argument for being honest about what it buys — power, not a better task
+set.
+
+**The pool is smaller than it used to be, because level 5 costs maths tasks.**
+Verified on 6 August rather than quoted:
+
+| source | available | currently used |
+|---|---|---|
+| MATH500 level ≥ 5 | **134** | 60 |
+| MATH500 level ≥ 4 | 262 | — |
+| MATH500 level ≥ 3 | 367 | — |
+| MBPP+ | **370** | 40 |
+
+Taking everything at the current settings gives **504 tasks**, not the 787 this
+file previously promised — `MIN_MATH_LEVEL = 5` cut the maths pool from 367 to
+134. Dropping to level 4 would buy back 128 maths tasks and restore the
+predictive router's difficulty signal (see the comment on `MIN_MATH_LEVEL`), at
+the cost of an easier maths half.
 
 ### Why this is cheap to fix
 
-Cost scales linearly with tasks, and from §3 a full run is about $1.50. So **600
-tasks is roughly $10**, once. Every analysis afterwards is free via replay. This is
-the highest-value spend available to the project by a wide margin.
+Cost scales linearly with tasks. From the **measured** per-call figures in §1, a
+two-arm probe over all 504 costs about **$3.60**; a full eleven-policy run is the
+number to be careful with, because self-consistency verification samples the
+cheap rung k times per task and maths is the expensive domain. Budget in the
+$15–25 range for `wide` at n=504 rather than the $0.37 in §3, and re-read the
+spend cap in `run_eval.MAX_SPEND_USD` (currently $20) before starting — **it will
+bind.**
 
-### First, a real risk: the code half may be too easy in absolute terms
+Every analysis afterwards is free via replay. This is still the highest-value
+spend available to the project.
 
-Not a dilution problem from expanding — a problem with the dataset choice, and it
-applies to the current 100 tasks just as much.
+### The risk that the code half was too easy — resolved, and the answer is no
 
-MBPP is a saturated benchmark. Frontier models score in the mid-90s pass@1 on it,
-and the general assessment is that by 2026 it is only useful for separating models
-in roughly the 7B–30B range. Both cheap rungs here (Haiku 4.5, DeepSeek v4-flash)
-are well above that class. MATH500 has held up better and still separates frontier
-models, particularly at levels 4–5.
+This file used to warn that MBPP is saturated and the code cascade might have
+nothing to route. **The probe settled it: code routable = 12.5%, maths = 13.3%.**
+The two halves discriminate equally well. The verifier-quality experiment, which
+lives on the code half because that is the half with the perfect verifier, has
+material to work with.
 
-So the plausible failure mode is: **the probe comes back below 20% on the code half
-and the code cascade has nothing to route.** That would not invalidate the project —
-it would relocate it, because the *verifier-quality* experiment lives on the code
-half, which is the half with the perfect verifier.
+Credit where due: that took the MBPP+ swap. Plain MBPP's thin asserts are what
+made the code half look saturated, and the expanded evalplus suites recovered the
+signal without changing a single problem — the swap moves exactly one variable,
+how thorough the marking is. See [DATASETS.md](DATASETS.md).
 
-If that happens, the fix in order of effort:
+The remaining escalation path, if 12.5% is judged too thin:
 
-1. **Raise `MIN_MATH_LEVEL` to 4** and rebalance toward maths. Cheapest, no new
-   data, but it shrinks the perfect-verifier half.
-2. **Replace MBPP with a harder executable-test benchmark.** LiveCodeBench is the
-   named successor and is contamination-controlled by release date. This preserves
-   the design — the whole experiment needs code tasks that ship runnable tests, so
-   whatever replaces MBPP must too.
-3. **Keep MBPP but filter it** to items whose reference solution exceeds some line
-   count. Free, but a small and biased subset.
-
-Do not do any of these until the probe says so. It costs $0.09 to find out, and
-guessing wrong in either direction wastes far more.
+1. **Drop `MIN_MATH_LEVEL` to 4** and rebalance toward maths — buys 128 maths
+   tasks and restores the predictive router's difficulty signal, at the cost of an
+   easier maths half.
+2. **BigCodeBench** for the code half. 1140 tasks, genuinely hard, but the `test`
+   field is a `unittest` class rather than an assert list so `graders.py` needs
+   adapting, and its tasks import real third-party libraries.
+3. **Omni-MATH filtered to `difficulty >= 7`** for the maths half. 4,428 olympiad
+   problems with a shipped difficulty float, but some answers are symbolic
+   expressions that exact match handles badly — `sanity_check.py` is the tool for
+   finding out how many.
 
 ### Where to get more tasks
 
-- **Maths**: MATH500 at levels 3–5 leaves **367** candidates and you are using 60.
-  Take all 367. Free, already downloaded, one constant change.
-- **Code**: sanitized MBPP leaves **420** usable items after dropping the ten
-  canonical few-shot examples, and you are using 40. Take all 420. Also free and
-  already on disk.
-
-That gets you to **787 tasks** with no new data and no new code — change `N_MATH`
-and `N_CODE` in `build_taskset.py` and rebuild. Verify the pool sizes yourself
-rather than trusting this file:
+Change `N_MATH` and `N_CODE` in `build_taskset.py` and rebuild. No new data, no
+new code. Verify the pool sizes yourself rather than trusting this file:
 
 ```bash
-python3 -c "import build_taskset as b; print(len(b.load_math500()), len(b.load_mbpp()))"
+python3 -c "import build_taskset as b; print(len(b.load_math500(5)), len(b.load_mbppplus()))"
 ```
 
-> **Recommendation: do this first.** Set `N_MATH = 367` and `N_CODE = 420`, run
-> `build_taskset.py`, then pilot. There is no reason to pay for a run at n=100 when
-> n=787 costs the same order of magnitude and is the difference between "no
-> detectable difference" and an actual result.
+> **Recommendation: set `N_MATH = 134` and `N_CODE = 370`** for the full 504 at
+> the current difficulty settings, then re-probe before committing to a full run.
+> The probe over 504 costs about $3.60 from the measured per-call figures.
 >
-> One knock-on effect to expect: `stratified_sample` currently samples across four
-> difficulty buckets, and taking the whole pool makes it a no-op. That is fine, but
-> the maths/code balance shifts from 60/40 to 47/53, so the two domains carry
-> slightly different weight in any aggregate number. Report per-domain figures, as
-> the tables already do.
+> Two knock-on effects to expect. `stratified_sample` samples across four
+> difficulty buckets and taking the whole pool makes it a no-op — fine, but the
+> maths/code balance inverts from 60/40 to **27/73**, so the code half would
+> dominate every aggregate. Report per-domain figures, as the tables already do,
+> or cap `N_CODE` to hold the ratio. Second, the maths half is already at its
+> difficulty ceiling for this dataset: 134 is *all* of MATH500 level 5, so maths
+> cannot grow further without a new source.
 
 ### What NOT to do
 
@@ -359,16 +514,21 @@ cheaper way to add tasks.
 
 ## 5. What to expect to change when the numbers become real
 
-Written down now so you can check your predictions later. This is the honest part.
+Written down in advance so the predictions could be scored later. Two of them now
+can be.
 
-| what | mock says | expect on a real run | why |
+| what | mock says | expect on a real run | outcome |
 |---|---|---|---|
-| maths cascade accuracy | very high | **notably lower** | `_wrong_answer` scatters wrong answers, so majority voting recovers truth far too easily. Real models cluster on the *same* wrong answer. This is the biggest single overstatement in the repo. |
-| `llm_router` accuracy | competitive | **unknown, probably worse** | the mock router is an oracle on the mock's own difficulty, corrupted by a constant. Its accuracy measures nothing. Its cost overhead is real. |
-| the ratio finding | sign flips across ladders | **should hold** | it comes from the price tables and the escalation logic, not from `MOCK_SKILL`. This is the most robust conclusion here. |
-| RouteLLM below random | −2 to −3% AUC | **direction should hold** | out-of-distribution transfer, and the scores are real bert forward passes already. Magnitude may move. |
-| three-rung ladder | middle rung barely used | **genuinely unknown** | `MOCK_SKILL["claude-sonnet-5"]` decides this and it is a guess. This question cannot be answered in mock mode at all. |
-| cost per task | modelled | **2–3x higher** | modelled replies are 80–120 tokens, shorter than real ones. Ratios between policies should survive. |
+| **cost per task** | modelled | **2–3x higher** | ✅ **CORRECT, and if anything understated.** Measured 6 August: level-5 maths runs 650 output tokens against a modelled 80–120, and the two-arm probe cost $0.92 against a $0.44 estimate. |
+| **routable fraction** | 29%, "comfortably in band" | §4 expects it low | ✅ **CORRECT.** Real answer 13.0%. The mock's 29% was a restatement of `MOCK_SKILL` — `difficulty_pct` is a rank within the sampled set, so the mock is structurally blind to absolute difficulty. |
+| maths cascade accuracy | very high | **notably lower** | untested — needs the cascade policies run for real |
+| `llm_router` accuracy | competitive | **unknown, probably worse** | untested |
+| the ratio finding | sign flips across ladders | **should hold** | untested; only `wide` has real data |
+| RouteLLM below random | −2 to −3% AUC | **direction should hold** | untested, and currently unrunnable — the cached scores no longer cover the rebuilt task set |
+| three-rung ladder | middle rung barely used | **genuinely unknown** | untested; needs the `claude` ladder |
+
+The two that resolved both resolved *against* the mock, in the direction of "the
+mock flatters the project". Weight the remaining five accordingly.
 
 ---
 
@@ -381,33 +541,47 @@ Written down now so you can check your predictions later. This is the honest par
 | `README.md` | you want the technical overview and the citations |
 | `EXPLAINED.md` | you want the plain-language version of any concept |
 | `NOTES.md` | you want the honest list of what is wrong and what is unresolved |
-| `models.py` | changing models, prices or ladders — `DECISION #1` at the top |
+| `models.py` | changing models, prices or ladders — `DECISION #1` at the top. `MAX_TOKENS` carries the truncation measurement |
 | `policies.py` | changing what a policy does — `DECISION #2`–`#9` |
-| `build_taskset.py` | changing how many tasks, or which |
+| `build_taskset.py` | changing how many tasks, or which. Both difficulty defaults were raised on 6 August |
+| `DATASETS.md` | choosing a different benchmark, and why MBPP+ was the one taken |
+| `ROUTABLE_2026-07-30.md` | why the routable fraction is the quantity that matters |
 
 Everything *fabricated* is gitignored: `frontier.jsonl`, `sweep_degraded.jsonl`,
-`results.probe.jsonl`, `figures/`, and the mock caches (`raw_calls.*.mock.jsonl`).
-That is deliberate — a plausible percentage sitting in a repo is how a simulated
-number ends up quoted as a measurement.
+`figures/`, and the mock caches (`raw_calls.*.mock.jsonl`). That is deliberate — a
+plausible percentage sitting in a repo is how a simulated number ends up quoted as
+a measurement.
 
 The real artefacts are the exception and are **force-added to git** despite the
-ignore rule: `results.jsonl` (47 rows, all `simulated: false`) and
-`cache/raw_calls.{wide,claude,deepseek}.jsonl` (47 real responses, $0.0481 of
-spend). They cost money, they cannot be regenerated for free, and `ROUTER_MODE=replay`
-reproduces the paid run from them field-for-field. Note the consequence: a mock run
-with `--force` would overwrite `results.jsonl`, and the clobber guard is what stops
-that — if it ever gets bypassed, `git checkout results.jsonl` is the recovery.
+ignore rule:
+
+- `cache/raw_calls.{wide,claude,deepseek}.jsonl` — **318 real responses, $1.36 of
+  spend.** The irreplaceable asset. `ROUTER_MODE=replay` reproduces every paid run
+  from them field-for-field.
+- `results.jsonl` — 47 rows from the 30 July plumbing run, all `simulated: false`.
+  Historical: it predates the 6 August rebuild, so its `code-*` task ids no longer
+  exist in `taskset.jsonl`. Do not run `frontier.py` or `stats.py` against it.
+- `results.probe.jsonl` — 200 rows, both arms, all `simulated: false`. Normally
+  gitignored as fabricated; force-added because this copy is real.
+
+**`results.jsonl` was clobbered by a mock run once, on 31 July, and recovered from
+git.** The clobber guard in `run_eval.guard_clobber` exists to prevent exactly
+that; `--force` defeats it. If it happens again, `git checkout HEAD -- results.jsonl`
+is the recovery — note `HEAD`, because the file may be staged.
 
 ---
 
 ## 7. One-paragraph summary
 
-The pipeline is done and verified, and one 5-task plumbing run against real models
-has confirmed it end to end for $0.05 — but every policy tied at 100% on it, so no
-accuracy number means anything yet. Before spending more, raise the task count to the full 794
-available in the data you already have, because the current n=100 cannot resolve
-any of the comparisons and the bigger run costs roughly the same. Then pilot on 10
-tasks (~$0.14), read the failure-rate gate, and do the full run (~$1.50 per
-ladder). The strongest result already visible is that cascading's advantage scales
-with the price ratio and reverses below about 3x — and that one comes from the price
-tables rather than the mock, so it should survive contact with reality.
+The pipeline is done, the task set has been hardened on both halves, and the
+two-arm probe has been run for real: **routable = 13.0%** [7.8%, 21.0%] on the
+`wide` ladder, cheap 77% against expensive 87%, McNemar p=0.021, with code and
+maths agreeing at 12.5% and 13.3%. That is up from an effective zero on 30 July,
+so the MBPP+ and level-5 hardening did what it was supposed to — but 13% sits
+*below* the 15% floor `routable.py` wants, and the honest reading is that a real
+routing signal exists and is thin. Every policy in the repo is now competing over
+a 16-point ceiling. The next move is to enlarge the task set to the full 504
+available at the current settings, re-probe (~$3.60), and only then pay for a full
+eleven-policy run — budgeting from the measured $0.0078/call on maths rather than
+the modelled figures in §3, which the probe showed to be low by about 2.5x. Nine
+of the eleven policies still have no real accuracy data at all.
