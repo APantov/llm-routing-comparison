@@ -52,7 +52,10 @@ SCENARIOS = [
         "point": (
             "Three independent draws from DeepSeek all gave 6, which is right. "
             "Unanimous agreement, so the cascade accepted and never called "
-            "Opus 5 - the expensive rung would have cost roughly 80x more."
+            "Opus 5. Pricing Opus 5 for an answer of the same length puts it "
+            "at ~$0.0084 against this run's $0.000315 - about 27x. That is a "
+            "projection, not a measurement: Opus was never called, and it "
+            "tends to write longer answers, so 27x is a conservative floor."
         ),
     },
     {
@@ -89,10 +92,12 @@ SCENARIOS = [
         "kwargs": {"allow_code_execution": True},
         "point": (
             "Tests were executed, not sampled. Exact verification, zero "
-            "verification cost, and the cheap rung was provably sufficient. "
-            "This is the cascade at its strongest - and it is only available "
-            "because the CALLER brought the tests. Most production traffic "
-            "cannot, which is what sweep_degraded.py prices."
+            "verification cost, and the cheap rung was provably sufficient - "
+            "Opus 5 priced at the same answer length would have been ~81x "
+            "this run's $0.000031. This is the cascade at its strongest, and "
+            "it is only available because the CALLER brought the tests. Most "
+            "production traffic cannot, which is what sweep_degraded.py "
+            "prices."
         ),
     },
 ]
