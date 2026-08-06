@@ -44,6 +44,7 @@ from typing import Callable
 import models
 from graders import extract_answer
 
+from router_agent import pricing
 from router_agent.config import RouterConfig
 
 
@@ -72,6 +73,12 @@ class Check:
 
     method: str
     cost_usd: float = 0.0
+    """What verification costs a policy - charged even on a cache hit."""
+
+    backend_cost_usd: float = 0.0
+    """The part of `cost_usd` that actually reached a provider. Zero in mock
+    and replay; on a real run it is whichever draws were not already cached."""
+
     latency_s: float = 0.0
     detail: dict = field(default_factory=dict)
 
@@ -240,12 +247,16 @@ def verify_self_consistency(task, response_text, tier, cfg) -> Check:
         (_canonical_answer(response_text, domain), response_text)
     ]
     cost = 0.0
+    backend_cost = 0.0
     latency = 0.0
 
     # Index 0 is the greedy call the caller already made and passed in.
     for i in range(1, cfg.self_consistency_k):
         try:
-            r = models.call(tier, task, temperature=0.8, sample_idx=i)
+            r, call_backend_cost = pricing.call_tracked(
+                tier, task, temperature=0.8, sample_idx=i
+            )
+            backend_cost += call_backend_cost
         except KeyError as exc:
             # Replay mode, and this draw was never paid for. The benchmark's
             # two-arm probe bought one greedy call per task and no temperature
@@ -262,6 +273,7 @@ def verify_self_consistency(task, response_text, tier, cfg) -> Check:
                 confidence=None,
                 method="self_consistency",
                 cost_usd=cost,
+                backend_cost_usd=backend_cost,
                 latency_s=latency,
                 detail={
                     "note": (
@@ -283,7 +295,8 @@ def verify_self_consistency(task, response_text, tier, cfg) -> Check:
     if not counts:
         return Check(
             accepted=False, answer_text=response_text, confidence=0.0,
-            method="self_consistency", cost_usd=cost, latency_s=latency,
+            method="self_consistency", cost_usd=cost,
+            backend_cost_usd=backend_cost, latency_s=latency,
             detail={"note": "no draw produced a parseable answer", "k": len(answers)},
         )
 
@@ -304,6 +317,7 @@ def verify_self_consistency(task, response_text, tier, cfg) -> Check:
         confidence=agreement,
         method="self_consistency",
         cost_usd=cost,
+        backend_cost_usd=backend_cost,
         latency_s=latency,
         detail={
             "k": len(answers),

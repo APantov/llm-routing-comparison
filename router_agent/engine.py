@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Iterator
+from typing import Any
 
 import models
 import response_cache
@@ -48,8 +48,13 @@ class RouteOutcome:
     somebody else's identical call."""
 
     backend_cost_usd: float
-    """What this run actually sent to a provider. Differs from `cost_usd` in
-    replay and mock mode, where it is zero."""
+    """What this run actually sent to a provider, summed per call.
+
+    Zero in mock and replay. In real mode it is `cost_usd` minus whatever was
+    already in the response cache, so the two diverge on any run that partially
+    replays - which is most real runs after the first. Reporting `cost_usd`
+    here whenever a run touched a backend at all would bill cached calls as
+    money spent."""
 
     latency_s: float
     escalations: int
@@ -145,10 +150,10 @@ def _configure(cfg: RouterConfig) -> None:
 
 
 def _outcome_from_state(
-    final: dict, cfg: RouterConfig, backend_before: int, thread_id: str | None
+    final: dict, cfg: RouterConfig, thread_id: str | None
 ) -> RouteOutcome:
     tier = models.TIERS[min(final.get("rung_index", 0), len(models.TIERS) - 1)]
-    backend_calls = models.call_stats["backend"] - backend_before
+    calls = final.get("calls", [])
 
     return RouteOutcome(
         query=final["query"],
@@ -160,15 +165,15 @@ def _outcome_from_state(
         final_tier=tier,
         final_model=models.MODELS[tier]["id"],
         cost_usd=final.get("cost_usd", 0.0),
-        # Only real mode reaches a provider. Mock fabricates and replay reads
-        # from disk, so both spend nothing however many calls they attribute.
-        backend_cost_usd=(
-            final.get("cost_usd", 0.0) if cfg.mode == "real" and backend_calls else 0.0
-        ),
+        # Summed per call rather than inferred from the run's mode. A real run
+        # that partially replays pays for some calls and reads the rest from
+        # the cache, so "did this run touch a backend at all" is the wrong
+        # question - each call answers it for itself.
+        backend_cost_usd=sum(c.get("backend_cost_usd", 0.0) for c in calls),
         latency_s=final.get("latency_s", 0.0),
         escalations=final.get("escalations", 0),
         stop_reason=final.get("stop_reason", ""),
-        calls=final.get("calls", []),
+        calls=calls,
         events=final.get("events", []),
         simulated=cfg.mode == "mock",
         mode=cfg.mode,
@@ -205,13 +210,12 @@ def route(
     if needs_checkpointer:
         run_config["configurable"] = {"thread_id": tid}
 
-    backend_before = models.call_stats["backend"]
     state = initial_state(query, task, cfg.to_dict())
 
     final = app.invoke(state, config=run_config)
 
     outcome = _outcome_from_state(
-        final, cfg, backend_before, tid if needs_checkpointer else None
+        final, cfg, tid if needs_checkpointer else None
     )
 
     # A paused run surfaces as `__interrupt__` in the returned state. Reporting
@@ -244,35 +248,8 @@ def resume(thread_id: str, approved: bool, cfg: RouterConfig | None = None) -> R
         "recursion_limit": RECURSION_LIMIT,
         "configurable": {"thread_id": thread_id},
     }
-    backend_before = models.call_stats["backend"]
     final = app.invoke(Command(resume=approved), config=run_config)
-    return _outcome_from_state(final, cfg, backend_before, thread_id)
-
-
-def stream(
-    query: str,
-    cfg: RouterConfig | None = None,
-    tests: list[str] | None = None,
-) -> Iterator[dict]:
-    """Yield each node's state update as it happens.
-
-    What the CLI renders live. `stream_mode="updates"` gives one dict per node
-    keyed by node name, which is the granularity a human wants to watch - a
-    cascade's interesting moment is "verify rejected, escalating", and that is
-    exactly one update.
-    """
-    cfg = cfg or RouterConfig.from_env()
-    _configure(cfg)
-    task = live.synthesize_task(query, cfg.domain, tests)
-
-    from router_agent.graph import RECURSION_LIMIT, compiled
-    app = compiled(with_checkpointer=False)
-
-    yield from app.stream(
-        initial_state(query, task, cfg.to_dict()),
-        config={"recursion_limit": RECURSION_LIMIT},
-        stream_mode="updates",
-    )
+    return _outcome_from_state(final, cfg, thread_id)
 
 
 def estimate(query: str, cfg: RouterConfig | None = None,

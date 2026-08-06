@@ -32,13 +32,37 @@ import models
 # call rather than toward overspending, and it is labelled as an assumption
 # everywhere it surfaces.
 MEAN_OUTPUT_TOKENS = {"math": 650, "code": 55, "general": 400}
-GENERAL_IS_MEASURED = False
 
 # Characters per token for the input side. A rough constant rather than a
 # tokenizer call: the point is to size a budget check, and being 20% out on the
 # input side moves the estimate very little, because output tokens dominate
 # every price in the table by a factor of 2 to 5.
 CHARS_PER_TOKEN = 4.0
+
+
+def call_tracked(tier: str, task: dict, **kwargs):
+    """`models.call`, plus how much of its cost actually left the account.
+
+    Returns `(response, backend_cost_usd)`.
+
+    Two things have to be true for a call to have cost real money, and
+    conflating them is easy:
+
+    * **It was not served from the response cache.** `models.call` returns the
+      same ModelResponse either way and charges the policy in full - `cost_usd`
+      answers "what would this cost in production", and production has no
+      cross-run cache. Only a miss reaches a provider.
+    * **The mode is `real`.** `call_stats["backend"]` counts everything the
+      cache did not serve, which in mock mode is a *fabricated* response.
+      Fabrication is not spend. Omitting this check makes mock runs report
+      money they never spent - which is the failure this repository exists to
+      avoid, appearing inside the tool that measures it.
+    """
+    before = models.call_stats["backend"]
+    r = models.call(tier, task, **kwargs)
+    reached_provider = models.call_stats["backend"] > before
+    backend = r.cost_usd if (reached_provider and models.MODE == "real") else 0.0
+    return r, backend
 
 
 def estimate_tokens(task: dict, tier: str) -> tuple[int, int]:

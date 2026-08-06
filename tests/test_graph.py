@@ -82,6 +82,29 @@ class TestAccounting:
         assert out.backend_cost_usd == 0.0
         assert out.simulated is True
 
+    def test_backend_cost_is_summed_per_call(self, cfg, use_ladder):
+        """Backend spend is per call, not inferred from the run's mode.
+
+        The bug this pins: reporting the whole attributed cost as backend spend
+        whenever a run touched a provider at all. A real run that partially
+        replays pays for some calls and reads the rest from cache, so that
+        would bill cached calls as money spent - and `cost_usd` versus
+        `backend_cost_usd` is exactly the distinction this repository keeps.
+        """
+        use_ladder("claude")
+        from router_agent.engine import route as r
+        out = r("Compute the integral of x^2", cfg=cfg(
+            policy="cascade", agreement_threshold=1.0, max_cost_usd=10.0))
+
+        assert out.backend_cost_usd == pytest.approx(
+            sum(c["backend_cost_usd"] for c in out.calls)
+        )
+        # Every call carries the field, and it never exceeds what was charged.
+        for c in out.calls:
+            assert "backend_cost_usd" in c
+            assert c["backend_cost_usd"] <= c["cost_usd"] + 1e-12
+        assert out.backend_cost_usd <= out.cost_usd + 1e-12
+
 
 class TestGuards:
     def test_budget_refuses_escalation_before_spending(self, cfg, use_ladder):

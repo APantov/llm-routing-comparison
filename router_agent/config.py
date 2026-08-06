@@ -36,6 +36,22 @@ def _env_int(name: str, default: int) -> int:
         raise SystemExit(f"{name} must be an integer - got {raw!r}")
 
 
+def _env_opt_float(name: str) -> float | None:
+    """A float if the variable is set, else None.
+
+    Distinct from `_env_float` because for the approval gate "unset" and "zero"
+    are different states: unset means never ask, zero means ask before every
+    escalation. A sentinel default cannot express that.
+    """
+    raw = os.environ.get(name)
+    if raw is None or raw.strip() == "":
+        return None
+    try:
+        return float(raw)
+    except ValueError:
+        raise SystemExit(f"{name} must be a number - got {raw!r}")
+
+
 def _env_bool(name: str, default: bool) -> bool:
     raw = os.environ.get(name)
     if raw is None or raw.strip() == "":
@@ -116,15 +132,12 @@ class RouterConfig:
     """
 
     require_approval_above_usd: float | None = field(
-        default_factory=lambda: (
-            _env_float("ROUTER_APPROVAL_USD", -1.0)
-            if os.environ.get("ROUTER_APPROVAL_USD") else None
-        )
+        default_factory=lambda: _env_opt_float("ROUTER_APPROVAL_USD")
     )
     """
     Human-in-the-loop gate. When set, an escalation whose projected cost
     exceeds this pauses the graph and waits for approval instead of spending.
-    None disables it.
+    None disables it; 0 asks before every escalation.
 
     This is not decoration. On the `wide` ladder the top rung is ~46x the
     bottom one effectively, so a single escalation is the entire cost decision,

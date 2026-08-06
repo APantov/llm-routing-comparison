@@ -144,7 +144,7 @@ def _demo(args) -> int:
     cfg = RouterConfig(mode="replay", ladder="wide", policy=args.policy)
 
     print(BOLD(f"\n  demo - benchmark task {task['id']}, replayed from cache"))
-    print(DIM(f"  ladder=wide (DeepSeek v4-flash -> Opus 5)  mode=replay  $0.00 spent"))
+    print(DIM("  ladder=wide (DeepSeek v4-flash -> Opus 5)  mode=replay  $0.00 spent"))
     print(DIM(f"  {task['prompt'][:150]}"))
 
     out = route(task["prompt"], cfg=cfg, domain=wanted)

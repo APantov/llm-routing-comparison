@@ -94,7 +94,7 @@ def answer(state: RouteState) -> dict:
     tier = _tier_at(state["rung_index"])
     task = state["task"]
 
-    r = models.call(tier, task)
+    r, backend_cost = pricing.call_tracked(tier, task)
     spec = models.MODELS[tier]
 
     return {
@@ -104,7 +104,9 @@ def answer(state: RouteState) -> dict:
         "calls": [{
             "tier": tier, "model": spec["id"], "kind": "answer",
             "tokens_in": r.tokens_in, "tokens_out": r.tokens_out,
-            "cost_usd": r.cost_usd, "latency_s": r.latency_s,
+            "cost_usd": r.cost_usd,
+            "backend_cost_usd": backend_cost,
+            "latency_s": r.latency_s,
         }],
         "events": [event(
             "answer", f"{tier} ({spec['id']}) answered",
@@ -141,7 +143,9 @@ def verify(state: RouteState) -> dict:
         calls.append({
             "tier": tier, "model": models.MODELS[tier]["id"], "kind": "verify",
             "tokens_in": 0, "tokens_out": 0,
-            "cost_usd": check.cost_usd, "latency_s": check.latency_s,
+            "cost_usd": check.cost_usd,
+            "backend_cost_usd": check.backend_cost_usd,
+            "latency_s": check.latency_s,
         })
 
     conf = "" if check.confidence is None else f", confidence={check.confidence:.2f}"
@@ -216,7 +220,6 @@ def escalate(state: RouteState) -> dict:
 
     if (
         cfg.require_approval_above_usd is not None
-        and cfg.require_approval_above_usd >= 0
         and projected > cfg.require_approval_above_usd
         and not state.get("approved")
     ):

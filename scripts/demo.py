@@ -116,6 +116,7 @@ def main() -> int:
     print("=" * 74)
 
     total_attributed = 0.0
+    total_backend = 0.0
     failures = 0
 
     for s in SCENARIOS:
@@ -144,6 +145,7 @@ def main() -> int:
             print(f"    {e['node']:<9} {e['detail']}")
 
         total_attributed += d["cost_usd"]
+        total_backend += d["backend_cost_usd"]
         print()
         print(f"    answered by  {d['final_model']}")
         print(f"    verified     {d['verified']}  ({d['verifier']})")
@@ -155,8 +157,10 @@ def main() -> int:
     print()
     print("=" * 74)
     print(f"  attributed cost of the three queries : ${total_attributed:.6f}")
-    print(f"  actually spent by this run           : "
-          f"${0.0 if mode != 'real' else total_attributed:.6f}")
+    # Summed per call, not inferred from the mode. A real run whose responses
+    # are already cached spends nothing, and saying otherwise would overstate
+    # the bill in the one place this repository is careful about.
+    print(f"  actually spent by this run           : ${total_backend:.6f}")
     print(f"  backend calls made                   : {models.call_stats['backend']}")
     print("=" * 74)
     print()

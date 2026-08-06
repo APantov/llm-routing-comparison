@@ -26,13 +26,19 @@ from typing import Annotated, Any, TypedDict
 
 
 class CallRecord(TypedDict):
-    """One model call that was actually paid for."""
+    """One model call a policy was charged for."""
     tier: str
     model: str
     kind: str          # "answer" | "verify"
     tokens_in: int
     tokens_out: int
     cost_usd: float
+    """What this call costs a policy - charged whether or not it was served
+    from the cache, because in production there is no cross-run cache."""
+    backend_cost_usd: float
+    """What this call actually sent to a provider: `cost_usd` on a real call,
+    0.0 when the response came from the cache. The two differ on any run that
+    partially replays, which is most real runs after the first."""
     latency_s: float
 
 

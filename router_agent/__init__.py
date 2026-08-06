@@ -35,25 +35,12 @@ Layout, in dependency order:
 
 Import cost is deliberate: `import router_agent` pulls in nothing heavy, so the
 research core keeps its bare-interpreter property. LangGraph is imported by
-`graph.py` and the MCP SDK by `mcp_server.py`, both at first use.
+`graph.py` and the MCP SDK by `mcp_server.py`, both at first use — and this
+package deliberately re-exports nothing, so importing it can never pull either
+of them in by accident. Import what you need from the module that defines it:
+
+    from router_agent.config import RouterConfig
+    from router_agent.engine import route
 """
 
 __version__ = "0.2.0"
-
-__all__ = ["RouterConfig", "RouteOutcome", "route", "__version__"]
-
-
-def __getattr__(name):
-    """Lazily re-export the façade.
-
-    Kept lazy so that `import router_agent` does not drag in LangGraph. The MCP
-    server and the CLI want the façade; the test suite frequently wants only
-    `live` or `verifiers`, and should not pay for a graph compile to get them.
-    """
-    if name in ("RouterConfig",):
-        from router_agent.config import RouterConfig
-        return RouterConfig
-    if name in ("RouteOutcome", "route"):
-        from router_agent.engine import RouteOutcome, route
-        return {"RouteOutcome": RouteOutcome, "route": route}[name]
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

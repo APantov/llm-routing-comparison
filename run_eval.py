@@ -350,8 +350,8 @@ def oracle_bound_check(by_policy):
         label = domain or "all"
         if over:
             print(f"  {label:<6} VIOLATED - oracle {hi:.1%} beaten by: {', '.join(over)}")
-            print(f"         The oracle's action space is missing something these")
-            print(f"         policies can do. See policies.policy_oracle.")
+            print("         The oracle's action space is missing something these")
+            print("         policies can do. See policies.policy_oracle.")
         else:
             print(f"  {label:<6} ok - oracle {hi:.1%} is the ceiling")
 

@@ -614,7 +614,7 @@ def _mock_call(
     # marked so it can never be mistaken for a model's opinion.
     if task.get("_live"):
         token = "A" if correct else rng.choice(["B", "C", "D"])
-        note = f"[MOCK - simulated response, ROUTER_MODE=mock. Not a real answer.]"
+        note = "[MOCK - simulated response, ROUTER_MODE=mock. Not a real answer.]"
         if task["domain"] == "math":
             text = f"{note} Reasoning... the answer is $\\boxed{{{token}}}$"
         elif task["domain"] == "code":

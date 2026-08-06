@@ -236,7 +236,7 @@ def main():
         print(f"  (b) matched acc: holds always_expensive's accuracy (within one task) "
               f"up to p={worst:.2f},")
         print(f"                  where it is {saving:.0%} cheaper. Past that the cascade is")
-        print(f"                  paying for its savings in correctness, so (a) flatters it.")
+        print("                  paying for its savings in correctness, so (a) flatters it.")
 
     # Monotonicity is a claim about the mechanism, so check it rather than eyeball
     # the table. Accuracy should fall and escalation should rise as the verifier
