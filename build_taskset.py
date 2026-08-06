@@ -3,13 +3,13 @@ Build the mixed task set for the routing evaluation.
 
 Two domains, chosen for their different verification regimes:
 
-  math (MATH500, levels 3-5)
+  math (MATH500, level 5)
                -> graded by exact match on the normalised final answer.
                   There is NO ground truth available at runtime, so a cascade
                   has to fall back on a PROXY verifier.
 
-  code (MBPP sanitized)
-               -> graded by executing the shipped assert statements.
+  code (MBPP+)
+               -> graded by executing the expanded evalplus suite.
                   The runtime verifier is FREE and PERFECT: just run the tests.
 
 That asymmetry is the point of the experiment rather than an accident of dataset
@@ -19,9 +19,18 @@ anything interesting.
 Output is taskset.jsonl, written with LF endings on every platform so the file
 is byte-identical wherever it is built.
 
-    python3 build_taskset.py
+    python3 build_taskset.py                                  # the defaults above
+    python3 build_taskset.py --code mbpp --min-math-level 3   # the easier original
+
+BOTH DEFAULTS WERE HARDENED ON 6 AUGUST 2026, for one reason: the cheap rung
+solved 10 out of 10 on the original set, which leaves a router nothing to decide.
+See ROUTABLE_2026-07-30.md for the cross-tabulation and DATASETS.md for why MBPP+
+rather than a different benchmark. The originals remain one flag away, because
+the point of the change is to move the failure rate, and a change you cannot undo
+is a change you cannot measure.
 """
 
+import argparse
 import json
 import random
 from collections import Counter
@@ -36,16 +45,30 @@ N_CODE = 40
 
 # GSM8K was rejected as the math source: current cheap models score in the low
 # 90s on it, which leaves a cascade almost nothing to route. MATH500 restricted
-# to levels 3-5 leaves 367 candidates and a workable failure rate.
-MIN_MATH_LEVEL = 3
+# to levels 3-5 leaves 367 candidates, which was the original setting.
+#
+# Raised to 5 on 6 August 2026. Levels 3-5 turned out to be no obstacle either:
+# the real cheap rung went 10-for-10 on the sampled set. Level 5 alone leaves 134
+# candidates, comfortably more than the 60 sampled.
+#
+# KNOWN COST, accepted deliberately. A single level means `difficulty_proxy` is
+# constant across the maths half, so add_difficulty_pct() gives every maths task
+# the same percentile and `predict_features.level` carries no signal at all. The
+# predictive router is therefore BLIND on maths under this setting, and splits.py
+# can only stratify maths by domain. Both are recoverable with
+# --min-math-level 4, which restores two distinct levels. Neither affects the
+# always_cheap / always_expensive probe, which is what this setting exists to
+# serve: those two policies never look at difficulty.
+MIN_MATH_LEVEL = 5
 
 
-def load_math500():
+def load_math500(min_level=None):
+    min_level = MIN_MATH_LEVEL if min_level is None else min_level
     tasks = []
     with open(DATA / "math500.jsonl", encoding="utf-8") as f:
         for i, line in enumerate(f):
             row = json.loads(line)
-            if row["level"] < MIN_MATH_LEVEL:
+            if row["level"] < min_level:
                 continue
             tasks.append(
                 {
@@ -124,6 +147,82 @@ def load_mbpp():
     return tasks
 
 
+def load_mbppplus():
+    """MBPP+ (evalplus/mbppplus): the same problems, roughly 35x more tests.
+
+    Same 378 problems as sanitized MBPP, so the task DISTRIBUTION is unchanged and
+    a swap moves exactly one variable: how thorough the tests are. That is the
+    cleanest possible way to raise the cheap model's failure rate, because
+    anything else - harder problems, a different domain - would move the
+    distribution at the same time and confound the comparison.
+
+    Concretely, on task 3 (`is_not_prime`) a solution that forgets the n == 1 case
+    passes all four original asserts and fails the expanded suite. Under plain
+    MBPP that is a point the model did not earn.
+
+    Requires data/mbppplus.json, written once by fetch_mbppplus.py.
+
+    The difficulty proxy stays the reference solution's line count, exactly as for
+    plain MBPP, so the two sources remain comparable on that axis.
+    """
+    path = DATA / "mbppplus.json"
+    if not path.exists():
+        raise SystemExit(
+            f"\n{path} not found.\n"
+            f"  Build it once with:  python3 fetch_mbppplus.py\n"
+            f"  (needs `pip install datasets`; the rest of the repo does not)\n"
+        )
+    with open(path, encoding="utf-8") as f:
+        rows = json.load(f)
+
+    tasks = []
+    for row in rows:
+        tasks.append(
+            {
+                # Prefixed so a task id can never collide with a plain-MBPP one.
+                # Two runs from different code sources must not look like the same
+                # task in results.jsonl, or the paired statistics would silently
+                # compare different problems.
+                "id": f"codeplus-{row['task_id']}",
+                "domain": "code",
+                "prompt": row["prompt"],
+                "grader": "test_program",
+                # BOTH suites are carried, and which one is used where is the
+                # whole design of this swap:
+                #
+                #   tests        the ORIGINAL thin asserts. models.build_prompt
+                #                puts these in the prompt as the specification,
+                #                exactly as for plain MBPP.
+                #   test_program the EXPANDED suite. Only the grader sees it.
+                #
+                # So the model is shown the same specification it was shown
+                # before, and only the marking gets stricter. That keeps the swap
+                # a ONE-variable change. Putting the expanded suite in the prompt
+                # would change the task as well as the grading - it is ten
+                # kilobytes of fuzzed input/output pairs, which is both an absurd
+                # prompt and a near-complete answer key.
+                "grader_payload": {
+                    "tests": list(row.get("test_list") or []),
+                    "test_program": row["test"],
+                },
+                "difficulty_proxy": len(row["code"].splitlines()),
+                "predict_features": {
+                    "prompt_chars": len(row["prompt"]),
+                    # The ORIGINAL assert count, not the expanded case count. The
+                    # expanded count is a property of how evalplus fuzzed the
+                    # problem rather than of the question, and a router reading it
+                    # would be using information the question does not carry.
+                    "n_asserts": len(row.get("test_list") or []),
+                },
+                "_ref_code": row["code"],
+            }
+        )
+    return tasks
+
+
+CODE_SOURCES = {"mbpp": load_mbpp, "mbppplus": load_mbppplus}
+
+
 def add_difficulty_pct(tasks):
     """Rank difficulty WITHIN each domain and store it as a 0-1 percentile.
 
@@ -177,9 +276,26 @@ def stratified_sample(tasks, n, rng):
 
 
 def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument(
+        "--code", default="mbppplus", choices=sorted(CODE_SOURCES),
+        help="which code benchmark to use. mbppplus (default) is the same "
+             "problems with the expanded evalplus suites, which are far harder "
+             "to pass. mbpp is sanitized MBPP with its original thin asserts, "
+             "kept reachable so the easier marking can be reproduced.",
+    )
+    ap.add_argument("--n-math", type=int, default=N_MATH)
+    ap.add_argument("--n-code", type=int, default=N_CODE)
+    ap.add_argument(
+        "--min-math-level", type=int, default=MIN_MATH_LEVEL,
+        help="MATH500 difficulty floor. Raise it to make the maths half harder.",
+    )
+    args = ap.parse_args()
+
     rng = random.Random(SEED)
-    math_tasks = stratified_sample(load_math500(), N_MATH, rng)
-    code_tasks = stratified_sample(load_mbpp(), N_CODE, rng)
+    math_tasks = stratified_sample(
+        load_math500(args.min_math_level), args.n_math, rng)
+    code_tasks = stratified_sample(CODE_SOURCES[args.code](), args.n_code, rng)
     tasks = math_tasks + code_tasks
     add_difficulty_pct(tasks)
     rng.shuffle(tasks)
@@ -193,6 +309,7 @@ def main():
             f.write(json.dumps(t) + "\n")
 
     print(f"wrote {len(tasks)} tasks -> {OUT}")
+    print(f"  code source: {args.code}   math levels: >= {args.min_math_level}")
     for domain in ("math", "code"):
         sub = [t for t in tasks if t["domain"] == domain]
         diffs = [t["difficulty_proxy"] for t in sub]

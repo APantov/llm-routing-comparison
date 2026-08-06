@@ -254,6 +254,17 @@ def score_tasks(tasks, variant="bert", force=False):
 # halves rather than only in aggregate.
 THRESHOLDS = {}
 
+# Whether calibrate() has run against the current task set.
+#
+# This exists because two different questions were being asked with one answer.
+# run_eval calls available(ALL tasks) to decide whether to calibrate, and
+# available([one task]) to decide whether the policy runs on that task. Those
+# disagree the moment SOME tasks have cached scores and others do not - which is
+# exactly what happens after a task-set swap, since scores are keyed on the prompt.
+# The result was routellm running uncalibrated on the tasks it did have scores
+# for, and raising from routes_expensive mid-run.
+CALIBRATED = False
+
 
 def calibrate(tasks, target_rates):
     """Pick the score threshold that reproduces predictive's expensive-call rate.
@@ -272,7 +283,7 @@ def calibrate(tasks, target_rates):
     rate differ slightly from the target; the report prints the realised rate,
     which is the one that matters.
     """
-    global THRESHOLDS
+    global THRESHOLDS, CALIBRATED
     variant = cached_variant()
     out = {}
     for domain, rate in target_rates.items():
@@ -285,6 +296,7 @@ def calibrate(tasks, target_rates):
         # the k-th highest, so exactly those k are at or above it.
         out[domain] = sub[k - 1] if k > 0 else (sub[0] + 1.0)
     THRESHOLDS = out
+    CALIBRATED = bool(out)
     return out
 
 

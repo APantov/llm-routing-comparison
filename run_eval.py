@@ -118,6 +118,41 @@ def tag():
             else "### REAL MODE - live API calls ###")
 
 
+def credentials_line():
+    """One line saying where the keys came from, and whether they are there.
+
+    Printed in the header of every run rather than discovered at the first API
+    call, because the failure it catches is silent until then: a missing or
+    deleted `.env` looks exactly like a working setup right up to the moment
+    money would have been spent.
+
+    Key NAMES only, never values, and never a prefix of a value. A log line is
+    the easiest place in a project to leak a secret.
+    """
+    import os
+    from pathlib import Path as _P
+
+    env_file = _P(models.__file__).parent / ".env"
+    where = f"{env_file.name} loaded" if env_file.exists() else f"no {env_file.name}"
+    if models.DOTENV_LOADED:
+        where += f" ({', '.join(models.DOTENV_LOADED)})"
+
+    needed = sorted({models.PROVIDERS[models.MODELS[t]["provider"]]["key_env"]
+                     for t in models.TIERS})
+    have = [k for k in needed if os.environ.get(k)]
+    missing = [k for k in needed if not os.environ.get(k)]
+
+    status = f"keys: {where}; "
+    status += f"set: {', '.join(have) or 'none'}"
+    if missing:
+        status += f"; MISSING: {', '.join(missing)}"
+        if models.MODE == "real":
+            status += "  <- real mode will fail on the first call"
+        else:
+            status += "  (fine for mock/replay)"
+    return status
+
+
 def provenance():
     """Everything needed to interpret a row, carried by the row itself.
 
@@ -178,7 +213,11 @@ def applicable(name, task):
     """
     if name == "routellm":
         import routellm_router
-        return routellm_router.available([task])
+        # BOTH conditions. A cached score for this task is not enough: the
+        # threshold is set from the whole task set, so a partially-scored set must
+        # keep the policy out entirely rather than let it run uncalibrated on the
+        # subset that happens to have scores.
+        return routellm_router.CALIBRATED and routellm_router.available([task])
     if name in policies.NEEDS_ESTIMATORS and not policies.ESTIMATORS_FITTED:
         return False
     allowed = POLICY_DOMAINS.get(name)
@@ -578,12 +617,14 @@ def main():
              "thresholds were tuned while looking at them.",
     )
     ap.add_argument(
-        "--policy", default=None,
-        help="comma-separated policy names to run, instead of all of them. "
+        "--policy", action="append", default=None, metavar="NAME[,NAME...]",
+        help="restrict the run to these policies. Repeatable, and also accepts a "
+             "comma-separated list, because a bare comma is awkward in some "
+             "shells: --policy a --policy b and --policy a,b are equivalent. "
              "Writes to results.probe.jsonl rather than results.jsonl. The main "
-             "use is the DIFFICULTY PROBE: --policy always_cheap --split all "
-             "answers the pilot gate for a fraction of a full run's cost, "
-             "because the gate depends only on the cheap rung's failure rate.",
+             "use is the TWO-ARM PROBE: --policy always_cheap --policy "
+             "always_expensive --split all, which measures the routable fraction "
+             "for a fraction of a full run's cost.",
     )
     ap.add_argument(
         "--force", action="store_true",
@@ -597,7 +638,9 @@ def main():
     global RESULTS
     selected = None
     if args.policy:
-        selected = [p.strip() for p in args.policy.split(",") if p.strip()]
+        # Flatten: each --policy may itself hold a comma list.
+        selected = [p.strip() for chunk in args.policy
+                    for p in chunk.split(",") if p.strip()]
         unknown = [p for p in selected if p not in POLICIES]
         if unknown:
             sys.exit(
@@ -619,6 +662,7 @@ def main():
     print(f"mode={models.MODE}  policies={len(POLICIES)}", file=sys.stderr)
     for line in models.ladder_summary():
         print(line, file=sys.stderr)
+    print(credentials_line(), file=sys.stderr)
     for line in splits.describe(calibration, evaluation):
         print(line, file=sys.stderr)
     if args.split == "eval":

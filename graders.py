@@ -175,9 +175,50 @@ def grade_run_asserts(response: str, payload: dict) -> bool:
             return False
 
 
+def grade_test_program(response: str, payload: dict) -> bool:
+    """Execute the candidate against a self-contained test PROGRAM.
+
+    This is the MBPP+ path. Where `run_asserts` is handed a list of assert
+    statements to append, this is handed a complete program that defines its own
+    comparison helper and loops over a hundred or so input cases. The candidate
+    code goes first, the program follows, and a zero exit status means every case
+    passed.
+
+    Why not reduce MBPP+ to an assert list and reuse the other grader: the
+    expanded suites compare floats with `np.allclose` rather than `==`, so
+    flattening them would change what "correct" means. A benchmark modified to fit
+    the harness is no longer the benchmark.
+
+    Consequence worth stating plainly: these programs `import numpy`, so grading
+    the code half now needs numpy installed. See fetch_mbppplus.py.
+    """
+    code = _strip_code_fences(response)
+    program = code + "\n" + payload["test_program"]
+
+    with tempfile.TemporaryDirectory() as td:
+        path = Path(td) / "candidate.py"
+        path.write_text(program, encoding="utf-8")
+        try:
+            proc = subprocess.run(
+                [sys.executable, str(path)],
+                capture_output=True,
+                # The expanded suites run far more cases than the originals, so
+                # they get more room. Measured at about 0.1s each on the shipped
+                # tasks; the headroom is for pathological generated code rather
+                # than for the tests themselves.
+                timeout=CODE_TIMEOUT_S * 3,
+            )
+            return proc.returncode == 0
+        except subprocess.TimeoutExpired:
+            return False
+        except OSError:
+            return False
+
+
 GRADERS = {
     "exact_match_str": grade_exact_match_str,
     "run_asserts": grade_run_asserts,
+    "test_program": grade_test_program,
 }
 
 

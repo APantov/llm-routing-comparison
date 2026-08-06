@@ -35,6 +35,23 @@ anthropic==0.120.2
 #
 # routellm==0.2.0
 
+# --- MBPP+ code half only (ROUTER code source `mbppplus`) ---
+#
+# Needed in two places, and only if you swap the code half to MBPP+:
+#
+#   datasets   one-time, by fetch_mbppplus.py, to download and convert.
+#              After that data/mbppplus.json is plain JSON.
+#   numpy      at GRADING time, every run. Every MBPP+ test program opens with
+#              `import numpy as np` and compares float results with np.allclose.
+#
+# That second one is a real cost: it ends the repo's "grades on a bare
+# interpreter" property for the code half. It is accepted deliberately, because
+# rewriting the official suites to avoid numpy would mean grading against a
+# modified benchmark, and a modified benchmark is not the benchmark.
+#
+# datasets==4.4.1
+# numpy==2.2.6
+
 # --- deliberately absent ---
 # pytest: there is no test suite. sanity_check.py is the regression gate, it runs
 #   on the standard library alone, and it exits non-zero on failure. A test
