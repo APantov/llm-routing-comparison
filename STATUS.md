@@ -29,45 +29,103 @@ on the `wide` ladder (DeepSeek v4-flash → Opus 5), all 100 tasks, both arms.
 
 | cell | n=100 | code (40) | math (60) | meaning |
 |---|---|---|---|---|
-| `both_ok` | 74 | 29 | 45 | tie — nothing to route |
-| **`routable`** | **13** | **5** | **8** | **cheap wrong, expensive right — the only cell where escalating pays** |
-| `both_fail` | 10 | 5 | 5 | tie |
-| `inverted` | 3 | 1 | 2 | escalating *loses* |
+| `both_ok` | 77 | 29 | 48 | tie — nothing to route |
+| **`routable`** | **15** | **5** | **10** | **cheap wrong, expensive right — the only cell where escalating pays** |
+| `both_fail` | 6 | 5 | 1 | tie |
+| `inverted` | 2 | 1 | 1 | escalating *loses* |
 
-- **routable = 13.0%**, 95% CI [7.8%, 21.0%]. Ceiling (the most any router can add
-  over `always_cheap`) = **16.0%**. McNemar **p = 0.021**.
-- `always_cheap` **77.0%**, `always_expensive` **87.0%**.
-- Per domain: code 12.5% routable, math 13.3%. **Nearly identical**, which matters
-  — see below.
+- **routable = 15.0%**, 95% CI [9.3%, 23.3%]. Ceiling (the most any router can add
+  over `always_cheap`) = **17.0%**. McNemar **p = 0.002**.
+- `always_cheap` **79.0%**, `always_expensive` **92.0%**.
+- **Rescue rate 71.4%** — of the cheap rung's failures, 71% are ones escalating
+  actually fixes. That is the number a cascade lives on.
+- Per domain: code 12.5% routable, maths 16.7%.
+
+> These are the figures **after the grader fix of 6 August**. The probe as first
+> reported read routable 13.0%, cheap 77.0%, expensive 87.0%, p=0.021 — seven of
+> its twenty wrong maths answers turned out to be correct answers the normaliser
+> could not match. See "the grader was lying" below.
 
 **This is a real change and it is the point of the 31 July / 6 August work.** On
 30 July the cross-tab over the ten tasks that had both arms cached was
 `both_ok=10, routable=0`: nothing to route, at p≈0.02. Hardening both halves —
-MBPP+ on code, MATH500 level 5 on maths — moved the routable fraction from
-effectively zero to 13%.
+MBPP+ on code, MATH500 level 5 on maths — moved the routable fraction to 15%.
 
-**Both hardenings worked, and worked independently.** They apply to disjoint task
-subsets, so the per-domain split de-confounds them: MBPP+ lifted the code half and
-level 5 lifted the maths half, and the two landed within a point of each other.
-Neither change is carrying the other.
+**Both hardenings worked, and they worked independently**, because they apply to
+disjoint task subsets. But they did not work *equally*, and the difference is the
+most useful thing in this table:
+
+| | cheap | expensive | both_fail | routable | rescue |
+|---|---|---|---|---|---|
+| code (MBPP+) | 75.0% | 85.0% | **5 of 40** | 12.5% | 50% |
+| maths (level 5) | 81.7% | **96.7%** | **1 of 60** | 16.7% | 91% |
+
+**Opus solves 58 of 60 MATH500 level-5 problems.** The maths half is close to
+saturated at the top rung, so its routing signal is almost entirely "DeepSeek
+fails on something Opus finds easy" — a clean cascade signal, 91% rescue.
+
+**Code is now the harder domain in absolute terms**, which reverses this file's
+long-standing assumption. MBPP+ produced genuine `both_fail` content: 5 of 40
+tasks neither rung can solve, against 1 of 60 on maths. Half of the cheap rung's
+code failures are unfixable by escalating.
 
 ### But read the verdict carefully
 
-`routable.py` returns **UNRESOLVED**: the CI straddles the 15% floor of its
-[15%, 45%] band. Note *which side the point estimate is on* — 13.0% is **below**
-the floor, so more tasks would most likely resolve this as *just under* the
-threshold rather than over it.
+`routable.py` still returns **UNRESOLVED**: the CI [9.3%, 23.3%] straddles the
+15% floor of its [15%, 45%] band. The point estimate now sits exactly *on* the
+floor rather than below it, so this is "plausibly adequate, not demonstrated"
+rather than "probably too easy".
 
-The gate `run_eval.py` prints is friendlier — cheap-model failure rate 23.0%
-[15%, 31%], "leans in band" against a 20–55% target. **Prefer the routable
-figure.** `P(cheap fails)` is `routable + both_fail`, and 10 of those 23 failures
-are tasks the expensive rung cannot fix either. That is the exact confusion
-[ROUTABLE_2026-07-30.md](ROUTABLE_2026-07-30.md) was written to warn about.
+The gate `run_eval.py` prints is friendlier — cheap-model failure rate 21.0%
+[13%, 29%] against a 20–55% target. **Prefer the routable figure.** `P(cheap
+fails)` is `routable + both_fail`, and 6 of those 21 failures are tasks the
+expensive rung cannot fix either. That is the exact confusion
+[ROUTABLE_2026-07-30.md](ROUTABLE_2026-07-30.md) was written to warn about,
+though the gap is much smaller now that the grader is not manufacturing failures.
 
-So the honest reading: **there is now a real routing signal, it is statistically
-detectable at n=100 (p=0.021), and it is thin.** A perfect oracle beats
-`always_cheap` by 16 points and `always_expensive` beats it by 10. Every policy in
-the repo is competing over that 16-point band.
+So the honest reading: **there is a real routing signal, it is comfortably
+significant at n=100 (p=0.002), and it is thin.** A perfect oracle beats
+`always_cheap` by 17 points and `always_expensive` beats it by 13. Every policy in
+the repo is competing over that 17-point band.
+
+### The grader was lying, and the regression gate could not see it
+
+Seven of the twenty wrong maths answers in the probe were **correct answers the
+normaliser rejected** — five of them on Opus, which is why its accuracy moved
+87% → 92%. The classes, each now covered by a test:
+
+| the model wrote | the truth said | the bug |
+|---|---|---|
+| `1+\sqrt{19}, 1-\sqrt{19}` | `1 \pm \sqrt{19}` | no `\pm` handling at all |
+| `\{-2, 1+\sqrt5, 1-\sqrt5\}` | `\{1\pm\sqrt{5},-2\}` | set ordering, and `\sqrt5` vs `\sqrt{5}` |
+| `\frac{270}{7}` | `\frac{270}7\text{ degrees}` | trailing unit, and `\frac{270}7` unbraced |
+| `18.90` | `\$18.90` | `.replace("$","")` left the escaping backslash |
+| `3<\lambda\le4` | `(3,4]` | interval vs inequality |
+| `AF^2+BF^2+CF^2 = 3R^2` | `3R^2` | answer restated with its left-hand side |
+
+**`sanity_check.py` printed 60/60 throughout.** It feeds the ground-truth string
+back into `\boxed{}`, so it only ever tested `grade(GT, GT)` — which passes by
+construction however broken the normaliser is. It now also checks a table of
+known-equivalent pairs *and* a table of near-miss wrong answers, because a grader
+that accepts everything would pass the first table perfectly.
+
+### The models are not deterministic, and it is measured
+
+Abandoning the 2048-cap run and re-running at 4096 left **73 pairs of independent
+draws** — same model, same prompt, same temperature, two separate calls, both on
+disk because `max_tokens` is in the cache key. Grading both:
+
+| domain | verdict flips |
+|---|---|
+| code | 0 of 27 (**0%**) |
+| maths | 4 of 46 (**8.7%**) |
+
+`math-94` is the clean example: `\boxed{80}` on one draw, `\boxed{130}` on the
+other. **8.7% per-task noise against a 15% routable signal.** The response cache
+guarantees every *policy* sees the same draw, which is what the paired statistics
+need — but a full re-run of the experiment would move individual cells around,
+and the routable fraction carries this on top of its sampling CI. Treat one draw
+per task as the floor of what the design needs, not a comfortable margin.
 
 ### What is still not measured
 
@@ -165,8 +223,8 @@ accuracy differences are not.* Do not quote an accuracy gap as a finding until
 §2 step 5 is done.
 
 The probe is the one exception, and it is instructive: the cheap-vs-expensive gap
-**is** significant at n=100 (McNemar p=0.021) because it is the largest gap in the
-project. Every policy comparison is a contest over the 16-point band inside it,
+**is** significant at n=100 (McNemar p=0.002) because it is the largest gap in the
+project. Every policy comparison is a contest over the 17-point band inside it,
 and those are the ones n=100 cannot resolve.
 
 ---
@@ -179,7 +237,7 @@ In order. Steps 1–3 are free and take about five minutes total.
 > been hardened (MBPP+ code half, MATH500 level 5 maths half — both now the
 > defaults in `build_taskset.py`) and the two-arm probe has been run and read.
 > **Go to step 5**, but read [§4](#4-do-you-need-more-tasks) first: at
-> routable=13% the case for enlarging the task set before paying for a full run is
+> routable=15% the case for enlarging the task set before paying for a full run is
 > stronger than it was, not weaker.
 
 > **Shell note.** `ROUTER_LADDER=x python3 ...` is bash syntax and does nothing on
@@ -265,8 +323,8 @@ from "too hard" from "fine". It spans the entire band. That is what step 4b is f
 ### Step 4b — the two-arm probe (5 minutes, $0.92) — **DONE, 6 August 2026**
 
 **This was the actual decision point**, and the numbers are in §1. Summary:
-routable **13.0%** [7.8%, 21.0%], ceiling 16.0%, McNemar p=0.021, cheap 77.0% /
-expensive 87.0%, code and maths agreeing at 12.5% / 13.3%.
+routable **15.0%** [9.3%, 23.3%], ceiling 17.0%, McNemar p=0.002, cheap 79.0% /
+expensive 92.0%, code 12.5% and maths 16.7%.
 
 Re-run it only if the ladder, the prompts, the task set or `MAX_TOKENS` change —
 each of those invalidates the cached responses and re-charges the run.
@@ -283,10 +341,10 @@ ROUTER_MODE=replay python3 routable.py --real --ladders wide
 > **Do not use the one-arm version, and do not read the gate `run_eval.py`
 > prints.** See [ROUTABLE_2026-07-30.md](ROUTABLE_2026-07-30.md). `P(cheap fails)`
 > is `routable + both_fail`, and the one-arm gate cannot see the split. This run
-> is the concrete demonstration: it reports a 23.0% cheap failure rate that "leans
-> in band" against a 20–55% target, while the quantity that actually matters is
-> 13.0% and sits *below* its band. Ten of those 23 failures are tasks the
-> expensive rung cannot fix either.
+> is the concrete demonstration: it reports a 21.0% cheap failure rate against a
+> 20–55% target, while the quantity that actually matters is 15.0% and sits on
+> the floor of its band. Six of those 21 failures are tasks the expensive rung
+> cannot fix either — and on the code half it is 5 of 10.
 
 How to read the routable fraction, against `routable.py`'s [15%, 45%] band:
 
@@ -303,7 +361,7 @@ not fail on the same fraction. Only `wide` has been probed.
 
 ### Step 5 — the full paid run
 
-**Do [§4](#4-do-you-need-more-tasks) first.** At routable=13% with a 16-point
+**Do [§4](#4-do-you-need-more-tasks) first.** At routable=15% with a 17-point
 ceiling, a full run at n=100 would be measuring nine policies against each other
 inside a band that n=100 already cannot resolve. Enlarging the task set costs the
 same order of magnitude and is the difference between a result and another
@@ -405,27 +463,32 @@ confirms it: **nothing is significant.**
 
 ### How many more — now answerable from real discordance counts
 
-The 6 August probe supplies what step 5 was supposed to: **16 discordant pairs per
-100 tasks** on the widest comparison in the project (13 routable + 3 inverted).
+The 6 August probe supplies what step 5 was supposed to: **17 discordant pairs per
+100 tasks** on the widest comparison in the project (15 routable + 2 inverted).
 
-That comparison is already significant (p=0.021). The ones that are not are the
-policy-vs-policy contests *inside* the 16-point ceiling, and they are strictly
-harder — a cascade and a predictive router disagree on far fewer than 16 tasks per
-100, because both spend most of the set agreeing with `always_cheap` on the 74
+That comparison is comfortably significant (p=0.002). The ones that are not are
+the policy-vs-policy contests *inside* the 17-point ceiling, and they are strictly
+harder — a cascade and a predictive router disagree on far fewer than 17 tasks per
+100, because both spend most of the set agreeing with `always_cheap` on the 77
 `both_ok` tasks.
 
-Concretely, on the routable fraction itself (p̂ = 13.0%):
+Concretely, on the routable fraction itself (p̂ = 15.0%):
 
 | n | 95% CI on routable | resolves the [15%, 45%] band? |
 |---|---|---|
-| 100 | [7.8%, 21.0%] | no — straddles the floor |
-| 504 (the whole pool) | ≈ [10.1%, 15.9%] | still straddles, barely |
-| ~1100 | ≈ [11.0%, 15.0%] | yes — would settle it as *below* band |
+| 100 | [9.3%, 23.3%] | no — sits on the floor |
+| 504 (the whole pool) | ≈ [12.0%, 18.5%] | no, but much tighter |
+| ~1900 | ≈ [13.4%, 16.7%] | still not, because the estimate *is* the boundary |
 
-So enlarging to the full pool tightens everything materially but does **not** by
-itself move the task set into the band. That is not an argument against doing it;
-it is an argument for being honest about what it buys — power, not a better task
-set.
+An estimate sitting exactly on a band edge cannot be resolved by more tasks — the
+CI shrinks around 15% and never clears it. So the honest framing is that the task
+set is **marginal by this criterion and no amount of n will change that verdict**;
+what n buys is power for the policy comparisons, which is the thing actually
+short. Do not read "UNRESOLVED" as "one more probe will settle it".
+
+Note also the noise floor: 8.7% of maths verdicts flip between independent draws
+of the same prompt. Part of the width above is decoding noise, not task sampling,
+and adding tasks does not reduce it — sampling each task more than once would.
 
 **The pool is smaller than it used to be, because level 5 costs maths tasks.**
 Verified on 6 August rather than quoted:
@@ -459,10 +522,14 @@ spend available to the project.
 ### The risk that the code half was too easy — resolved, and the answer is no
 
 This file used to warn that MBPP is saturated and the code cascade might have
-nothing to route. **The probe settled it: code routable = 12.5%, maths = 13.3%.**
-The two halves discriminate equally well. The verifier-quality experiment, which
-lives on the code half because that is the half with the perfect verifier, has
-material to work with.
+nothing to route. **The probe settled it: code routable = 12.5%, maths = 16.7%.**
+Both halves discriminate, and the verifier-quality experiment — which lives on the
+code half because that is the half with the perfect verifier — has material to
+work with.
+
+The surprise is the direction. **Code is now the harder half**: 5 of its 40 tasks
+defeat both rungs, against 1 of 60 on maths, and Opus scores 85% on code against
+96.7% on maths. MBPP+ did not merely restore the code signal, it overshot maths.
 
 Credit where due: that took the MBPP+ swap. Plain MBPP's thin asserts are what
 made the code half look saturated, and the expanded evalplus suites recovered the
@@ -520,7 +587,8 @@ can be.
 | what | mock says | expect on a real run | outcome |
 |---|---|---|---|
 | **cost per task** | modelled | **2–3x higher** | ✅ **CORRECT, and if anything understated.** Measured 6 August: level-5 maths runs 650 output tokens against a modelled 80–120, and the two-arm probe cost $0.92 against a $0.44 estimate. |
-| **routable fraction** | 29%, "comfortably in band" | §4 expects it low | ✅ **CORRECT.** Real answer 13.0%. The mock's 29% was a restatement of `MOCK_SKILL` — `difficulty_pct` is a rank within the sampled set, so the mock is structurally blind to absolute difficulty. |
+| **routable fraction** | 29%, "comfortably in band" | §4 expects it low | ✅ **CORRECT.** Real answer 15.0%. The mock's 29% was a restatement of `MOCK_SKILL` — `difficulty_pct` is a rank within the sampled set, so the mock is structurally blind to absolute difficulty. |
+| **grader correctness** | assumed | not predicted at all | ❌ **MISSED.** Nobody wrote down that the grader itself might be wrong. It was, on 7 of 20 wrong maths answers, and `sanity_check.py` could not see it. Worth remembering next time a measurement looks like a capability result. |
 | maths cascade accuracy | very high | **notably lower** | untested — needs the cascade policies run for real |
 | `llm_router` accuracy | competitive | **unknown, probably worse** | untested |
 | the ratio finding | sign flips across ladders | **should hold** | untested; only `wide` has real data |
@@ -574,14 +642,19 @@ is the recovery — note `HEAD`, because the file may be staged.
 ## 7. One-paragraph summary
 
 The pipeline is done, the task set has been hardened on both halves, and the
-two-arm probe has been run for real: **routable = 13.0%** [7.8%, 21.0%] on the
-`wide` ladder, cheap 77% against expensive 87%, McNemar p=0.021, with code and
-maths agreeing at 12.5% and 13.3%. That is up from an effective zero on 30 July,
-so the MBPP+ and level-5 hardening did what it was supposed to — but 13% sits
-*below* the 15% floor `routable.py` wants, and the honest reading is that a real
-routing signal exists and is thin. Every policy in the repo is now competing over
-a 16-point ceiling. The next move is to enlarge the task set to the full 504
-available at the current settings, re-probe (~$3.60), and only then pay for a full
-eleven-policy run — budgeting from the measured $0.0078/call on maths rather than
-the modelled figures in §3, which the probe showed to be low by about 2.5x. Nine
-of the eleven policies still have no real accuracy data at all.
+two-arm probe has been run for real: **routable = 15.0%** [9.3%, 23.3%] on the
+`wide` ladder, cheap 79% against expensive 92%, McNemar p=0.002, rescue rate 71%.
+That is up from an effective zero on 30 July, so the MBPP+ and level-5 hardening
+did what it was supposed to. Two measurement bugs were found and fixed on the way
+and both mattered: the maths grader was rejecting 7 of 20 correct-but-differently-
+formatted answers (worth 5 points of Opus accuracy, and invisible to a regression
+gate that only tested `grade(GT, GT)`), and the models turn out to disagree with
+themselves on 8.7% of maths tasks between independent draws of the same prompt.
+The signal is real, significant, and thin: every policy competes over a 17-point
+ceiling, and 15% sits exactly on the floor of the band `routable.py` asks for —
+which more tasks cannot resolve, since the CI just shrinks around the boundary.
+The next move is to enlarge the task set to the full 504 available at the current
+settings for statistical power, then pay for a full eleven-policy run — budgeting
+from the measured $0.0078/call on maths rather than the modelled figures in §3,
+which the probe showed to be low by about 2.5x. Nine of the eleven policies still
+have no real accuracy data at all.

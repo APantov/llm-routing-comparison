@@ -22,20 +22,35 @@ one thing a cascade depends on and a predictive router does not have at all.
 >
 > | | n=100 | code (40) | math (60) |
 > |---|---|---|---|
-> | `always_cheap` | 77.0% | 75.0% | 78.3% |
-> | `always_expensive` | 87.0% | 85.0% | 88.3% |
-> | **routable** (cheap wrong, expensive right) | **13.0%** | 12.5% | 13.3% |
-> | ceiling over `always_cheap` | 16.0% | 15.0% | 16.7% |
+> | `always_cheap` | 79.0% | 75.0% | 81.7% |
+> | `always_expensive` | 92.0% | 85.0% | 96.7% |
+> | **routable** (cheap wrong, expensive right) | **15.0%** | 12.5% | 16.7% |
+> | `both_fail` (neither rung) | 6.0% | 12.5% | 1.7% |
+> | ceiling over `always_cheap` | 17.0% | 15.0% | 18.3% |
 >
-> 95% CI on routable [7.8%, 21.0%], McNemar **p = 0.021**. This is what the task
-> set hardening bought: on 30 July the same cross-tab read `both_ok=10,
-> routable=0`. Swapping the code half to **MBPP+** and the maths half to **MATH500
-> level 5** moved it to 13%, and — because those changes hit disjoint task subsets
-> — the near-identical per-domain figures show each worked on its own.
+> 95% CI on routable [9.3%, 23.3%], McNemar **p = 0.002**, rescue rate 71%. This
+> is what the task set hardening bought: on 30 July the same cross-tab read
+> `both_ok=10, routable=0`. Swapping the code half to **MBPP+** and the maths half
+> to **MATH500 level 5** moved it to 15%, and because those changes hit disjoint
+> task subsets, each is visible working on its own half.
 >
-> Read it soberly: 13% sits *below* the 15% floor `routable.py` asks for. There is
-> a real routing signal and it is thin. Every policy here is competing over a
-> 16-point band.
+> Two things in that table are worth more than the headline. **Opus solves 58 of
+> 60 MATH500 level-5 problems**, so the maths half is near-saturated at the top
+> rung and its routing signal is almost purely "the cheap model fails at something
+> the expensive one finds easy" — 91% rescue. And **code is now the harder
+> domain**: 5 of its 40 tasks defeat both rungs, against 1 of 60 on maths.
+>
+> Read it soberly: 15% sits exactly *on* the 15% floor `routable.py` asks for. The
+> routing signal is real, significant, and thin — every policy here competes over
+> a 17-point band.
+>
+> **These numbers are post-fix.** As first run the probe read routable 13.0%,
+> cheap 77.0%, expensive 87.0%: seven of its twenty wrong maths answers were
+> correct answers the normaliser could not match (`1+\sqrt{19}, 1-\sqrt{19}`
+> against a ground truth of `1 \pm \sqrt{19}`, and five more classes like it).
+> `sanity_check.py` printed 60/60 throughout, because feeding the ground truth
+> back into `\boxed{}` only ever tests `grade(GT, GT)`. It now checks equivalent
+> formattings and near-miss wrong answers too.
 >
 > Every *other* accuracy figure below still comes from **mock mode**, which
 > fabricates model replies from answers already stored in the task set. Those
@@ -122,9 +137,11 @@ ROUTER_MODE=replay python3 routable.py --real --ladders wide
 which is `routable + both_fail` — it cannot tell a task the expensive rung would
 fix from one it would fail too, and only the first kind is worth routing. This
 repo has a concrete demonstration of the difference: the 6 August probe reports a
-23.0% cheap failure rate that reads as comfortably in band, while the routable
-fraction is 13.0% and reads as below it. Ten of those 23 failures are tasks
-neither rung can solve. See [ROUTABLE_2026-07-30.md](ROUTABLE_2026-07-30.md).
+21.0% cheap failure rate that reads as comfortably in band, while the routable
+fraction is 15.0% and sits on its floor. Six of those 21 failures are tasks
+neither rung can solve — and on the code half it is 5 of 10, so half the code
+cascade's escalations buy nothing. See
+[ROUTABLE_2026-07-30.md](ROUTABLE_2026-07-30.md).
 
 Ten tasks cannot answer this either — at n=10 the rate carries a ±28-point
 confidence interval, which spans the entire acceptable band.
@@ -313,7 +330,7 @@ than quietly omitted.
 | `sweep_degraded.py` | the experiment: cascade quality against verifier quality |
 | `routellm_router.py` | RouteLLM's pretrained router, cost-matched to `predictive` |
 | `plot.py` | SVG figures from the standard library, no matplotlib |
-| `sanity_check.py` | regression gate; exits non-zero if a grader is broken |
+| `sanity_check.py` | regression gate: reference answers, equivalent formattings, and near-miss wrong answers. Exits non-zero if a grader is broken *or* too lax |
 
 ## The tuneable decisions
 

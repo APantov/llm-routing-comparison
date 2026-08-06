@@ -80,6 +80,21 @@ def _last_boxed(text: str):
     return None  # unbalanced braces
 
 
+def _canon_latex(s):
+    r"""Give \frac and \sqrt arguments their braces, so \sqrt5 == \sqrt{5}.
+
+    LaTeX lets a single-token argument drop its braces, and models use both
+    forms interchangeably within one answer. MATH500's stored answers do too:
+    `\frac{270}7` is in the data as written.
+    """
+    s = re.sub(r"\\sqrt(?!\{)(\\?[A-Za-z0-9])", r"\\sqrt{\1}", s)
+    # Two passes so \frac{270}7 and \frac3{4} are both reached.
+    for _ in range(2):
+        s = re.sub(r"\\frac(?!\{)(\\?[A-Za-z0-9])", r"\\frac{\1}", s)
+        s = re.sub(r"(\\frac\{[^{}]*\})(?!\{)(\\?[A-Za-z0-9])", r"\1{\2}", s)
+    return s
+
+
 def normalize_math_answer(s):
     r"""Light normalisation so formatting differences are not scored as wrong
     answers.
@@ -88,23 +103,157 @@ def normalize_math_answer(s):
     equivalent (\dfrac vs \frac, spacing, \left/\right) and does NOT attempt
     algebraic equivalence: 1/2 and 0.5 stay different, because deciding they
     are the same is a solver's job rather than a grader's.
+
+    This produces ONE canonical string. Equivalences that are structural rather
+    than notational - \pm, set ordering, units, `LHS = answer` - are handled by
+    answer_variants() instead, because they need more than a rewrite.
     """
     if s is None:
         return None
     s = s.strip()
-    s = s.replace("$", "").replace(r"\!", "").replace(r"\,", "").replace(r"\;", "")
+    # \$ before $: MATH500 writes currency as \$18.90, and stripping the dollar
+    # alone leaves the escaping backslash behind. That bug graded a correct
+    # `18.90` as wrong on 6 August 2026.
+    s = s.replace(r"\$", "").replace("$", "")
+    s = s.replace(r"\!", "").replace(r"\,", "").replace(r"\;", "").replace(r"\ ", "")
     s = s.replace(r"\left", "").replace(r"\right", "")
     s = s.replace(r"\dfrac", r"\frac").replace(r"\tfrac", r"\frac")
     s = re.sub(r"\^\{?\\circ\}?", "", s)                 # 90^\circ -> 90
     s = s.replace(r"\%", "").replace("%", "")
     s = re.sub(r"\\text\{([^}]*)\}", r"\1", s)           # \text{cm} -> cm
-    s = re.sub(r"\\frac(\d)(\d)", r"\\frac{\1}{\2}", s)  # \frac34 -> \frac{3}{4}
+    s = re.sub(r"\\mbox\{([^}]*)\}", r"\1", s)
     s = re.sub(r"\s+", "", s)
+    s = _canon_latex(s)
     s = s.rstrip(".")
     if re.fullmatch(r"-?[\d,]+", s):                     # 1,000 -> 1000, but not (6,31,-1)
         s = s.replace(",", "")
     s = re.sub(r"^0+(\d)", r"\1", s)                     # 007 -> 7
     return s
+
+
+def _split_top(s, sep=","):
+    """Split on `sep`, ignoring separators nested inside brackets."""
+    out, depth, cur = [], 0, []
+    for ch in s:
+        if ch in "{([":
+            depth += 1
+        elif ch in "})]":
+            depth -= 1
+        if ch == sep and depth == 0:
+            out.append("".join(cur))
+            cur = []
+        else:
+            cur.append(ch)
+    out.append("".join(cur))
+    return [p for p in out if p]
+
+
+def _expand_pm(part):
+    r"""`3\pm2\sqrt2` -> the two values it stands for.
+
+    Only the first \pm is expanded. A second one would mean four values and a
+    convention about whether the signs are linked, and nothing in MATH500 needs
+    it - guessing there would risk accepting a wrong answer.
+    """
+    i = part.find(r"\pm")
+    if i == -1:
+        return [part]
+    lhs, rhs = part[:i], part[i + 3:]
+    if not rhs:
+        return [part]
+    return [f"{lhs}+{rhs}", f"{lhs}-{rhs}"] if lhs else [rhs, f"-{rhs}"]
+
+
+# Answers whose elements are UNORDERED. A parenthesised tuple is deliberately
+# absent: (6,31,-1) is a coordinate, and sorting it would accept a wrong answer.
+def _as_unordered_set(s):
+    r"""Canonical form for a set answer, or None if it is not one.
+
+    Handles \{a,b\} and a bare `a,b` list. Expands \pm inside each element
+    first, so `\{1\pm\sqrt5,-2\}` and `\{-2,1+\sqrt5,1-\sqrt5\}` agree.
+    """
+    inner, braced = s, False
+    if s.startswith(r"\{") and s.endswith(r"\}"):
+        inner, braced = s[2:-2], True
+    elif s.startswith("{") and s.endswith("}"):
+        inner, braced = s[1:-1], True
+
+    parts = _split_top(inner)
+    # A bare `1\pm\sqrt{19}` is a two-element set with no comma in it, so the
+    # \pm has to be enough on its own to qualify.
+    if len(parts) < 2 and r"\pm" not in inner:
+        return None
+    if not braced and s.startswith("(") and s.endswith(")"):
+        return None  # ordered tuple
+
+    expanded = []
+    for p in parts:
+        expanded.extend(_expand_pm(p))
+    if len(expanded) < 2:
+        return None
+    return "SET(" + "|".join(sorted(_canon_latex(e) for e in expanded)) + ")"
+
+
+_INEQUALITY = re.compile(
+    r"^(-?[\d.]+)(<|\\le|\\leq)([A-Za-z]|\\[A-Za-z]+)(<|\\le|\\leq)(-?[\d.]+)$"
+)
+
+
+def _as_interval(s):
+    r"""`3<\lambda\le4` -> `(3,4]`, so a range reads the same either way."""
+    m = _INEQUALITY.match(s)
+    if not m:
+        return None
+    lo, lo_op, _var, hi_op, hi = m.groups()
+    return f"{'(' if lo_op == '<' else '['}{lo},{hi}{')' if hi_op == '<' else ']'}"
+
+
+def answer_variants(s):
+    r"""Every form of `s` that means the same thing, as a set of strings.
+
+    Two answers match when their variant sets intersect. Variants are only ever
+    ADDED, never substituted, so the plain normalised string is always present
+    and nothing that matched before can stop matching.
+
+    Each rule below was put here by a specific real failure in the 6 August 2026
+    probe, where the grader scored a correct answer as wrong:
+
+      \pm expansion     `1\pm\sqrt{19}` vs `1+\sqrt{19}, 1-\sqrt{19}`
+      set ordering      `\{1\pm\sqrt5,-2\}` vs `\{-2,1+\sqrt5,1-\sqrt5\}`
+      trailing units    `\frac{270}7\text{ degrees}` vs `\frac{270}{7}`
+      `LHS = answer`    `3R^2` vs `AF^2+BF^2+CF^2 = 3R^2`
+      interval notation `(3,4]` vs `3<\lambda\le4`
+
+    What it still refuses to do is algebra. `1/2` and `0.5` remain different,
+    and so do `2\sqrt{113}` and `4\sqrt{29}` - which are genuinely different
+    numbers that a laxer grader might have been tempted to reconcile.
+    """
+    if s is None:
+        return frozenset()
+    out = {s}
+
+    # `AF^2+BF^2+CF^2=3R^2` -> `3R^2`. Only for a single top-level `=`, so an
+    # answer that IS an equation is left alone.
+    parts = _split_top(s, "=")
+    if len(parts) == 2 and all(parts):
+        out.add(parts[1])
+
+    # Trailing unit word: `4\sqrt{29}feet` -> `4\sqrt{29}`. Requires something
+    # non-alphabetic to remain, so `even` or `\text{yes}` survives intact.
+    for v in list(out):
+        m = re.match(r"^(.*?[\d}\)])([A-Za-z]{2,})$", v)
+        if m:
+            out.add(m.group(1))
+
+    for v in list(out):
+        as_set = _as_unordered_set(v)
+        if as_set:
+            out.add(as_set)
+        interval = _as_interval(v)
+        if interval:
+            out.add(interval)
+
+    return frozenset(out)
 
 
 def extract_answer(text: str):
@@ -134,7 +283,12 @@ def grade_exact_match_str(response: str, payload: dict) -> bool:
     got = extract_answer(response)
     if got is None:
         return False
-    return got == normalize_math_answer(payload["answer"])
+    want = normalize_math_answer(payload["answer"])
+    if got == want:
+        return True
+    # Structural equivalences - see answer_variants. Checked only after the
+    # plain comparison fails, so the common case stays a string compare.
+    return bool(answer_variants(got) & answer_variants(want))
 
 
 def _strip_code_fences(text: str) -> str:

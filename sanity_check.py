@@ -4,10 +4,22 @@ A grader that cannot score the reference answer is broken, and every number
 downstream of it is meaningless. This is the repo's regression gate: run it after
 any change to graders.py, to build_taskset.py, or to the taskset schema.
 
-Both counts must come out full. Exits non-zero if either does not, so it can be
-wired into a pre-commit hook or CI.
+Every count must come out full. Exits non-zero otherwise, so it can be wired
+into a pre-commit hook or CI.
 
     python3 sanity_check.py
+
+THREE checks, and the third exists because the first two are not enough. Feeding
+the ground-truth answer back into \\boxed{} only ever tests grade(GT, GT), which
+passes by construction however broken the normaliser is. On 6 August 2026 this
+file printed 60/60 while the maths grader was rejecting `1+\\sqrt{19},1-\\sqrt{19}`
+against a ground truth of `1\\pm\\sqrt{19}` - seven such false negatives in one
+100-task probe, five of them on the expensive model, costing it five accuracy
+points that were reported as a capability result.
+
+So EQUIVALENT and DISTINCT below are the real gate on graders.normalize /
+answer_variants. DISTINCT matters as much as EQUIVALENT: a grader that returns
+True for everything passes EQUIVALENT perfectly.
 """
 
 import json
@@ -17,6 +29,74 @@ from pathlib import Path
 from graders import grade
 
 HERE = Path(__file__).parent
+
+# (ground truth, a DIFFERENTLY FORMATTED but correct answer). Must grade True.
+# Every pair here is a real case observed in the 6 August 2026 probe.
+EQUIVALENT = [
+    (r"1 \pm \sqrt{19}", r"1+\sqrt{19},\ 1-\sqrt{19}"),
+    (r"3 \pm 2 \sqrt{2}", r"3+2\sqrt{2},\; 3-2\sqrt{2}"),
+    (r"\{1\pm\sqrt{5},-2\}", r"\{-2,\ 1+\sqrt5,\ 1-\sqrt5\}"),
+    (r"\frac{270}7\text{ degrees}", r"\frac{270}{7}"),
+    (r"\$18.90", r"18.90"),
+    (r"3R^2", r"AF^2+BF^2+CF^2 = 3R^2"),
+    (r"(3,4]", r"3 < \lambda \le 4"),
+    # Notational cases the normaliser already handled - kept so a rewrite of it
+    # cannot silently lose them.
+    (r"\frac{1}{2}", r"\dfrac{1}{2}"),
+    (r"90", r"90^\circ"),
+    (r"\sqrt{2}", r"\sqrt2"),
+]
+
+# (ground truth, a WRONG answer that looks superficially close). Must grade
+# False. This is the half that catches over-lenience.
+DISTINCT = [
+    (r"2\sqrt{113}", r"4\sqrt{29}"),          # 21.26 vs 21.54 - both were guessed
+    (r"2\sqrt{113}", r"2\sqrt{61}"),
+    (r"\frac{270}7\text{ degrees}", r"\frac{990}{7}"),
+    (r"331", r"\frac{331}{3}"),
+    (r"8n^2 + 4n + 1", r"\frac{13}{8n^2 + 4n + 1}"),
+    (r"144", r"288"),
+    (r"1 \pm \sqrt{19}", r"1+\sqrt{19}"),     # only half the answer
+    (r"3 \pm 2 \sqrt{2}", r"3+2\sqrt{2},\ 3-2\sqrt{2},\ -3+2\sqrt{2},\ -3-2\sqrt{2}"),
+    (r"(3,4]", r"[3,4]"),                     # wrong endpoint inclusion
+    (r"\frac{1}{2}", r"0.5"),                 # algebra is not the grader's job
+    (r"(6,31,-1)", r"(-1,6,31)"),             # an ordered tuple is not a set
+]
+
+
+def check_pairs():
+    """Run EQUIVALENT and DISTINCT through the real grader."""
+    failures = []
+
+    def verdict(gt, answer):
+        # A distinct id per pair: grade() memoises on it, and two pairs sharing
+        # an id would return the first one's verdict for both.
+        t = {
+            "id": f"sanity-{hash((gt, answer)) & 0xffffffff:08x}",
+            "grader": "exact_match_str",
+            "grader_payload": {"answer": gt},
+        }
+        return grade(t, "Reasoning...\nThe final answer is $\\boxed{" + answer + "}$")
+
+    eq_ok = 0
+    for gt, answer in EQUIVALENT:
+        if verdict(gt, answer):
+            eq_ok += 1
+        else:
+            failures.append(f"  FAIL equivalent  gt={gt!r}  answer={answer!r} "
+                            f"(correct answer graded WRONG)")
+
+    di_ok = 0
+    for gt, answer in DISTINCT:
+        if not verdict(gt, answer):
+            di_ok += 1
+        else:
+            failures.append(f"  FAIL distinct    gt={gt!r}  answer={answer!r} "
+                            f"(WRONG answer graded correct - the grader is too lax)")
+
+    print(f"equivalent formattings the grader accepts:      {eq_ok}/{len(EQUIVALENT)}")
+    print(f"wrong answers the grader still rejects:         {di_ok}/{len(DISTINCT)}")
+    return failures
 
 
 def code_response(t):
@@ -60,6 +140,7 @@ def main():
 
     print(f"code reference solutions passing their asserts: {code_ok}/{len(code)}")
     print(f"math ground-truth answers the grader accepts:   {math_ok}/{len(math)}")
+    failures.extend(check_pairs())
 
     if failures:
         print()
