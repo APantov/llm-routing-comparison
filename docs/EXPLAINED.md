@@ -1,6 +1,6 @@
 # EXPLAINED — the whole repo in plain language
 
-This is the no-jargon version of [README.md](README.md), covering the IDEAS.
+This is the no-jargon version of [README.md](../README.md), covering the IDEAS.
 For how the CODE is laid out and a trace of one real task through it, read
 [WALKTHROUGH.md](WALKTHROUGH.md).
 

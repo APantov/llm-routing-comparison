@@ -114,7 +114,7 @@ The gate `run_eval.py` prints is friendlier — cheap-model failure rate 21.0%
 [13%, 29%] against a 20–55% target. **Prefer the routable figure.** `P(cheap
 fails)` is `routable + both_fail`, and 6 of those 21 failures are tasks the
 expensive rung cannot fix either. That is the exact confusion
-[ROUTABLE_2026-07-30.md](ROUTABLE_2026-07-30.md) was written to warn about,
+[ROUTABLE_2026-07-30.md](docs/ROUTABLE_2026-07-30.md) was written to warn about,
 though the gap is much smaller now that the grader is not manufacturing failures.
 
 So the honest reading: **there is a real routing signal, it is comfortably
@@ -333,7 +333,7 @@ reported tasks, which is exactly the non-result a plumbing check is allowed to
 produce. Re-run it only if the ladder or the prompts change.
 
 ```bash
-pip install -r requirements.txt
+pip install -e ".[real]"
 cp .env.example .env        # Windows: copy .env.example .env
 # open .env, paste ANTHROPIC_API_KEY and DEEPSEEK_API_KEY, save
 
@@ -373,7 +373,7 @@ ROUTER_MODE=replay python3 routable.py --real --ladders wide
 ```
 
 > **Do not use the one-arm version, and do not read the gate `run_eval.py`
-> prints.** See [ROUTABLE_2026-07-30.md](ROUTABLE_2026-07-30.md). `P(cheap fails)`
+> prints.** See [ROUTABLE_2026-07-30.md](docs/ROUTABLE_2026-07-30.md). `P(cheap fails)`
 > is `routable + both_fail`, and the one-arm gate cannot see the split. This run
 > is the concrete demonstration: it reports a 21.0% cheap failure rate against a
 > 20–55% target, while the quantity that actually matters is 15.0% and sits on
@@ -568,7 +568,7 @@ defeat both rungs, against 1 of 60 on maths, and Opus scores 85% on code against
 Credit where due: that took the MBPP+ swap. Plain MBPP's thin asserts are what
 made the code half look saturated, and the expanded evalplus suites recovered the
 signal without changing a single problem — the swap moves exactly one variable,
-how thorough the marking is. See [DATASETS.md](DATASETS.md).
+how thorough the marking is. See [DATASETS.md](docs/DATASETS.md).
 
 The remaining escalation path, if 12.5% is judged too thin:
 
@@ -639,15 +639,15 @@ mock flatters the project". Weight the remaining five accordingly.
 | file | read it when |
 |---|---|
 | `STATUS.md` | now |
-| `WALKTHROUGH.md` | you want to understand the code: file by file, with a real trace |
+| `docs/WALKTHROUGH.md` | you want to understand the code: file by file, with a real trace |
 | `README.md` | you want the technical overview and the citations |
-| `EXPLAINED.md` | you want the plain-language version of any concept |
-| `NOTES.md` | you want the honest list of what is wrong and what is unresolved |
+| `docs/EXPLAINED.md` | you want the plain-language version of any concept |
+| `docs/NOTES.md` | you want the honest list of what is wrong and what is unresolved |
 | `models.py` | changing models, prices or ladders — `DECISION #1` at the top. `MAX_TOKENS` carries the truncation measurement |
 | `policies.py` | changing what a policy does — `DECISION #2`–`#9` |
 | `build_taskset.py` | changing how many tasks, or which. Both difficulty defaults were raised on 6 August |
-| `DATASETS.md` | choosing a different benchmark, and why MBPP+ was the one taken |
-| `ROUTABLE_2026-07-30.md` | why the routable fraction is the quantity that matters |
+| `docs/DATASETS.md` | choosing a different benchmark, and why MBPP+ was the one taken |
+| `docs/ROUTABLE_2026-07-30.md` | why the routable fraction is the quantity that matters |
 
 Everything *fabricated* is gitignored: `frontier.jsonl`, `sweep_degraded.jsonl`,
 `figures/`, and the mock caches (`raw_calls.*.mock.jsonl`). That is deliberate — a
@@ -657,14 +657,18 @@ a measurement.
 The real artefacts are the exception and are **force-added to git** despite the
 ignore rule:
 
-- `cache/raw_calls.{wide,claude,deepseek}.jsonl` — **318 real responses, $1.36 of
+- `cache/raw_calls.{wide,claude,deepseek}.jsonl` — **328 real responses, $1.39 of
   spend.** The irreplaceable asset. `ROUTER_MODE=replay` reproduces every paid run
-  from them field-for-field.
-- `results.jsonl` — 47 rows from the 30 July plumbing run, all `simulated: false`.
-  Historical: it predates the 6 August rebuild, so its `code-*` task ids no longer
-  exist in `taskset.jsonl`. Do not run `frontier.py` or `stats.py` against it.
+  from them field-for-field, and it is what makes `scripts/demo.py` free.
 - `results.probe.jsonl` — 200 rows, both arms, all `simulated: false`. Normally
   gitignored as fabricated; force-added because this copy is real.
+
+**There is no `results.jsonl`, as of 7 August 2026.** The 47 real rows that used
+to be here were from the 30 July plumbing run and every one of their task ids
+died in the 6 August rebuild, so `stats.py` and `frontier.py` were reading a
+fossil. They now report the file as missing, which is correct until §2 step 5
+happens. The rows themselves are kept unedited in
+[`archive/`](archive/README.md) — nothing real is deleted in this repository.
 
 **`results.jsonl` was clobbered by a mock run once, on 31 July, and recovered from
 git.** The clobber guard in `run_eval.guard_clobber` exists to prevent exactly

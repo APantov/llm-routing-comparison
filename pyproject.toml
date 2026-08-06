@@ -7,6 +7,10 @@ name = "llm-routing"
 version = "0.2.0"
 description = "A cost-aware LLM routing service, and the benchmark that decides its policy"
 readme = "README.md"
+# 3.10 or newer, and the version matters more than usual here:
+# graders.grade_run_asserts executes candidate code with [sys.executable, path],
+# so the code grader's verdict depends on which interpreter launched the
+# evaluation. Pin it, and record which one produced any quoted result.
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [{ name = "Asen" }]
@@ -21,7 +25,22 @@ keywords = ["llm", "routing", "cascade", "langgraph", "mcp", "evaluation"]
 # network and no key, and get the same numbers byte for byte.
 #
 # Every dependency below is therefore optional and named for the one thing it
-# unlocks. See requirements.txt for the long-form reasoning on each.
+# unlocks.
+#
+#     python -m venv .venv && . .venv/bin/activate   # Windows: .venv\Scripts\activate
+#     pip install -e ".[all]"                        # everything that cannot spend money
+#     pip install -e ".[real]"                       # add the API SDK
+#
+# DELIBERATELY ABSENT, and each for a reason:
+#
+#   openai   pulled in only by RouteLLM's `mf` variant, which this project does
+#            not use. `bert` is the variant chosen precisely because it runs
+#            locally with no key - see routellm_router.py for the full table.
+#   scipy    stats.py implements exact McNemar and a paired bootstrap directly.
+#            An exact test on a 2x2 table is a few lines; a dependency that
+#            large should buy more than that.
+#   matplotlib  plot.py writes SVG from the standard library. The figures are
+#            byte-deterministic as a result, which matplotlib's would not be.
 dependencies = []
 
 [project.optional-dependencies]

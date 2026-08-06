@@ -203,7 +203,7 @@ def _load_router(variant):
         raise SystemExit(
             f"\nSTOPPING: could not import routellm ({e}).\n"
             f"  pip install routellm\n"
-            f"  It is deliberately absent from requirements.txt - it pulls torch,\n"
+            f"  It is deliberately an optional extra, not a default - it pulls torch,\n"
             f"  transformers, datasets and litellm, none of which the experiment needs.\n"
         )
 

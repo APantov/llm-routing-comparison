@@ -24,7 +24,7 @@ is byte-identical wherever it is built.
 
 BOTH DEFAULTS WERE HARDENED ON 6 AUGUST 2026, for one reason: the cheap rung
 solved 10 out of 10 on the original set, which leaves a router nothing to decide.
-See ROUTABLE_2026-07-30.md for the cross-tabulation and DATASETS.md for why MBPP+
+See docs/ROUTABLE_2026-07-30.md for the cross-tabulation and docs/DATASETS.md for why MBPP+
 rather than a different benchmark. The originals remain one flag away, because
 the point of the change is to move the failure rate, and a change you cannot undo
 is a change you cannot measure.

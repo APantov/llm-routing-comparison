@@ -79,7 +79,7 @@ Dropping is not tidying. The mock emits the reference as its "correct" answer, s
 a task whose reference fails would have every mock-correct answer graded wrong.
 
 **Cost: numpy becomes a grading dependency.** Every expanded test program starts
-`import numpy as np` and compares floats with `np.allclose`. See requirements.txt.
+`import numpy as np` and compares floats with `np.allclose`. See `pyproject.toml`, extra `code`.
 
 Source: <https://huggingface.co/datasets/evalplus/mbppplus> — 378 problems, the
 same ones as sanitized MBPP, with roughly 35x more test cases each. The task

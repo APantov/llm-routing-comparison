@@ -168,16 +168,16 @@ one thing a cascade depends on and a predictive router does not have at all.
 > fabricates model replies from answers already stored in the task set. Those
 > figures mean nothing about any model. Every simulated number is labelled as such:
 > at the top and bottom of every run, above every table, and in a
-> `"simulated": true` field on every output row. See [NOTES.md](NOTES.md) for what
+> `"simulated": true` field on every output row. See [NOTES.md](docs/NOTES.md) for what
 > a full real run would change.
 >
 > **Coming back to this cold? Read [STATUS.md](STATUS.md).** It says what state the
 > project is in, what to run next in order, what the paid run costs, and what to
 > expect to change.
 >
-> **Want to understand the code?** [WALKTHROUGH.md](WALKTHROUGH.md) traces one
+> **Want to understand the code?** [WALKTHROUGH.md](docs/WALKTHROUGH.md) traces one
 > real task through every file. For the plain-language version of the *ideas*,
-> read [EXPLAINED.md](EXPLAINED.md).
+> read [EXPLAINED.md](docs/EXPLAINED.md).
 
 ## Run it
 
@@ -220,7 +220,7 @@ Real mode. Do these in order — the second one is the decision point, and it co
 one or two orders of magnitude less than a full run:
 
 ```bash
-pip install -r requirements.txt
+pip install -e ".[real]"
 cp .env.example .env        # Windows: copy .env.example .env
 # then open .env and paste your key(s) in
 ```
@@ -253,7 +253,7 @@ repo has a concrete demonstration of the difference: the 6 August probe reports 
 fraction is 15.0% and sits on its floor. Six of those 21 failures are tasks
 neither rung can solve — and on the code half it is 5 of 10, so half the code
 cascade's escalations buy nothing. See
-[ROUTABLE_2026-07-30.md](ROUTABLE_2026-07-30.md).
+[ROUTABLE_2026-07-30.md](docs/ROUTABLE_2026-07-30.md).
 
 Ten tasks cannot answer this either — at n=10 the rate carries a ±28-point
 confidence interval, which spans the entire acceptable band.
@@ -284,7 +284,7 @@ the cheap rung solving essentially everything at the previous ones. MBPP+ is the
 same 378 problems as sanitized MBPP with roughly 35x more test cases, so the swap
 moves exactly one variable — how thorough the marking is — and the model is still
 shown the original thin asserts as its specification. The easier originals remain
-one flag away: `--code mbpp --min-math-level 3`. See [DATASETS.md](DATASETS.md).
+one flag away: `--code mbpp --min-math-level 3`. See [DATASETS.md](docs/DATASETS.md).
 Grading the code half now needs **numpy**, because the expanded suites compare
 floats with `np.allclose`.
 
@@ -423,10 +423,22 @@ tasks from the same cached responses, which is what the response cache is for.
 The current answer, on the held-out half, is **no** — the accuracy gaps that look
 decisive in the report table have confidence intervals spanning zero, while
 several cost differences are comfortably significant. That is a real result about
-the task set size and it is written up as item 2 of [NOTES.md](NOTES.md) rather
+the task set size and it is written up as item 2 of [NOTES.md](docs/NOTES.md) rather
 than quietly omitted.
 
 ## Files
+
+```
+.                       README.md  STATUS.md  ARCHITECTURE.md  LICENSE
+├── *.py                the experiment: 15 flat, independently runnable scripts
+├── router_agent/       the product: LangGraph cascade + MCP server
+├── scripts/            demo and CI guard scripts
+├── tests/              pytest, agent layer only
+├── docs/               reference and dated analyses  (docs/README.md indexes them)
+├── data/               MATH500 and MBPP+ source data
+├── cache/              328 real model responses - what makes replay free
+└── archive/            real data superseded by the 6 Aug rebuild, kept not deleted
+```
 
 | file | what it is |
 |---|---|
@@ -499,14 +511,21 @@ run actually spent.
 
 ## The RouteLLM comparison
 
-`routellm` sits out unless `cache/routellm_scores.jsonl` exists. Those scores are
-committed, so the policy runs for everyone with no API key, no HuggingFace
-access, no torch and no GPU. To regenerate them:
+`routellm` sits out unless `cache/routellm_scores.jsonl` exists.
+
+**It is currently sitting out.** Scores are keyed on the prompt, so the 6 August
+task-set rebuild left only 10 of 100 matching, and `routellm_router.CALIBRATED`
+correctly refuses to run a router calibrated on a tenth of the set. The stale
+scores are in [archive/](archive/README.md) rather than in `cache/`, so the
+policy now skips for a stated reason instead of because of a file that looked
+healthy.
+
+Regenerating is free, local, and needs no API key — but it does need torch:
 
 ```bash
 pip install routellm==0.2.0
-python3 routellm_router.py --score     # bert variant, local, no API key
-python3 routellm_router.py             # show calibration and routing decisions
+python routellm_router.py --score     # bert variant, local, no API key
+python routellm_router.py             # show calibration and routing decisions
 ```
 
 Of RouteLLM's five routers, `bert` is the only one that is both genuinely learned
@@ -534,7 +553,7 @@ not a replication.
 
 ## Open issues
 
-Tracked honestly in [NOTES.md](NOTES.md), including the ones that would weaken
+Tracked honestly in [NOTES.md](docs/NOTES.md), including the ones that would weaken
 the headline. The largest is at the top of this file: apart from one 5-task
 plumbing run in which every policy tied at 100%, no accuracy figure here has been
 measured against a real model.

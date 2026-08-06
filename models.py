@@ -711,7 +711,7 @@ def _client(provider: str):
         except ImportError:
             raise SystemExit(
                 "\nThe `anthropic` package is not installed, and real mode needs it.\n"
-                "  pip install -r requirements.txt\n\n"
+                '  pip install -e ".[real]"\n\n'
                 "  It is needed only for real mode. Mock and replay run on the\n"
                 "  standard library alone, which is why it is not imported at the\n"
                 "  top of this file.\n"

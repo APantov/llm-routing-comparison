@@ -38,12 +38,14 @@ credentials.json
 # is the single most likely way a simulated figure gets mistaken for a measured
 # one.
 #
-# results.jsonl is STILL LISTED HERE but is force-added to git as of 30 July 2026,
-# because it now holds 47 `simulated: false` rows from the real plumbing run -
-# data that cost money and cannot be regenerated for free. The ignore rule stays
-# so that a mock run's output is not staged by accident;
-# `git add -f results.jsonl` is the deliberate act that publishes a real run, and
-# run_eval.guard_clobber blocks a mock run from overwriting it in the first place.
+# results.jsonl is ignored, and as of 7 August 2026 it does not exist: the 47
+# real rows that used to sit here were from the 30 July plumbing run, and every
+# one of their task ids died in the 6 August task-set rebuild. They are kept,
+# unedited, in archive/results.2026-07-30.jsonl - see archive/README.md.
+#
+# The ignore rule stays so a mock run's output is never staged by accident.
+# `git add -f results.jsonl` is the deliberate act that publishes a real run,
+# and run_eval.guard_clobber blocks a mock run from overwriting one.
 # ---------------------------------------------------------------------------
 results.jsonl
 results.probe.jsonl
@@ -64,9 +66,12 @@ figures/
 # whole point: committing it makes every number in this repo reproducible by
 # someone with no API key, via ROUTER_MODE=replay. Commit it after the paid run.
 #
-# cache/routellm_scores.jsonl is likewise NOT ignored. It is small, it is real
-# output from a local model, and committing it is what lets the routellm policy
-# run without torch, a checkpoint download, or a GPU.
+# cache/routellm_scores.jsonl is likewise NOT ignored, and committing it is what
+# lets the routellm policy run without torch, a checkpoint download, or a GPU.
+# As of 7 August 2026 there is no such file: scores are keyed on the prompt, so
+# the 6 August rebuild left only 10 of 100 matching and the policy was silently
+# sitting out. The old scores are in archive/, and regenerating them against the
+# current task set is free and local - `python routellm_router.py --score`.
 #
 # cache/raw_calls.mock.jsonl (SIMULATED responses) IS ignored. It regenerates for
 # free in seconds, so committing it would add half a megabyte of fabricated model
