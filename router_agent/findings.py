@@ -61,10 +61,73 @@ def price_ratios(ladder: str) -> dict | None:
         (top["price_in"] * top["tokenizer_factor"])
         / (bottom["price_in"] * bottom["tokenizer_factor"])
     )
-    return {
+    out = {
         "rungs": " -> ".join(ids),
         "list_ratio": round(list_ratio, 2),
         "effective_ratio": round(effective, 2),
+    }
+    measured = realized_ratio(ladder)
+    if measured:
+        out["realized_ratio"] = measured["ratio"]
+        out["realized_n_tasks"] = measured["n_tasks"]
+    return out
+
+
+def realized_ratio(ladder: str, path: Path | None = None) -> dict | None:
+    """The ratio the provider actually billed, from cached greedy answers.
+
+    `price_ratios` is arithmetic over the price table and cannot be wrong about
+    the table - but it prices a call using INPUT rates, and on a reasoning
+    workload roughly 93% of the bill is OUTPUT tokens, where these rungs are
+    much further apart. On `wide` the input rates differ by 36x and the output
+    rates by 89x, so which one is used is not a detail.
+
+    Measured on the 7 August redraw the realized figure was **69x against a
+    quoted 46x**, and the direction matters: this repository's whole thesis is
+    that cascading pays in proportion to the price gap, so understating the gap
+    understates the case for cascading on exactly the hard tasks where routing
+    is worth doing.
+
+    Restricted to tasks where BOTH rungs answered, so the two means describe the
+    same population rather than two different task mixes. Greedy answers only -
+    self-consistency samples are a different, shorter action and would drag the
+    cheap rung's mean toward it.
+
+    Returns None when no ladder cache exists, which is the normal state for a
+    ladder that has never been run for real.
+    """
+    path = path or REPO_ROOT / "cache" / f"raw_calls.{ladder}.jsonl"
+    if not path.exists():
+        return None
+
+    per_task: dict[str, dict[str, list[float]]] = {}
+    for line in path.open(encoding="utf-8"):
+        if not line.strip():
+            continue
+        d = json.loads(line)
+        if d.get("kind") != "answer" or d.get("mode") != "real":
+            continue
+        if d.get("temperature") not in (0, 0.0):
+            continue
+        per_task.setdefault(d["task_id"], {}).setdefault(d["tier"], []).append(
+            d["cost_usd"])
+
+    both = [v for v in per_task.values() if v.get("cheap") and v.get("expensive")]
+    if not both:
+        return None
+
+    def mean_of(tier):
+        calls = [c for v in both for c in v[tier]]
+        return sum(calls) / len(calls)
+
+    lo, hi = mean_of("cheap"), mean_of("expensive")
+    if lo <= 0:
+        return None
+    return {
+        "ratio": round(hi / lo, 1),
+        "n_tasks": len(both),
+        "mean_cheap_usd": lo,
+        "mean_expensive_usd": hi,
     }
 
 

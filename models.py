@@ -104,6 +104,28 @@ if MODE not in ("mock", "real", "replay"):
 # n=100.
 MOCK_SEED = int(os.environ.get("MOCK_SEED", "0"))
 
+# Replay serves from the real cache. When a key is missing it can either raise
+# (the default) or fall back to the mock cache for the same key.
+#
+# The fallback exists so the replay PATH can be exercised without an API key, and
+# that is a real need - but it defaults OFF, because it is otherwise a silent
+# route from a fabricated response into a file labelled as a measurement. On
+# 7 August 2026 it took one: all 240 self-consistency samples the maths cascade
+# needs were served from the mock cache into a results.jsonl whose every row said
+# `simulated: false`, and the maths cascade duly reported 100%, which is issue 4
+# of docs/NOTES.md ("mock mode makes majority voting far too strong") arriving
+# through the front door.
+#
+# With it off, a missing sample raises ReplayMiss and run_eval drops the policy -
+# which is what the ReplayMiss machinery was written for and could never do while
+# the fallback was silently satisfying every lookup.
+#
+# Turning it on is fine and supported. It no longer lies about the result:
+# ModelResponse.simulated tracks which cache actually served each call, so a row
+# built from even one fabricated response is stamped `simulated: true`.
+REPLAY_FALLBACK_TO_MOCK = os.environ.get(
+    "ROUTER_REPLAY_FALLBACK", "0") in ("1", "true", "yes")
+
 # ---------------------------------------------------------------------------
 # DECISION #1: the model ladder.
 #
@@ -408,6 +430,21 @@ MAX_TOKENS = 4096
 ROUTER_MAX_TOKENS = 8
 
 
+class ReplayMiss(KeyError):
+    """Replay was asked for a response that was never recorded.
+
+    Its own type so a caller can tell "this policy has no cached data" apart
+    from a genuine KeyError raised by policy code, which must still crash. It
+    subclasses KeyError so any existing `except KeyError` keeps working.
+
+    A miss is not always an error. A cache populated by one run legitimately
+    lacks the calls a DIFFERENT policy would have made - the two-arm probe of
+    6 August recorded always_cheap and always_expensive and nothing else, so
+    llm_router's classification call has never existed in it. Distinguishing
+    that from a bug is the whole reason this type exists; see run_eval.run.
+    """
+
+
 @dataclass
 class ModelResponse:
     text: str
@@ -416,6 +453,15 @@ class ModelResponse:
     tokens_out: int
     latency_s: float
     cost_usd: float
+    # Was this text FABRICATED, or did a model produce it?
+    #
+    # Carried per response rather than derived from MODE, because in replay the
+    # two are not the same thing: the run mode says where responses were looked
+    # up, and this says what was found. A replay that reads mostly real
+    # responses and two mock ones is not a real result, and MODE cannot see the
+    # difference. Whoever consumes a run aggregates this rather than re-deriving
+    # it - see run_eval.run.
+    simulated: bool = False
 
 
 def _price(tier: str, tokens_in: int, tokens_out: int) -> float:
@@ -865,7 +911,13 @@ def _max_tokens_for(kind: str) -> int:
 # cache, and how many actually reached a backend. The last is the number that
 # costs money; the first is the number the cost table is built from. See
 # response_cache's docstring for why those differ on purpose.
-call_stats = {"requested": 0, "from_cache": 0, "backend": 0}
+#
+# served_real and served_mock split every served response by what produced its
+# text, whichever cache it came from. In mock mode served_mock is the total and
+# in real mode served_real is; the split only carries information in replay,
+# which is exactly the mode where it is needed.
+call_stats = {"requested": 0, "from_cache": 0, "backend": 0,
+              "served_real": 0, "served_mock": 0}
 
 
 def reset_call_stats():
@@ -902,10 +954,15 @@ def call(
             mock_seed=MOCK_SEED if mode == "mock" else None,
         )
 
-    # Replay prefers real responses and falls back to mock ones, so a mock cache
-    # can be used to exercise the replay path itself without an API key. Real and
-    # mock entries never collide, because `mode` is in the hash.
-    candidates = [keyfor("real"), keyfor("mock")] if MODE == "replay" else [keyfor(MODE)]
+    # Real and mock entries never collide, because `mode` is in the hash, so
+    # asking for both is safe - but replay asks for the mock one only when the
+    # fallback is explicitly enabled. See REPLAY_FALLBACK_TO_MOCK.
+    if MODE == "replay":
+        candidates = [keyfor("real")]
+        if REPLAY_FALLBACK_TO_MOCK:
+            candidates.append(keyfor("mock"))
+    else:
+        candidates = [keyfor(MODE)]
     key = candidates[0]
 
     call_stats["requested"] += 1
@@ -913,25 +970,36 @@ def call(
         rec = response_cache.get(k)
         if rec is not None:
             call_stats["from_cache"] += 1
+            # The record's own `mode`, written when it was stored, rather than
+            # which candidate key matched. Authoritative for entries already on
+            # disk, and it stays correct if the lookup order ever changes.
+            simulated = rec.get("mode") == "mock"
+            call_stats["served_mock" if simulated else "served_real"] += 1
             return ModelResponse(
                 text=rec["text"], tier=rec["tier"], tokens_in=rec["tokens_in"],
                 tokens_out=rec["tokens_out"], latency_s=rec["latency_s"],
-                cost_usd=rec["cost_usd"],
+                cost_usd=rec["cost_usd"], simulated=simulated,
             )
 
     if MODE == "replay":
-        raise KeyError(
+        raise ReplayMiss(
             f"replay mode: no cached response for {task['id']} tier={tier} "
             f"temp={temperature} sample={sample_idx} kind={kind}\n"
             f"  key={key}\n"
             f"  Replay never calls a backend. Either the cache is incomplete, or "
             f"a prompt or parameter changed since it was populated.\n"
-            f"  Repopulate with: ROUTER_MODE=real python3 run_eval.py"
+            f"  Repopulate with: ROUTER_MODE=real python3 run_eval.py\n"
+            f"  Or serve the gap from the mock cache with "
+            f"ROUTER_REPLAY_FALLBACK=1 - which is not a result, and every row "
+            f"it touches is stamped simulated: true."
         )
 
     call_stats["backend"] += 1
     backend = _mock_call if MODE == "mock" else _real_call
     r = backend(tier, prompt, task, temperature, sample_idx, kind)
+    # One place rather than inside each backend, so a new backend cannot forget.
+    r.simulated = MODE == "mock"
+    call_stats["served_mock" if r.simulated else "served_real"] += 1
 
     # Written immediately rather than batched: a real run that dies halfway
     # through must keep every response it paid for.

@@ -91,8 +91,8 @@ LADDER = ""
 ENABLED = os.environ.get("ROUTER_CACHE", "1") not in ("0", "false", "no")
 
 # Set by configure(). PATH is written to; READ_PATHS are all read, in order, with
-# later files winning. That ordering is how replay mode reads the real cache and
-# falls back to the mock one.
+# later files winning. That ordering is what puts the real cache last when replay
+# is allowed to fall back to the mock one, so a real response always wins.
 PATH = REAL_PATH
 READ_PATHS = [REAL_PATH]
 
@@ -116,8 +116,14 @@ def configure(mode: str, ladder: str = ""):
     if mode == "mock":
         PATH, READ_PATHS = MOCK_PATH, [MOCK_PATH]
     elif mode == "replay":
-        # Mock first so that a real response always wins over a simulated one.
-        PATH, READ_PATHS = REAL_PATH, [MOCK_PATH, REAL_PATH]
+        # Replay reads the real cache only, unless the fallback is explicitly
+        # asked for. Read as an env var rather than imported from models, because
+        # models imports this module and the dependency must not run both ways.
+        if os.environ.get("ROUTER_REPLAY_FALLBACK", "0") in ("1", "true", "yes"):
+            # Mock first so that a real response always wins over a simulated one.
+            PATH, READ_PATHS = REAL_PATH, [MOCK_PATH, REAL_PATH]
+        else:
+            PATH, READ_PATHS = REAL_PATH, [REAL_PATH]
     else:
         PATH, READ_PATHS = REAL_PATH, [REAL_PATH]
     _store = None  # force a reload against the new paths

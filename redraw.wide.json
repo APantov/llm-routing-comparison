@@ -1,0 +1,98 @@
+{
+  "ladder": "wide",
+  "draws": 10,
+  "temperature": 0.0,
+  "tau": 0.2,
+  "cells_redrawn": "decisive",
+  "n_graded": 100,
+  "p_hat": {
+    "math-422": {
+      "cheap": 0.5,
+      "expensive": 1.0
+    },
+    "math-94": {
+      "cheap": 0.2,
+      "expensive": 1.0
+    },
+    "math-96": {
+      "cheap": 1.0,
+      "expensive": 1.0
+    },
+    "math-26": {
+      "cheap": 0.1,
+      "expensive": 1.0
+    },
+    "math-43": {
+      "cheap": 0.4,
+      "expensive": 1.0
+    },
+    "codeplus-722": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-278": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-765": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "math-308": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-454": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-741": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "math-481": {
+      "cheap": 1.0,
+      "expensive": 1.0
+    },
+    "math-147": {
+      "cheap": 1.0,
+      "expensive": 1.0
+    },
+    "math-432": {
+      "cheap": 1.0,
+      "expensive": 1.0
+    },
+    "math-284": {
+      "cheap": 0.1,
+      "expensive": 1.0
+    },
+    "math-154": {
+      "cheap": 0.0,
+      "expensive": 0.0
+    },
+    "codeplus-305": {
+      "cheap": 0.0,
+      "expensive": 0.5
+    },
+    "codeplus-119": {
+      "cheap": 0.0,
+      "expensive": 0.0
+    },
+    "codeplus-630": {
+      "cheap": 0.0,
+      "expensive": 0.0
+    },
+    "codeplus-792": {
+      "cheap": 0.0,
+      "expensive": 0.0
+    },
+    "codeplus-771": {
+      "cheap": 0.0,
+      "expensive": 0.0
+    }
+  },
+  "observed": 0.15,
+  "expected": 0.10200000000000001,
+  "reproducible": 0.09,
+  "noise_share": 0.11764705882352955
+}

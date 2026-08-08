@@ -132,11 +132,30 @@ class TestRatioVerdict:
         assert findings.ratio_verdict("wide")["cascade_vs_always_best_pct"] < 0
 
     def test_every_verdict_declares_where_it_came_from(self):
+        """The flag must track its source, not pin the project to a moment.
+
+        This asserted `economics_simulated is True` unconditionally until
+        August 2026, which encoded "the economics have never been run against
+        real models" as if it were an invariant. It is a fact about the
+        project's state, and the first replay or real frontier run falsifies
+        it - so the test would have gone red at precisely the moment the
+        project succeeded, which is the worst time for a test to fail.
+
+        What is genuinely invariant is that the flag agrees with where the
+        number came from. Assert that instead.
+        """
         for ladder in ("deepseek", "claude", "wide"):
             v = findings.ratio_verdict(ladder)
             assert v["economics_source"] in ("frontier.jsonl", "historical")
-            # Nothing here is real accuracy data, whatever its source.
-            assert v["economics_simulated"] is True
+            assert isinstance(v["economics_simulated"], bool)
+
+            if v["economics_source"] == "historical":
+                # The stored constants were recorded from mock runs and cannot
+                # become real retrospectively, so this one IS permanent.
+                assert v["economics_simulated"] is True
+            else:
+                live = findings.frontier_economics()
+                assert v["economics_simulated"] == live["simulated"]
 
     def test_only_wide_claims_real_accuracy_data(self):
         assert findings.ratio_verdict("wide")["accuracy_data_is_real"] is True

@@ -111,6 +111,18 @@ def tag():
     is exactly how a simulated number ends up quoted as if it were measured.
     """
     if models.MODE == "replay":
+        real, mock = models.call_stats["served_real"], models.call_stats["served_mock"]
+        if mock and real:
+            # The dangerous case, and the one that has actually happened. Neither
+            # of the two clean labels is true, so print neither.
+            return (f"### REPLAY, {mock} OF {real + mock} RESPONSES FABRICATED "
+                    f"- CONTAMINATED, NOT A RESULT ###")
+        if mock:
+            return "### REPLAY OF A MOCK CACHE - SIMULATED, NOT MEASURED ###"
+        if real:
+            return "### REPLAY MODE - cached responses from a real run ###"
+        # Nothing served yet: tag() was called before the run. Fall back to the
+        # file-existence guess, which is all that is knowable at that point.
         return ("### REPLAY MODE - cached responses from a real run ###"
                 if response_cache.REAL_PATH.exists()
                 else "### REPLAY OF A MOCK CACHE - SIMULATED, NOT MEASURED ###")
@@ -153,7 +165,7 @@ def credentials_line():
     return status
 
 
-def provenance():
+def provenance(simulated=None):
     """Everything needed to interpret a row, carried by the row itself.
 
     Stamped per row rather than in a sidecar header, so that a slice of
@@ -161,6 +173,12 @@ def provenance():
     parameters are here specifically so a sweep over k or the agreement threshold
     produces a file that can be grouped by, rather than a pile of runs whose
     settings have to be remembered.
+
+    Pass `simulated` when the caller knows what actually served the row - see
+    run(), which measures it per row from models.call_stats. The fallback below
+    is a guess from the run mode, and on 7 August 2026 it guessed wrong for 370
+    rows: it asks whether the real cache FILE exists, which says nothing about
+    whether any given response came out of it.
     """
     return {
         "mode": models.MODE,
@@ -168,8 +186,10 @@ def provenance():
         # replay is real if the cache was populated by a paid run and fabricated
         # if it was populated by the mock, and those two look identical in every
         # other field. A reader should never have to infer which one this is.
-        "simulated": models.MODE == "mock" or (
-            models.MODE == "replay" and not response_cache.REAL_PATH.exists()
+        "simulated": simulated if simulated is not None else (
+            models.MODE == "mock" or (
+                models.MODE == "replay" and not response_cache.REAL_PATH.exists()
+            )
         ),
         "mock_seed": models.MOCK_SEED if models.MODE == "mock" else None,
         "k": policies.SELF_CONSISTENCY_K,
@@ -230,14 +250,36 @@ def run(tasks):
     total = sum(1 for t in tasks for n in POLICIES if applicable(n, t))
     done = 0
 
+    # policy name -> the task whose response was missing from the replay cache.
+    # A cache recorded by one set of policies has no reason to contain the calls
+    # another set would make, so this is a normal state for replay, not a fault.
+    uncached = {}
+
     for task in tasks:
         for name, fn in POLICIES.items():
-            if not applicable(name, task):
+            if name in uncached or not applicable(name, task):
                 continue
             if spend > MAX_SPEND_USD:
                 print(f"\n!! spend cap ${MAX_SPEND_USD} hit, stopping early", file=sys.stderr)
-                return rows
-            res = fn(task)
+                return _drop_uncached(rows, uncached)
+            # Measured per row, not inferred from the mode. A policy that made
+            # even one fabricated call produced a fabricated row, whatever the
+            # other calls were: a cascade that verifies a real cheap answer with
+            # five mock samples is reporting the mock's verdict.
+            mock_before = models.call_stats["served_mock"]
+            try:
+                res = fn(task)
+            except models.ReplayMiss:
+                # Drop the policy ENTIRELY, including rows already collected for
+                # it, rather than scoring it on whichever tasks happened to be
+                # cached. A partially-replayed policy is measured on a biased
+                # subset - the tasks some earlier run chose to record - and would
+                # be reported next to fully-scored policies as if comparable.
+                # `applicable` already keeps routellm out on exactly this
+                # reasoning; this is the same rule applied at call time, where a
+                # missing recording is the thing that reveals the problem.
+                uncached[name] = task["id"]
+                continue
             spend += res.cost_usd
             rows.append(
                 {
@@ -250,13 +292,47 @@ def run(tasks):
                     "latency_s": res.latency_s,
                     "escalated": res.escalated,
                     "calls": res.calls,
-                    **provenance(),
+                    **provenance(
+                        simulated=models.call_stats["served_mock"] > mock_before
+                    ),
                 }
             )
             done += 1
             if done % 50 == 0:
                 print(f"  {done}/{total}  spend=${spend:.4f}", file=sys.stderr)
-    return rows
+    return _drop_uncached(rows, uncached)
+
+
+def _drop_uncached(rows, uncached):
+    """Remove every row belonging to a policy that hit a replay cache miss.
+
+    Says so on stderr rather than silently, because "this policy is absent" and
+    "this policy scored zero" look identical in a results file, and the second
+    reading is the dangerous one.
+    """
+    if not uncached:
+        return rows
+    kept = [r for r in rows if r["policy"] not in uncached]
+    dropped = len(rows) - len(kept)
+    print(
+        f"\n!! replay cache is incomplete for {len(uncached)} "
+        f"{'policy' if len(uncached) == 1 else 'policies'}; "
+        f"dropped from this run along with {dropped} already-scored "
+        f"{'row' if dropped == 1 else 'rows'}:",
+        file=sys.stderr,
+    )
+    for name, task_id in sorted(uncached.items()):
+        print(f"     {name:<18} first missing at {task_id}", file=sys.stderr)
+    print(
+        "   These policies make calls the cache was never populated with. That is\n"
+        "   expected when the cache came from a run of DIFFERENT policies - the\n"
+        "   two-arm probe recorded always_cheap and always_expensive only.\n"
+        "   Record them with:  ROUTER_MODE=real python3 run_eval.py"
+        + "".join(f" --policy {n}" for n in sorted(uncached))
+        + "\n   Or run everything free and offline with ROUTER_MODE=mock.",
+        file=sys.stderr,
+    )
+    return kept
 
 
 def _used_expensive(row):
@@ -562,6 +638,21 @@ def report(rows):
     if models.MODE == "mock":
         print("  (simulated - nothing was spent and no network call was made)")
 
+    # Where the TEXT came from, which is a different question from where the
+    # lookup went and is the one that decides whether any of this is a result.
+    # Printed unconditionally in replay, including when the answer is the good
+    # one, so that its absence can never be read as reassurance.
+    if models.MODE == "replay":
+        real, mock = st["served_real"], st["served_mock"]
+        print(f"  provenance: {real} real response(s), {mock} fabricated")
+        if mock:
+            sim_rows = sum(1 for r in rows if r["simulated"])
+            print(
+                f"  !! {mock} response(s) came from the MOCK cache, contaminating "
+                f"{sim_rows} of {len(rows)} rows, each stamped simulated: true.\n"
+                f"     Unset ROUTER_REPLAY_FALLBACK to make these a hard error instead."
+            )
+
     # Truncation is invisible in the accuracy table, since a cut-off answer just
     # scores as wrong, so it gets its own line.
     if models.truncated_calls:
@@ -686,8 +777,26 @@ def main():
     # expensive tier it was never meant to touch. Measured on the shipped set:
     # 318 backend calls instead of 100, of which 49 were to the top rung.
     needs_fit = any(n in POLICIES for n in policies.NEEDS_ESTIMATORS)
+    fit_failed = None
     if calibration and needs_fit:
-        tables = policies.fit_estimators(calibration)
+        try:
+            tables = policies.fit_estimators(calibration)
+        except models.ReplayMiss as exc:
+            # Fitting calls every rung and every verifier on the calibration
+            # half, so it needs strictly more of the cache than any single policy
+            # does - it is the first place a thin cache shows up. Leave
+            # ESTIMATORS_FITTED False and let `applicable` drop the policies that
+            # need it, which is the same "sit out rather than guess" rule
+            # routellm already follows. Crashing the run instead would take eight
+            # fully-replayable policies down with the one that has no data.
+            fit_failed = str(exc).splitlines()[0]
+            tables = None
+    if fit_failed is not None:
+        print(
+            f"cascade_routing: SKIPPED - the estimators cannot be fitted from "
+            f"this cache.\n  {fit_failed}", file=sys.stderr,
+        )
+    elif calibration and needs_fit:
         print(
             "cascade_routing estimators fitted on the calibration half:",
             file=sys.stderr,

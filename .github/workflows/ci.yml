@@ -45,6 +45,34 @@ jobs:
       - name: Splits are deterministic
         run: python splits.py
 
+  research-tests:
+    name: "research core unit tests (no agent stack installed)"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+
+      # pytest and numpy ONLY. Deliberately not `.[dev]`: the architecture
+      # claims the research core does not depend on the product, and a job that
+      # installed langgraph and mcp could not tell whether that stayed true.
+      # If tests/test_experiment.py ever imports router_agent, this job fails
+      # and the agent-layer job below would not have noticed.
+      - name: pytest and numpy only
+        run: python -m pip install "pytest>=8" "numpy>=2.0"
+
+      - name: Build the task set
+        run: python build_taskset.py
+
+      - name: Unit tests for the research core
+        run: python -m pytest tests/test_experiment.py -v
+
   agent-layer:
     name: "agent layer (langgraph + mcp)"
     runs-on: ubuntu-latest

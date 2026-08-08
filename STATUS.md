@@ -5,7 +5,28 @@ agent layer**. This is the "you just woke up and forgot everything" file. It
 answers four questions in order: where the project is, what to do next, what it
 will cost, and what to expect when you do it.
 
-If you only read one section, read [§2 Do this next](#2-do-this-next).
+> # ⚠ READ [SHIP_PLAN.md](SHIP_PLAN.md) FIRST — 8 August 2026
+>
+> An independent audit on 8 August found three defects that make some headline
+> numbers below mean something other than what they say. All three are free to
+> fix, and fixing them changes what is worth buying.
+>
+> - **The four `both_fail` code tasks are broken, not hard.** All four
+>   `always_expensive` failures on the eval split are unpassable from their
+>   prompt. Corrected, `always_expensive` and `oracle` score **100%**, not 92%.
+>   §1's "code is now the harder domain" is **retracted**.
+> - **The one-shot router comparison is degenerate.** `MIN_MATH_LEVEL = 5` makes
+>   `predict_features.level` constant, so `predictive`, `random_matched` and
+>   `llm_router` are all literally `always_expensive` on 60% of the task set.
+>   "LLMRouterBench reproduced on real data" is **retracted**.
+> - **The maths half bought one task.** 89.3% of all spend, one reproducibly
+>   routable task. The code half produced five, at $0.079 each against $3.93.
+>
+> **[§2 Do this next](#2-do-this-next) is superseded.** It sends you to step 5,
+> a full paid run at n=100. Do not do that. SHIP_PLAN.md §3 costs about **$6**
+> and buys a materially better experiment.
+
+If you only read one section, read [SHIP_PLAN.md](SHIP_PLAN.md).
 
 > ## 0. The repository now has two halves
 >
@@ -29,6 +50,40 @@ If you only read one section, read [§2 Do this next](#2-do-this-next).
 >   using caller-supplied tests as an exact verifier. **$0.0276 of live API
 >   calls** were spent to record them, and they are committed.
 >
+> ### The replay was reading the mock cache — found and fixed 7 August 2026
+>
+> `models.call` in replay mode looked up the real cache, and on a miss **fell
+> back to the mock cache silently**. `run_eval` then stamped every row
+> `simulated: false`, because it derived that flag from the run *mode* rather
+> than from what was actually served.
+>
+> It had taken the fallback. All **240** self-consistency samples the maths
+> cascade needs were fabricated — the real temperature-0.8 responses on disk are
+> orphaned at the old `MAX_TOKENS=2048`, so they never matched. A 370-row
+> `results.jsonl` claiming to be real reported the maths cascade at 100%
+> accuracy, which is [NOTES.md](docs/NOTES.md) issue 4 ("mock mode makes majority
+> voting far too strong") arriving through the front door wearing a
+> `simulated: false` badge.
+>
+> Three changes, in [NOTES.md](docs/NOTES.md) issue 19:
+>
+> - `ModelResponse.simulated` carries per-response provenance, taken from the
+>   cache record's own stored `mode`.
+> - `run_eval` measures the flag per row instead of guessing from the run mode.
+>   One fabricated call anywhere in a row makes the row simulated.
+> - the fallback is off unless `ROUTER_REPLAY_FALLBACK=1`, so a missing response
+>   is a `ReplayMiss` and the policy gets dropped by name.
+>
+> **The `ReplayMiss` machinery could never fire while the fallback existed** —
+> the mock cache satisfied every lookup. That is the general lesson: a guard
+> downstream of a silent fallback is dead code.
+>
+> The re-run was clean: 337 real responses, 0 fabricated, 220 rows — and five
+> policies dropped for want of data. `scripts/record_missing.py` then bought that
+> data for **$0.0503** (see §1), and the current `results.jsonl` is **420 rows,
+> nine policies, every row `simulated: false`**, replayed from the **1,097 real
+> responses** in `cache/`.
+>
 > **The product surfaced one thing the experiment had not stated.**
 > `policies.predict_is_hard` routes maths on MATH500's shipped `level` field —
 > a difficulty label written by someone who had already solved the problem, and
@@ -38,8 +93,10 @@ If you only read one section, read [§2 Do this next](#2-do-this-next).
 > measurement artefact: a cascade needs no difficulty label because it finds
 > out by trying. See `router_agent/live.py`.
 >
-> Spend to date is now **$1.39**: $1.36 on the experiment, $0.0276 on the three
-> recorded demo traces.
+> Spend to date is now **$4.40** across 1,097 committed responses: $1.36 on the
+> experiment through 6 August, $0.0276 on the three recorded demo traces, $2.96
+> on the 7 August redraw of the 21 decisive tasks, and $0.0503 recording the
+> self-consistency samples every cascade needs.
 
 ---
 
@@ -79,6 +136,32 @@ on the `wide` ladder (DeepSeek v4-flash → Opus 5), all 100 tasks, both arms.
 > reported read routable 13.0%, cheap 77.0%, expensive 87.0%, p=0.021 — seven of
 > its twenty wrong maths answers turned out to be correct answers the normaliser
 > could not match. See "the grader was lying" below.
+
+> ### And then a third of the 15 turned out to be noise — 7 August 2026
+>
+> Every cell above rests on **one draw per task per rung**.
+> `scripts/redraw_decisive.py --draws 10 --go` redrew both rungs ten more times
+> on the 21 tasks that decide the number (420 calls, **$2.9637**, committed):
+>
+> | | observed (1 draw) | expected (10 draws) | reproducible |
+> |---|---|---|---|
+> | code (40) | 12.5% | 13.8% | 12.5% |
+> | math (60) | 16.7% | 7.8% | 6.7% |
+> | **total** | **15.0%** | **10.2%** | **9.0%** |
+>
+> Of the 15 routable tasks: **6 solid, 5 flaky, 4 phantom** — a phantom being one
+> the cheap rung solves 10/10 on redraw and merely missed once. All 5 code tasks
+> are solid; all 4 phantoms and all 5 flaky tasks are maths.
+>
+> **So the per-domain line above inverts.** Code is not the weaker half at 12.5%
+> against maths' 16.7%; it is the only half with a reproducible signal. Of 10
+> routable maths tasks, one survives. Read `routable = 15%` as **≈10%, of which
+> ≈9% is capturable, and nearly all of it in code**.
+>
+> This is the failure mode [arXiv:2607.03436](https://arxiv.org/abs/2607.03436)
+> describes, and it predicts MATH-500 as the worst case — which is what the maths
+> half is. See [NOTES.md](docs/NOTES.md) issue 3. Per-task probabilities are in
+> `redraw.wide.json`.
 
 **This is a real change and it is the point of the 31 July / 6 August work.** On
 30 July the cross-tab over the ten tasks that had both arms cached was
@@ -161,12 +244,67 @@ need — but a full re-run of the experiment would move individual cells around,
 and the routable fraction carries this on top of its sampling CI. Treat one draw
 per task as the floor of what the design needs, not a comfortable margin.
 
-### What is still not measured
+### The full policy comparison, on real models — 7 August 2026
 
-The probe ran **two** policies. The other nine — every cascade, every predictive
-router, the degradation sweep, the frontier — have still never been run against a
-real model. Their accuracy figures remain mock-mode fabrications and are labelled
-as such everywhere.
+**This is the run §2 step 5 was waiting for, and it cost $0.05 rather than $20.**
+
+The probe paid for two policies, but a cache is only as complete as the runs
+that filled it. Every cascade verifies maths by drawing `SELF_CONSISTENCY_K - 1`
+extra samples at temperature 0.8, and `llm_router` makes an 8-token
+classification call; neither the probe nor the redraw had any reason to record
+those. `scripts/record_missing.py` enumerated the gap from the code's own
+constants — 240 samples plus 104 routing calls — and bought it for **$0.0503**.
+
+Everything below replays from that, free, forever. Held-out half, n=50:
+
+| policy | acc | cost/task | vs `always_expensive` |
+|---|---|---|---|
+| `always_cheap` | 78.0% | $0.000130 | −14 pts at 1.5% of cost |
+| `predictive` | 86.0% | $0.007944 | −6 pts at 91% of cost |
+| `random_matched` | 88.0% | $0.007870 | −4 pts at 90% of cost |
+| `llm_router` | 88.0% | $0.008115 | −4 pts at 93% of cost |
+| `cascade_routing` | 88.0% | $0.000915 | −4 pts at **10%** of cost |
+| **`cascade`** | **90.0%** | **$0.002035** | **−2 pts at 23% of cost** |
+| `oracle` | 92.0% | $0.001053 | match at 12%, **not deployable** |
+| `always_expensive` | 92.0% | $0.008719 | — |
+
+Four things worth reading carefully:
+
+1. **The cascade is within one task of always-expensive at 23% of the cost**, and
+   `stats.py` says the cost difference is significant (−$0.006684/task, 95% CI
+   [−0.008563, −0.004954]) while the accuracy difference is not. That is the
+   project's thesis, confirmed on real models.
+2. **Every one-shot router costs 90–93% of always-expensive** and gets less
+   accuracy, because on maths they route nearly everything expensive. Only the
+   cascades are cheap. A cascade needs no difficulty label — it finds out by
+   trying — and that structural difference is worth more here than any heuristic.
+3. **`predictive` contributes no point to the cost-quality frontier**, beaten at
+   every budget, AUC −0.0% against a cost-matched coin flip. LLMRouterBench
+   ([arXiv:2601.07206](https://arxiv.org/abs/2601.07206)) reproduced on real data.
+   `cascade` scores +4.9% AUC and owns every budget above $0.000915.
+4. **On maths, two thirds of the cascade's gain is majority voting, not
+   escalation.** It fixes 3 of `always_cheap`'s 4 maths failures while escalating
+   on only 2 of 30 tasks: 2 fixes come from the plurality answer, 1 from
+   escalating. `verify_math` bundles both mechanisms by design; this is the first
+   measurement of the split, and it means "the maths cascade works" is mostly a
+   statement about self-consistency.
+
+Per domain, where the two halves behave quite differently:
+
+| | `always_cheap` | `cascade` | `always_expensive` | escalated |
+|---|---|---|---|---|
+| code (20) | 65.0% · $0.000027 | **80.0% · $0.000844** | 80.0% · $0.002243 | 35.0% |
+| math (30) | 86.7% · $0.000198 | **96.7% · $0.002829** | 100% · $0.013036 | 6.7% |
+
+**On code the cascade equals always-expensive exactly, at 38% of the cost** — the
+verifier there is free and perfect, so it escalates precisely when it should.
+That is also the half the redraw showed carries the reproducible routing signal.
+
+The `oracle` bound check passes on `all`, `math` and `code`.
+
+**Still unmeasured:** `routellm` (its cached scores no longer cover the rebuilt
+task set — regenerating is free but needs torch) and `always_mid` (needs the
+three-rung `claude` ladder). Two of eleven.
 
 What is *already* real, even in mock mode:
 
@@ -271,6 +409,11 @@ and those are the ones n=100 cannot resolve.
 ---
 
 ## 2. Do this next
+
+> **SUPERSEDED 8 August 2026 by [SHIP_PLAN.md](SHIP_PLAN.md).** Steps 1–3 below
+> are still the right free sanity checks. **Step 5 is not** — a full paid run at
+> n=100 would measure nine policies inside a ceiling set by four defective tasks.
+> Do SHIP_PLAN.md Phase 0 first; it is free and it changes what is worth buying.
 
 In order. Steps 1–3 are free and take about five minutes total.
 
@@ -391,8 +534,10 @@ How to read the routable fraction, against `routable.py`'s [15%, 45%] band:
 
 - **inside the band** → the task set discriminates. Go to step 5.
 - **below 15%** → too easy. Not "no experiment", but a thin one: every policy is
-  competing over a narrow ceiling and n must rise to see anything. **This is where
-  we are, at 13%, with the CI straddling the floor.**
+  competing over a narrow ceiling and n must rise to see anything. **This is
+  effectively where we are: the point estimate sits exactly on the floor at
+  15.0% with the CI straddling it, and the 7 August redraw put the reproducible
+  fraction at ~9%.**
 - **above 45%** → too hard; everything escalates and every policy collapses onto
   `always_expensive`.
 
@@ -464,10 +609,17 @@ response cache deduplicates identical calls, so the number that costs money is
 | `wide` | 100 calls, **$0.004** | 540 calls, **$0.37** |
 | `claude` | 100 calls, **$0.049** | 640 calls, **$0.72** |
 
-**Actually spent to date: $1.36**, all on `wide`, all in
-`cache/raw_calls.wide.jsonl`. $0.0481 on the 30 July plumbing run, $0.39 on a
-two-arm probe at `MAX_TOKENS=2048` that was abandoned when it truncated, and
-$0.9234 on the probe that replaced it.
+**Actually spent to date: $4.4039**, essentially all on `wide`. $0.0481 on the
+30 July plumbing run, $0.39 on a two-arm probe at `MAX_TOKENS=2048` that was
+abandoned when it truncated, $0.9234 on the probe that replaced it, $0.0276 on
+the three recorded demo traces, $2.9637 on the 7 August redraw of the 21
+decisive tasks, and $0.0503 on `scripts/record_missing.py` recording the
+self-consistency samples and routing calls every cascade needs.
+
+Note the shape of that: **97.3% of every dollar went to the expensive rung.**
+739 cheap calls cost $0.12 in total; 358 expensive calls cost $4.28. On this
+ladder the cheap rung is close to free, which is why the cascade's "fixed costs"
+argument — true and load-bearing on the `deepseek` ladder — barely applies here.
 
 The `wide` probe and the `deepseek` probe hit the SAME cheap rung
 (deepseek-v4-flash), so running both is redundant. There are only two distinct
@@ -645,7 +797,8 @@ mock flatters the project". Weight the remaining five accordingly.
 
 | file | read it when |
 |---|---|
-| `STATUS.md` | now |
+| **`SHIP_PLAN.md`** | **first — what is wrong, what it costs to fix, and what not to buy** |
+| `STATUS.md` | then, for where the project stands |
 | `docs/WALKTHROUGH.md` | you want to understand the code: file by file, with a real trace |
 | `README.md` | you want the technical overview and the citations |
 | `docs/EXPLAINED.md` | you want the plain-language version of any concept |
@@ -664,17 +817,26 @@ a measurement.
 The real artefacts are the exception and are **force-added to git** despite the
 ignore rule:
 
-- `cache/raw_calls.{wide,claude,deepseek}.jsonl` — **328 real responses, $1.39 of
-  spend.** The irreplaceable asset. `ROUTER_MODE=replay` reproduces every paid run
-  from them field-for-field, and it is what makes `scripts/demo.py` free.
+- `cache/raw_calls.{wide,claude,deepseek}.jsonl` — **1,097 real responses, $4.40 of
+  spend** (1,095 of them on `wide`; the other two ladders hold one probe call
+  each and have never been run for real). The irreplaceable asset. `ROUTER_MODE=replay`
+  reproduces every paid run from them field-for-field, and it is what makes
+  `scripts/demo.py` free.
 - `results.probe.jsonl` — 200 rows, both arms, all `simulated: false`. Normally
   gitignored as fabricated; force-added because this copy is real.
 
-**There is no `results.jsonl`, as of 7 August 2026.** The 47 real rows that used
-to be here were from the 30 July plumbing run and every one of their task ids
-died in the 6 August rebuild, so `stats.py` and `frontier.py` were reading a
-fossil. They now report the file as missing, which is correct until §2 step 5
-happens. The rows themselves are kept unedited in
+**`results.jsonl` exists again as of 7 August 2026, and it is real.** 420 rows,
+`mode: replay`, every one `simulated: false`, covering the nine policies the
+cache can serve: `always_cheap`, `always_expensive`, `predictive`,
+`random_matched`, `llm_router`, `cascade`, `cascade_routing`, `cascade_degraded`
+(20 rows, code half only by design) and `oracle`. The remaining two are dropped
+by name with the reason printed — `routellm` for want of current scores,
+`always_mid` because it does not exist on a two-rung ladder. It was five
+policies until `scripts/record_missing.py` bought the missing self-consistency
+samples; see "the replay was reading the mock cache" above.
+
+The 47 rows that used to be here were from the 30 July plumbing run and every
+one of their task ids died in the 6 August rebuild. They are kept unedited in
 [`archive/`](archive/README.md) — nothing real is deleted in this repository.
 
 **`results.jsonl` was clobbered by a mock run once, on 31 July, and recovered from
@@ -690,7 +852,12 @@ The pipeline is done, the task set has been hardened on both halves, and the
 two-arm probe has been run for real: **routable = 15.0%** [9.3%, 23.3%] on the
 `wide` ladder, cheap 79% against expensive 92%, McNemar p=0.002, rescue rate 71%.
 That is up from an effective zero on 30 July, so the MBPP+ and level-5 hardening
-did what it was supposed to. Two measurement bugs were found and fixed on the way
+did what it was supposed to — **but read that 15.0% as ~10%**: the 7 August
+redraw of the 21 decisive tasks showed a third of it was single-draw noise, with
+~9% reproducible and nearly all of that in the code half. Nine of the eleven
+policies now have real numbers, from 420 replayed rows over 1,097 committed
+responses and $4.40 of spend.
+Two measurement bugs were found and fixed on the way
 and both mattered: the maths grader was rejecting 7 of 20 correct-but-differently-
 formatted answers (worth 5 points of Opus accuracy, and invisible to a regression
 gate that only tested `grade(GT, GT)`), and the models turn out to disagree with
@@ -701,5 +868,5 @@ which more tasks cannot resolve, since the CI just shrinks around the boundary.
 The next move is to enlarge the task set to the full 504 available at the current
 settings for statistical power, then pay for a full eleven-policy run — budgeting
 from the measured $0.0078/call on maths rather than the modelled figures in §3,
-which the probe showed to be low by about 2.5x. Nine of the eleven policies still
-have no real accuracy data at all.
+which the probe showed to be low by about 2.5x. Two of the eleven policies still
+have no real accuracy data at all: `routellm` and `always_mid`.

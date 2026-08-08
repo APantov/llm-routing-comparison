@@ -71,6 +71,11 @@ def run_replicate(tasks, p, seed):
     policies.VERIFIER_CORRUPTION_SEED = seed
     rows = []
     for t in tasks:
+        # Measured per row, like run_eval.run - see run_eval.provenance. The
+        # code cascade makes no verifier calls, so in practice this sweep is
+        # real whenever the greedy answers are; recording it rather than
+        # assuming it is what makes that a checkable statement.
+        mock_before = models.call_stats["served_mock"]
         res = policies.policy_cascade_degraded(t)
         rows.append({
             "task_id": res.task_id, "domain": t["domain"],
@@ -78,7 +83,8 @@ def run_replicate(tasks, p, seed):
             "policy": "cascade_degraded", "correct": res.correct,
             "cost_usd": res.cost_usd, "latency_s": res.latency_s,
             "escalated": res.escalated, "calls": res.calls,
-            **run_eval.provenance(),
+            **run_eval.provenance(
+                simulated=models.call_stats["served_mock"] > mock_before),
         })
     n = len(rows)
     return {

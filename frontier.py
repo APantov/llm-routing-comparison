@@ -308,26 +308,63 @@ def main():
           f"({args.split})", file=sys.stderr)
 
     if calibration:
-        policies.fit_estimators(calibration)
+        try:
+            policies.fit_estimators(calibration)
+        except models.ReplayMiss as exc:
+            # Same rule as run_eval: sit the estimator-dependent families out
+            # rather than take the whole sweep down with them. SWEEPS is
+            # filtered below on ESTIMATORS_FITTED, which fit_estimators leaves
+            # False when it raises.
+            print(f"cascade_routing: SKIPPED - estimators cannot be fitted from "
+                  f"this cache.\n  {str(exc).splitlines()[0]}", file=sys.stderr)
     policies.calibrate_random_rates(tasks)
 
     models.reset_call_stats()
 
     # The fixed reference points, which also set the cost interval everything is
     # integrated over.
-    fixed = {}
+    #
+    # A family that cannot be replayed from this cache sits out, the same rule
+    # run_eval applies. Sitting out is safe for every family EXCEPT the two rungs
+    # that define the cost axis, so those are checked explicitly below rather
+    # than left to fail as a KeyError several screens later.
+    fixed, unreplayable = {}, []
     for name in [f"always_{t}" for t in models.TIERS] + ["oracle"]:
-        acc, cost = _measure(tasks, policies.POLICIES[name])
+        try:
+            acc, cost = _measure(tasks, policies.POLICIES[name])
+        except models.ReplayMiss:
+            unreplayable.append(name)
+            continue
         fixed[name] = {"accuracy": acc, "cost_per_task": cost}
+
+    for axis in ("always_cheap", "always_expensive"):
+        if axis not in fixed:
+            raise SystemExit(
+                f"frontier: {axis} cannot be replayed from this cache, and it "
+                f"defines the cost axis every curve is integrated over. There is "
+                f"no frontier to draw.\n"
+                f"  Record it with: ROUTER_MODE=real python3 run_eval.py "
+                f"--policy {axis} --split all"
+            )
 
     lo = fixed["always_cheap"]["cost_per_task"]
     hi = fixed["always_expensive"]["cost_per_task"]
 
     curves = {}
     for name, fn in SWEEPS.items():
-        pts = fn(tasks, args.points)
+        try:
+            pts = fn(tasks, args.points)
+        except models.ReplayMiss:
+            unreplayable.append(name)
+            continue
         if pts:
             curves[name] = pts
+
+    if unreplayable:
+        print(f"\n!! not replayable from this cache, so absent from the frontier "
+              f"below: {', '.join(sorted(set(unreplayable)))}\n"
+              f"   Their calls were never recorded. This is a gap in the cache, "
+              f"not a result about the policies.", file=sys.stderr)
 
     tag = run_eval.tag()
     print()
@@ -410,9 +447,13 @@ def main():
         on_hull.update(who)
         print(f"{c:>11.6f} {a:>9.1%}   {', '.join(who) or '(mixture)'}")
 
-    orc = fixed["oracle"]
-    print(f"{orc['cost_per_task']:>11.6f} {orc['accuracy']:>9.1%}   "
-          f"<- oracle, for reference. NOT deployable.")
+    orc = fixed.get("oracle")
+    if orc:
+        print(f"{orc['cost_per_task']:>11.6f} {orc['accuracy']:>9.1%}   "
+              f"<- oracle, for reference. NOT deployable.")
+    else:
+        print("            (no oracle row - it could not be replayed from this "
+              "cache, so the ceiling below is unknown)")
 
     dominated = [n for n in deployable if n not in on_hull]
     if dominated:
@@ -422,14 +463,19 @@ def main():
         for n in dominated:
             print(f"  {n}")
 
+    # Whole-run rather than per-row: a frontier point is an aggregate over every
+    # task, so one fabricated response anywhere taints every point that could
+    # have used it. The conservative reading is the only defensible one here.
+    prov = run_eval.provenance(simulated=models.call_stats["served_mock"] > 0)
+
     rows_out = []
     for name, pts in curves.items():
         for p in pts:
             rows_out.append({"family": name, **p, "n": len(tasks),
-                             "split": args.split, **run_eval.provenance()})
+                             "split": args.split, **prov})
     for name, r in fixed.items():
         rows_out.append({"family": name, "knob": None, "value": None, **r,
-                         "n": len(tasks), "split": args.split, **run_eval.provenance()})
+                         "n": len(tasks), "split": args.split, **prov})
     run_eval.write_jsonl(OUT, rows_out)
 
     st = models.call_stats
