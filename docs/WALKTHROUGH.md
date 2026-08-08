@@ -105,7 +105,7 @@ Real example, exactly as stored:
 
 Three fields deserve attention because they are where cheating would happen:
 
-- **`predict_features`** is the *only* thing the predictive router may read. It
+- **`predict_features`** is the *only* thing a router may read before calling. It
   contains things derivable from the question alone.
 - **`difficulty_proxy`** for code is the reference solution's line count. That is
   **not knowable before answering**, so a router reading it would be cheating. It
@@ -217,8 +217,8 @@ Everything confusing in this repo is one of these.
 
 ### 5.1 The response cache is not a speed optimisation
 
-Eleven policies all need "the cheap model's answer to task 7". Without a cache
-that is eleven API calls returning **eleven different answers**, because models are
+Ten policies all need "the cheap model's answer to task 7". Without a cache
+that is ten API calls returning **ten different answers**, because models are
 not deterministic. Then when two policies disagree you cannot tell whether their
 *strategies* differ or whether they got different dice rolls.
 
@@ -278,7 +278,7 @@ Each is marked `DECISION #n` in the source, next to the code it controls.
 | 1 | the model ladder and its prices | `models.py` |
 | 2 | self-consistency sample count (k=5) | `policies.py` |
 | 3 | agreement threshold (0.8) | `policies.py` |
-| 4 | the predictive heuristic | `policies.py` |
+| 4 | ~~the predictive heuristic~~ retracted, tombstoned | `policies.py` |
 | 5 | verifier corruption rate — **the manipulated variable** | `policies.py` |
 | 6 | random baseline seed | `policies.py` |
 | 7 | LLM-as-router | `policies.py` |

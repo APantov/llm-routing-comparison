@@ -233,14 +233,15 @@ explicit check every run so it cannot come back unnoticed.
 
 Here is the most useful thing in the whole repo, and it is a negative result.
 
-The report table shows `cascade` at 98% and `predictive` at 92%. Six points. Looks
-like a clear win.
+The report table shows `cascade` at 90% and `llm_router` at 88%. Two points. On
+the version of this table that existed a week earlier the gap looked like six.
+Either way, it looks like a win.
 
 `stats.py` checks whether that gap is real. The right test here is a **paired**
 one: every policy answered the same tasks, so instead of comparing two averages
 you look at the tasks where the two policies *disagreed*. On the held-out half
-there were three such tasks — three where the cascade was right and predictive
-wrong, zero the other way.
+there were three such tasks — two where the cascade was right and the router
+wrong, one the other way.
 
 Three out of zero sounds convincing. It isn't. If you flip a coin three times and
 get three heads, that happens one time in eight by chance. The formal version of
@@ -266,9 +267,9 @@ pay for the model calls once, and every analysis afterwards is free.
 Related, and the reason `frontier.py` exists.
 
 Every policy here has a dial. The cascade has "how much must the samples agree
-before I trust them". The predictive router has "how hard must a question look
-before I upgrade". Turn any dial toward caution and you get better answers for more
-money. Turn it toward thrift and the reverse.
+before I trust them". The learned router has "how confident must I be that the
+big model wins before I upgrade". Turn any dial toward caution and you get better
+answers for more money. Turn it toward thrift and the reverse.
 
 Which means comparing two policies at one dial setting each is close to
 meaningless. Whoever set the dials picks the winner. "Our router beat the cascade"
@@ -281,11 +282,16 @@ different at different budgets, which is exactly why a single table row cannot
 capture it.
 
 It also produces one number per policy — the average accuracy across the entire
-budget range — so policies can still be ranked, just fairly. On that measure the
-cascade comes out well ahead of the random baseline, the predictive router modestly
-ahead, and RouteLLM's pretrained router comes out slightly *behind* it. Which is
-consistent with the published finding that routers trained on human preference data
-transfer badly to tasks with objectively right answers.
+budget range — so policies can still be ranked, just fairly. On that measure, on
+real models, the cascade comes out well ahead of the random baseline (91.2%
+against 86.3%) and RouteLLM's pretrained router comes out slightly *behind* it
+(85.4%). Which is consistent with the published finding that routers trained on
+human preference data transfer badly to tasks with objectively right answers.
+
+There is a sharper version of that here now. RouteLLM's score on these 100 tasks
+never once drops below 0.5 — it never judges the small model more likely to win.
+On competition maths and MBPP+ it simply cannot tell, so it always says "the big
+one". You can watch the router fail before measuring a single answer.
 
 ## 10d. The false choice at the heart of the project
 

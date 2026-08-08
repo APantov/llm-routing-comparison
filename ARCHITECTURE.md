@@ -33,7 +33,7 @@ Two halves that share one substrate.
 │   replay                                                           │
 │                                                                    │
 │   policies.py → run_eval.py → frontier.py / stats.py               │
-│   11 policies    100 tasks     curves, McNemar, bootstrap          │
+│   10 policies    100 tasks     curves, McNemar, bootstrap          │
 │                                                                    │
 └─────────────────────── the experiment ─────────────────────────────┘
 ```
@@ -121,20 +121,25 @@ was not measured, and distinguishes three cases that are easy to conflate:
 - the model disagreed with itself → evidence of unreliability, not proof of error
 - agreement **could not be measured** → unverified, which is not the same as either
 
-### 2. The difficulty label is gone — and it was helping the benchmark
+### 2. The difficulty label is gone — and leaning on it cost the benchmark a policy
 
-`policies.predict_is_hard` routes maths on `predict_features["level"] >= 5`.
-That level is MATH500's own annotation, shipped with the dataset, written by
-someone who had already solved the problem. **A user's query has no such
-field and never will.**
+The benchmark's `predictive` policy routed maths on
+`predict_features["level"] >= 5`. That level is MATH500's own annotation,
+shipped with the dataset, written by someone who had already solved the
+problem. **A user's query has no such field and never will.**
 
-So the `predictive` row in `results.jsonl` is an *upper bound* on what a
-deployed predictive router could score. `live.predict_is_hard_live` is the
-honest version: it reads only the query text.
+That was documented here as an *upper bound* on what a deployed predictive
+router could score. It was not one. `MIN_MATH_LEVEL = 5` makes the field
+constant, so the predicate was true for every maths task and the policy was
+`always_expensive` on 60% of the set — scoring below the coin flip it existed
+to beat. **It was deleted on 8 August 2026.** The benchmark now measures
+predictive routing with `llm_router` and `routellm`, neither of which reads a
+label, and `live.predict_is_hard_live` no longer has the branch that consulted
+the benchmark predicate: it reads query text, unconditionally.
 
-This cuts in the cascade's favour, and it is not a thumb on the scale — it is
-a real structural difference. A cascade needs no difficulty label because it
-finds out by trying.
+The structural point stands and is why the deletion costs the argument
+nothing. It cuts in the cascade's favour, and it is not a thumb on the scale —
+a cascade needs no difficulty label because it finds out by trying.
 
 ### 3. The perfect verifier is usually gone
 

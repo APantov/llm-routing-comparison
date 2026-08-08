@@ -209,10 +209,15 @@ def synthesize_task(
 # Serving-mode difficulty heuristic
 # ---------------------------------------------------------------------------
 
-# Chosen to match policies.PREDICTIVE_CODE_CHARS, which the benchmark
-# calibrated to put the code half near the maths half's escalation rate. Reused
-# rather than re-tuned so that the serving router and the measured one differ
-# in exactly one respect - the missing difficulty label - and not in two.
+# Inherited from the benchmark's deleted PREDICTIVE_CODE_CHARS, which was
+# calibrated to put the code half near the maths half's escalation rate.
+#
+# Kept at that value rather than re-tuned, and it should be read as an untuned
+# default rather than a measurement. The constant it was matched to is gone, and
+# the benchmark's own notes were blunt that prompt length is the least bad of a
+# weak set of pre-call features: measured on the probe it separates "the cheap
+# rung fails" at AUC 0.688 on the code half, and only 0.586 for the question that
+# actually matters, "would escalating fix it". See docs/NOTES.md issue 6.
 _LONG_PROMPT_CHARS = 100
 
 _HARD_MARKERS = (

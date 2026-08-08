@@ -11,18 +11,22 @@ between your models, and this repository measures where the crossover is.
 |  |  |
 |---|---|
 | **What runs** | A LangGraph state machine — `classify → answer → verify → escalate ⟲` — with human-in-the-loop approval *inside* the escalation loop and checkpointed resume, exposed over an MCP server with four tools and four resources. |
-| **What decides its policy** | 100 tasks (MBPP+ code, MATH500 level 5), 11 policies, 3 price ladders, cost–quality frontiers, exact McNemar and a paired bootstrap. |
-| **Built with** | Python 3.10–3.13 · LangGraph · MCP · Anthropic + DeepSeek APIs · pytest (163 tests) · GitHub Actions. The research core is **pure standard library** — no dependency can change a benchmark number. |
+| **What decides its policy** | 100 tasks (MBPP+ code, MATH500 level 5), 10 policies, 3 price ladders, cost–quality frontiers, exact McNemar and a paired bootstrap. |
+| **Built with** | Python 3.10–3.13 · LangGraph · MCP · Anthropic + DeepSeek APIs · pytest (164 tests) · GitHub Actions. The research core is **pure standard library** — no dependency can change a benchmark number. |
 | **Measured against real models** | **~10%** of tasks are ones the cheap model reliably gets wrong and the expensive one reliably gets right (n=100, wide ladder). A single draw per task said 15%; ten draws on the 21 decisive tasks showed **four of them were coin-flips the cheap model wins every time**. The routing signal is real, thinner than it first looked, and lives almost entirely in the code half. 1,097 real responses committed, so anyone can replay all of it for $0.00. Total spend to date: **$4.40**. |
-| **Measured, not simulated** | **9 of the 11 policies**, on real models, on the held-out half. `cascade` reaches **90.0% against always-expensive's 92.0% at 23% of the cost**, and the cost gap is significant while the accuracy gap is not. See [§ Status](#status-nine-of-the-eleven-policies-now-have-real-numbers). |
-| **Not yet measured** | `routellm` (cached scores no longer cover the rebuilt task set) and `always_mid` (needs the three-rung `claude` ladder). Any policy a replay cannot serve is **dropped by name**, never scored on a subset. |
+| **Measured, not simulated** | **Every policy the `wide` ladder defines — 9 of 10**, on real models, on the held-out half. `cascade` reaches **90.0% against always-expensive's 92.0% at 23% of the cost**, and the cost gap is significant while the accuracy gap is not. See [§ Status](#status-every-policy-on-this-ladder-now-has-real-numbers). |
+| **Not yet measured** | `always_mid` only, because it exists only on the three-rung `claude` ladder. Any policy a replay cannot serve is **dropped by name**, never scored on a subset. |
 
 > **⚠ [SHIP_PLAN.md](SHIP_PLAN.md) — 8 August 2026.** An independent audit found
 > that the four `both_fail` code tasks are *broken, not hard* (corrected,
-> `always_expensive` and `oracle` score 100%, not 92%), and that the one-shot
-> router comparison is degenerate because `MIN_MATH_LEVEL = 5` makes the only
-> predictive feature constant. Two claims in the table above are retracted there.
-> Read it before quoting any accuracy figure from this page.
+> `always_expensive` and `oracle` score 100%, not 92%). **Read it before quoting
+> any accuracy figure from this page.**
+>
+> Its second finding has been acted on. The `predictive` policy routed on a
+> difficulty label that `MIN_MATH_LEVEL = 5` made constant, so it was
+> `always_expensive` on 60% of the task set while being reported as a router. It
+> has been **deleted**, and predictive routing is now measured with the two real
+> implementations it always had: `llm_router` and `routellm`.
 
 New here? [SHIP_PLAN.md](SHIP_PLAN.md) says what is wrong and what to do about
 it; [STATUS.md](STATUS.md) says where the project stands;
@@ -100,7 +104,7 @@ $ llm-router --findings | jq .ratio.verdict     # on the deepseek ladder
 
 | | |
 |---|---|
-| **The experiment** (repo root) | 100 tasks, 11 policies, 3 ladders, cost-quality frontiers, paired significance tests. Pure standard library in mock mode. |
+| **The experiment** (repo root) | 100 tasks, 10 policies, 3 ladders, cost-quality frontiers, paired significance tests. Pure standard library in mock mode. |
 | **The product** (`router_agent/`) | A LangGraph cascade and an MCP server, built on the same substrate, implementing what the experiment found. |
 
 They share one model client, one price table and one response cache — which is
@@ -115,10 +119,13 @@ Three consequences, each documented where it bites:
 1. **No correctness, only verification.** `RouteOutcome` has no `correct`
    field. It reports `verified` — a verifier's opinion — plus a
    `verified_meaning` string stating what was and was not measured.
-2. **The benchmark's predictive router had an unfair advantage.** It routes on
-   MATH500's shipped difficulty label, which no user query carries. The
-   `predictive` numbers below are therefore an *upper bound* on a deployable
-   predictive router.
+2. **A difficulty label is not available, and leaning on one was worse than
+   unfair.** The benchmark's `predictive` policy routed on MATH500's shipped
+   `level`, which no user query carries. That was documented as an optimistic
+   upper bound — until the level-5 filter made the field constant, at which
+   point the policy stopped routing altogether. It was deleted on 8 August 2026.
+   Both surviving predictive routers, `llm_router` and `routellm`, read only
+   what a served query actually carries.
 3. **The perfect verifier usually isn't available.** "Run the tests" is free
    and exact in the benchmark only because MBPP+ ships them. Self-consistency
    transfers unchanged; running tests does not. `sweep_degraded.py` is the
@@ -167,9 +174,9 @@ Two ways to spend less on LLM inference, with opposite failure modes:
 and the variable this repo manipulates to find it is **verifier quality** — the
 one thing a cascade depends on and a predictive router does not have at all.
 
-> ### Status: nine of the eleven policies now have real numbers
+> ### Status: every policy on this ladder now has real numbers
 >
-> **Updated 7 August 2026.** Every accuracy figure in this section was measured
+> **Updated 8 August 2026.** Every accuracy figure in this section was measured
 > against real models. `cache/raw_calls.wide.jsonl` holds **1,095** real
 > responses, 1,097 across all three ladder files, for **$4.40** total.
 >
@@ -184,39 +191,66 @@ one thing a cascade depends on and a predictive router does not have at all.
 >
 > Held-out half, n=50, `wide` ladder (DeepSeek v4-flash → Opus 5):
 >
-> | policy | acc | cost/task | vs `always_expensive` |
-> |---|---|---|---|
-> | `always_cheap` | 78.0% | $0.000130 | −14 pts at 1.5% of cost |
-> | `predictive` | 86.0% | $0.007944 | −6 pts at 91% of cost |
-> | `random_matched` | 88.0% | $0.007870 | −4 pts at 90% of cost |
-> | `llm_router` | 88.0% | $0.008115 | −4 pts at 93% of cost |
-> | `cascade_routing` | 88.0% | $0.000915 | −4 pts at **10%** of cost |
-> | **`cascade`** | **90.0%** | **$0.002035** | **−2 pts at 23% of cost** |
-> | `oracle` | 92.0% | $0.001053 | match at 12% of cost, **not deployable** |
-> | `always_expensive` | 92.0% | $0.008719 | — |
+> | policy | family | acc | cost/task | vs `always_expensive` |
+> |---|---|---|---|---|
+> | `always_cheap` | fixed | 78.0% | $0.000130 | −14 pts at 1.5% of cost |
+> | `random_matched` | null | 86.0% | $0.008008 | −6 pts at 92% of cost |
+> | `routellm` | **predictive** | 82.0% | $0.004232 | −10 pts at 49% of cost |
+> | `llm_router` | **predictive** | 88.0% | $0.008115 | −4 pts at 93% of cost |
+> | `cascade_routing` | **cascading** | 88.0% | $0.000915 | −4 pts at **10%** of cost |
+> | **`cascade`** | **cascading** | **90.0%** | **$0.002035** | **−2 pts at 23% of cost** |
+> | `oracle` | bound | 92.0% | $0.001053 | match at 12% of cost, **not deployable** |
+> | `always_expensive` | fixed | 92.0% | $0.008719 | — |
 >
 > **The cascade is within one task of always-expensive at 23% of the price.**
 > That is the headline this repository was built to test, and it survives contact
 > with real models on the ladder where the price gap is wide.
 >
-> **Every one-shot router costs about as much as always-expensive.** `predictive`,
-> `random_matched` and `llm_router` all land at 90–93% of the top rung's cost with
-> *less* accuracy, because on the maths half they route essentially everything
-> expensive. Only the cascades are cheap, and the reason is structural: a cascade
-> finds out by trying, so it pays the top rung only on the tasks that need it.
+> **Neither predictive router is cheap, and neither beats the null at its own
+> spend.** `llm_router` lands at 93% of the top rung's cost with less accuracy,
+> because on the maths half it routes 30 of 30 tasks expensive. `routellm` is
+> cheaper but pays for it in accuracy, scoring 82.0% — below `random_matched`.
+> Only the cascades are cheap, and the reason is structural: a cascade finds out
+> by trying, so it pays the top rung only on the tasks that need it.
 >
-> `routellm` sits out (its cached scores no longer cover the rebuilt task set) and
-> `always_mid` needs the three-rung `claude` ladder. Those are the two of eleven
-> without real numbers.
+> A previous version of this table carried a `predictive` row and reported that
+> *"every one-shot router costs about as much as always-expensive"* as a finding.
+> That policy routed on a difficulty label the level-5 filter made constant, so
+> on the maths half it was `always_expensive` by construction rather than by
+> measurement. It has been deleted; see [§ The policies](#the-policies).
+>
+> `always_mid` is the only policy in the repository without real numbers, and it
+> exists only on the three-rung `claude` ladder — so on this ladder the table is
+> complete.
 >
 > The `oracle` bound check passes on all three rows — `all`, `math` and `code` —
 > so no policy has gained an action the ceiling cannot reach.
+>
+> #### Routing skill, measured against a null at each policy's own spend
+>
+> Raw accuracy conflates skill with willingness to spend, so `run_eval` reports
+> what fraction of the available headroom each policy captured — against the
+> accuracy a *signal-free* policy would reach at that same budget, obtained by
+> interpolating the `always_cheap` → `always_expensive` chord.
+>
+> | policy | cost/task | null | actual | oracle | skill |
+> |---|---|---|---|---|---|
+> | `routellm` | $0.004232 | 84.7% | 82.0% | 92.0% | **−36.7%** |
+> | `llm_router` | $0.008115 | 91.0% | 88.0% | 92.0% | n/a |
+> | **`cascade`** | $0.002035 | 81.1% | 90.0% | 92.0% | **+81.6%** |
+> | `cascade_routing` | $0.000915 | 79.3% | 88.0% | 92.0% | **+68.6%** |
+>
+> **The two cascades capture 69–82% of the headroom available at their price. The
+> two predictive routers capture none of it.** `llm_router` reads `n/a` rather
+> than a number because it spends so close to `always_expensive` that the oracle
+> sits less than one task above its null — at that budget there is essentially
+> nothing left for any router to win, which is itself the finding.
 >
 > #### What survives a significance test, and what does not
 >
 > `stats.py`, exact McNemar and paired bootstrap on the held-out half:
 >
-> - **0 of 6 accuracy comparisons reach significance.** The cascade's 2-point
+> - **0 of 8 accuracy comparisons reach significance.** The cascade's 2-point
 >   deficit against `always_expensive` is not distinguishable from zero at n=50.
 > - **The cost differences are significant and large.** `cascade` against
 >   `always_expensive` is **−$0.006684/task, 95% CI [−0.008563, −0.004954]** — an
@@ -229,8 +263,12 @@ one thing a cascade depends on and a predictive router does not have at all.
 >
 > On the cost-quality frontier (`frontier.py`, whole curves rather than single
 > points), `cascade` scores **AUC 91.2%, +4.9% over a cost-matched coin flip**,
-> and owns every budget from $0.000915 upward. `predictive` scores 86.3% —
-> **−0.0% against random, and it contributes no point to the frontier at all.**
+> and owns every budget from $0.000915 upward. **`routellm` scores 85.4% — −0.9%
+> against random, and it contributes no point to the frontier above the floor.**
+> That is LLMRouterBench's finding, reproduced on real data with an actual
+> published learned router. The repository previously made the same claim on the
+> strength of a hand-written heuristic whose feature was constant; that version
+> is retracted and this one replaces it.
 >
 > #### Per domain: the two halves win differently
 >
@@ -586,27 +624,42 @@ is why [STATUS.md](STATUS.md) expects this one to survive a real run.
 
 ## The policies
 
-| policy | what it does |
-|---|---|
-| `always_<rung>` | one per rung of the loaded ladder, generated not listed |
-| `random_matched` | coin flip at predictive's own escalation rate — **the null hypothesis** |
-| `predictive` | hand-written heuristic, routes once on pre-call features |
-| `routellm` | RouteLLM's pretrained `bert` router, threshold-matched to `predictive` |
-| `llm_router` | the cheap model classifies its own difficulty, then answers |
-| `cascade` | answer → verify → escalate, over every rung of the ladder |
-| `cascade_routing` | **routing and cascading unified** — see below |
-| `cascade_degraded` | the cascade with a deliberately damaged verifier — **the experiment** |
-| `oracle` | hindsight-optimal. Bounds how good any router could be |
+Ten policies in two families, plus the fixed rungs and two baselines. The
+families are the comparison this repository exists to make.
 
-Four of those exist for reasons worth stating outright:
+| policy | family | what it does |
+|---|---|---|
+| `llm_router` | **predictive** | the cheap model classifies its own difficulty, then answers |
+| `routellm` | **predictive** | RouteLLM's pretrained `bert` router at a fixed score threshold |
+| `cascade` | **cascading** | answer → verify → escalate, over every rung of the ladder |
+| `cascade_routing` | **cascading** | **routing and cascading unified** — see below |
+| `cascade_degraded` | **cascading** | the cascade with a deliberately damaged verifier — **the experiment** |
+| `always_<rung>` | fixed | one per rung of the loaded ladder, generated not listed |
+| `random_matched` | null | coin flip at `llm_router`'s own escalation rate — **the null hypothesis** |
+| `oracle` | bound | hindsight-optimal. Bounds how good any router could be |
+
+A `predictive` policy — a hand-written heuristic routing on MATH500's shipped
+difficulty level — was **deleted on 8 August 2026**. Under `MIN_MATH_LEVEL = 5`
+that level is constant, so the policy sent all 60 maths tasks to the expensive
+rung and was `always_expensive` on 60% of the set while being reported as a
+router. It scored 86.0% against the coin flip's 88.0%. Predictive routing is
+half of this repository's subject and has not gone anywhere; it is now measured
+with the two implementations above, neither of which reads a difficulty label.
+The reasoning is preserved as a tombstone at `DECISION #4` in `policies.py`.
+
+Four of these exist for reasons worth stating outright:
 
 - **`random_matched` is the null hypothesis.** A router that escalates the same
   fraction of tasks *at random* also gains accuracy — it just pays for it.
-  Without this baseline, a gap between `predictive` and `always_cheap` shows only
+  Without this baseline, a gap between a router and `always_cheap` shows only
   that spending more helps. This is not a pedantic point: LLMRouterBench
   ([arXiv:2601.07206](https://arxiv.org/abs/2601.07206)) finds that under unified
   evaluation many published routers, commercial ones included, fail to reliably
-  beat a simple baseline.
+  beat a simple baseline — which is what `routellm` does here, scoring 82.0%
+  against this baseline's 86.0%.
+  One anchored null cannot serve policies at different spending levels, so
+  `run_eval` also computes an analytic null at *each* policy's own cost. This
+  row is the empirical check that the analytic one is not a fiction.
 - **`cascade_routing` is the literature's answer to this repo's own framing.**
   Dekoninck et al. ([arXiv:2410.10347](https://arxiv.org/abs/2410.10347), ICML
   2025) prove that routing and cascading are both special cases of one strategy
@@ -689,7 +742,7 @@ than quietly omitted.
 | `frontier.py` | cost-quality curves, achievable frontiers, AUC |
 | `stats.py` | exact McNemar and paired bootstrap over the results |
 | `sweep_degraded.py` | the experiment: cascade quality against verifier quality |
-| `routellm_router.py` | RouteLLM's pretrained router, cost-matched to `predictive` |
+| `routellm_router.py` | RouteLLM's pretrained router at a fixed score threshold |
 | `plot.py` | SVG figures from the standard library, no matplotlib |
 | `sanity_check.py` | regression gate: reference answers, equivalent formattings, and near-miss wrong answers. Exits non-zero if a grader is broken *or* too lax |
 
@@ -720,11 +773,13 @@ one, re-run, and the report shows what moved.
 1. **Model ladder** (`models.py`) — the price ratio drives the whole economics
 2. **Self-consistency k** (`policies.py`) — failure detection against cost, linear
 3. **Agreement threshold** (`policies.py`) — when to accept the cheap answer
-4. **Predictive heuristic** (`policies.py`) — route once, blind, on pre-call features
+4. ~~**Predictive heuristic**~~ — **retracted 8 August 2026**, tombstoned in place
+   rather than renumbered. The feature was constant; see `policies.py`
 5. **Verifier corruption rate** (`policies.py`) — the manipulated variable
-6. **Random baseline seeds** (`policies.py`) — the null the others are measured against
+6. **Random baseline rate** (`policies.py`) — the null, anchored to `llm_router`
 7. **LLM-as-router** (`policies.py`) — the option decision 4 rejected, now measured
-8. **RouteLLM variant and threshold** (`routellm_router.py`) — a learned router, cost-matched
+8. **RouteLLM variant** (`routellm_router.py`) — which learned router, and why `bert`
+   — and **8b**, its operating threshold, fixed at 0.80 rather than calibrated
 9. **Cascade routing λ** (`policies.py`) — the unified strategy's quality/cost price
 
 The ladder itself is the tenth and largest knob, and the one that changes the
@@ -749,22 +804,37 @@ run actually spent.
 
 ## The RouteLLM comparison
 
-`routellm` sits out unless `cache/routellm_scores.jsonl` exists.
-
-**It is currently sitting out.** Scores are keyed on the prompt, so the 6 August
-task-set rebuild left only 10 of 100 matching, and `routellm_router.CALIBRATED`
-correctly refuses to run a router calibrated on a tenth of the set. The stale
-scores are in [archive/](archive/README.md) rather than in `cache/`, so the
-policy now skips for a stated reason instead of because of a file that looked
-healthy.
+`routellm` sits out unless `cache/routellm_scores.jsonl` exists. **It ran for the
+first time on 8 August 2026**, after the scores were regenerated for the rebuilt
+task set — the 6 August rebuild had left only 10 of 100 matching, and
+`routellm_router.CALIBRATED` correctly refused to run a router calibrated on a
+tenth of the set. The scores are committed, so the policy now replays for anyone
+with no key, no torch and no GPU.
 
 Regenerating is free, local, and needs no API key — but it does need torch:
 
 ```bash
 pip install routellm==0.2.0
 python routellm_router.py --score     # bert variant, local, no API key
-python routellm_router.py             # show calibration and routing decisions
+python routellm_router.py             # show the threshold and routing decisions
 ```
+
+**The score distribution is the first result, and it arrives before any accuracy
+is measured.** Across all 100 tasks the router's `strong_win_rate` spans
+**[0.509, 0.898]** with a median of 0.783. It never once judges the weak model
+more likely to win. So the semantically natural threshold — 0.5, "escalate when
+the strong model is favoured" — routes **everything** to the expensive rung, and
+the policy degenerates into `always_expensive`: exactly the failure the
+`predictive` policy was deleted for. The threshold used instead is a declared
+constant, **0.80**, which splits the set 42/58 and is derived from nothing else
+in this repository. See `DECISION #8b` in `routellm_router.py`.
+
+That compression is what "out of distribution" looks like in practice.
+`bert_gpt4_augmented` was trained to predict which answer a human would *prefer*
+between two chat models; it is being asked about competition maths and MBPP+,
+where it cannot judge, and it defaults to "the big one" every time. Preference is
+not correctness. The measured consequence: **AUC 85.4%, −0.9% against a
+cost-matched coin flip, and no point on the combined frontier above the floor.**
 
 Of RouteLLM's five routers, `bert` is the only one that is both genuinely learned
 and free to serve — `mf` and `sw_ranking` call OpenAI's embedding API on every
@@ -823,12 +893,12 @@ not a replication.
 Tracked honestly in [NOTES.md](docs/NOTES.md), including the ones that would weaken
 the headline. The two largest:
 
-- **Two of the eleven policies still have no real accuracy data.** `routellm`'s
-  cached scores no longer cover the rebuilt task set, and `always_mid` exists
+- **One of the ten policies still has no real accuracy data.** `always_mid` exists
   only on the three-rung `claude` ladder, which has never been run for real. Any
-  policy a replay cannot serve is dropped by name with the reason printed —
-  which is how this list stayed at six until `scripts/record_missing.py` bought
-  the missing self-consistency samples for $0.05.
+  policy a replay cannot serve is dropped by name with the reason printed. That
+  list was six policies long until `scripts/record_missing.py` bought the missing
+  self-consistency samples for $0.05, and two until the RouteLLM scores were
+  regenerated; on the `wide` ladder it is now empty.
 - **The routing signal and the good verifier are in the same half, and only one
   of them transfers.** The 7 August redraw put nearly all the reproducible
   routing signal in the code half; the code half's verifier is free and perfect

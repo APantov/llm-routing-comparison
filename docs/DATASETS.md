@@ -22,7 +22,9 @@ problem the project would then have to solve. Answers must be comparable as
 normalised strings.
 
 A third, softer requirement: a **shipped difficulty label** is valuable. The
-predictive router uses MATH500's `level`, and losing it would weaken that arm.
+predictive router used MATH500's `level` until that policy was deleted for the
+field being constant; a dataset with genuine difficulty variance would restore
+the option. See SHIP_PLAN.md 0.2.
 
 ---
 
@@ -137,7 +139,7 @@ accuracy". Fields: `problem, solution, answer, source, difficulty, domain`.
 
 Two things to know before committing:
 
-- **It ships a `difficulty` float, 4–10.** That preserves the predictive router's
+- **It ships a `difficulty` float, 4–10.** That would restore a predictive router's
   signal, and gives a much finer difficulty axis than MATH500's 1–5.
 - **Some answers are symbolic expressions with free variables**, e.g.
   `1 + \left\lceil \frac{n}{2} \right\rceil`. Exact match on those is fragile in

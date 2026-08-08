@@ -15,10 +15,16 @@ will cost, and what to expect when you do it.
 >   `always_expensive` failures on the eval split are unpassable from their
 >   prompt. Corrected, `always_expensive` and `oracle` score **100%**, not 92%.
 >   §1's "code is now the harder domain" is **retracted**.
-> - **The one-shot router comparison is degenerate.** `MIN_MATH_LEVEL = 5` makes
->   `predict_features.level` constant, so `predictive`, `random_matched` and
->   `llm_router` are all literally `always_expensive` on 60% of the task set.
->   "LLMRouterBench reproduced on real data" is **retracted**.
+> - **The one-shot router comparison was degenerate — ACTED ON 8 August 2026.**
+>   `MIN_MATH_LEVEL = 5` makes `predict_features.level` constant, so the
+>   `predictive` policy was `always_expensive` on 60% of the task set. It has
+>   been **deleted**; predictive routing is now measured with `llm_router` and
+>   `routellm`, and RouteLLM's scores were regenerated so it produces a row for
+>   the first time. "LLMRouterBench reproduced on real data" is **re-established
+>   on the learned router**: `routellm` scores AUC 85.4%, −0.9% against a
+>   cost-matched coin flip, contributing no frontier point above the floor.
+>   `llm_router` still routes 30/30 maths tasks expensive, but empirically now
+>   rather than by construction.
 > - **The maths half bought one task.** 89.3% of all spend, one reproducibly
 >   routable task. The code half produced five, at $0.079 each against $3.93.
 >
@@ -84,14 +90,20 @@ If you only read one section, read [SHIP_PLAN.md](SHIP_PLAN.md).
 > nine policies, every row `simulated: false`**, replayed from the **1,097 real
 > responses** in `cache/`.
 >
-> **The product surfaced one thing the experiment had not stated.**
-> `policies.predict_is_hard` routes maths on MATH500's shipped `level` field —
-> a difficulty label written by someone who had already solved the problem, and
-> one that no user query carries. So the `predictive` row in `results.jsonl` is
-> an **upper bound** on what a deployable predictive router could score. That
-> favours the cascade, and it is a real structural difference rather than a
-> measurement artefact: a cascade needs no difficulty label because it finds
-> out by trying. See `router_agent/live.py`.
+> **The product surfaced one thing the experiment had not stated, and it turned
+> out to be worse than stated.** `policies.predict_is_hard` routed maths on
+> MATH500's shipped `level` field — a difficulty label written by someone who had
+> already solved the problem, and one that no user query carries. That was
+> written up as an *upper bound* on what a deployable predictive router could
+> score. Under `MIN_MATH_LEVEL = 5` the field is constant, so it was not an upper
+> bound at all: the policy sent every maths task to the expensive rung. It was
+> deleted on 8 August 2026 (`policies.py` DECISION #4).
+>
+> The structural point it was meant to illustrate is unaffected, and is the
+> reason the deletion costs the argument nothing: **a cascade needs no difficulty
+> label because it finds out by trying.** See `router_agent/live.py`, whose
+> serving heuristic reads query text only — unconditionally, since the branch
+> that consulted the benchmark predicate went with it.
 >
 > Spend to date is now **$4.40** across 1,097 committed responses: $1.36 on the
 > experiment through 6 August, $0.0276 on the three recorded demo traces, $2.96
@@ -106,7 +118,7 @@ If you only read one section, read [SHIP_PLAN.md](SHIP_PLAN.md).
 been run against real models, and it says the task set now discriminates — but
 only just, and n=100 cannot close the question.**
 
-Everything works end to end: 100 tasks, 11 policies, three model ladders, a
+Everything works end to end: 100 tasks, 10 policies, three model ladders, a
 calibration split, a cost-quality frontier, paired significance tests, a
 degradation sweep, and figures. All of it reproduces byte-for-byte on a bare
 Python install with no API key and no network.
@@ -257,16 +269,19 @@ constants — 240 samples plus 104 routing calls — and bought it for **$0.0503
 
 Everything below replays from that, free, forever. Held-out half, n=50:
 
-| policy | acc | cost/task | vs `always_expensive` |
-|---|---|---|---|
-| `always_cheap` | 78.0% | $0.000130 | −14 pts at 1.5% of cost |
-| `predictive` | 86.0% | $0.007944 | −6 pts at 91% of cost |
-| `random_matched` | 88.0% | $0.007870 | −4 pts at 90% of cost |
-| `llm_router` | 88.0% | $0.008115 | −4 pts at 93% of cost |
-| `cascade_routing` | 88.0% | $0.000915 | −4 pts at **10%** of cost |
-| **`cascade`** | **90.0%** | **$0.002035** | **−2 pts at 23% of cost** |
-| `oracle` | 92.0% | $0.001053 | match at 12%, **not deployable** |
-| `always_expensive` | 92.0% | $0.008719 | — |
+**Updated 8 August 2026** after the `predictive` deletion and the RouteLLM
+rescore. Every policy the `wide` ladder defines now has a row.
+
+| policy | family | acc | cost/task | vs `always_expensive` |
+|---|---|---|---|---|
+| `always_cheap` | fixed | 78.0% | $0.000130 | −14 pts at 1.5% of cost |
+| `random_matched` | null | 86.0% | $0.008008 | −6 pts at 92% of cost |
+| `routellm` | predictive | 82.0% | $0.004232 | −10 pts at 49% of cost |
+| `llm_router` | predictive | 88.0% | $0.008115 | −4 pts at 93% of cost |
+| `cascade_routing` | cascading | 88.0% | $0.000915 | −4 pts at **10%** of cost |
+| **`cascade`** | cascading | **90.0%** | **$0.002035** | **−2 pts at 23% of cost** |
+| `oracle` | bound | 92.0% | $0.001053 | match at 12%, **not deployable** |
+| `always_expensive` | fixed | 92.0% | $0.008719 | — |
 
 Four things worth reading carefully:
 
@@ -274,13 +289,17 @@ Four things worth reading carefully:
    `stats.py` says the cost difference is significant (−$0.006684/task, 95% CI
    [−0.008563, −0.004954]) while the accuracy difference is not. That is the
    project's thesis, confirmed on real models.
-2. **Every one-shot router costs 90–93% of always-expensive** and gets less
-   accuracy, because on maths they route nearly everything expensive. Only the
-   cascades are cheap. A cascade needs no difficulty label — it finds out by
-   trying — and that structural difference is worth more here than any heuristic.
-3. **`predictive` contributes no point to the cost-quality frontier**, beaten at
-   every budget, AUC −0.0% against a cost-matched coin flip. LLMRouterBench
-   ([arXiv:2601.07206](https://arxiv.org/abs/2601.07206)) reproduced on real data.
+2. **Neither predictive router captures any headroom at its own price.** Against
+   a null computed at each policy's own spend, `routellm` scores −36.7% and
+   `llm_router` is unmeasurable because it spends so close to `always_expensive`
+   that the oracle is less than one task above its null. Both cascades capture
+   69–82%. A cascade needs no difficulty label — it finds out by trying — and
+   that structural difference is worth more here than any router's features.
+3. **`routellm` contributes no point to the cost-quality frontier above the
+   floor**, AUC 85.4%, −0.9% against a cost-matched coin flip. LLMRouterBench
+   ([arXiv:2601.07206](https://arxiv.org/abs/2601.07206)) reproduced on real data
+   — with an actual published learned router this time. The earlier version of
+   this claim rested on the degenerate `predictive` heuristic and was retracted.
    `cascade` scores +4.9% AUC and owns every budget above $0.000915.
 4. **On maths, two thirds of the cascade's gain is majority voting, not
    escalation.** It fixes 3 of `always_cheap`'s 4 maths failures while escalating
@@ -304,7 +323,8 @@ The `oracle` bound check passes on `all`, `math` and `code`.
 
 **Still unmeasured:** `routellm` (its cached scores no longer cover the rebuilt
 task set — regenerating is free but needs torch) and `always_mid` (needs the
-three-rung `claude` ladder). Two of eleven.
+three-rung `claude` ladder, which has never been run for real). One of ten, and
+on the `wide` ladder none: every policy that exists there now has a row.
 
 What is *already* real, even in mock mode:
 
@@ -661,7 +681,7 @@ The 6 August probe supplies what step 5 was supposed to: **17 discordant pairs p
 
 That comparison is comfortably significant (p=0.002). The ones that are not are
 the policy-vs-policy contests *inside* the 17-point ceiling, and they are strictly
-harder — a cascade and a predictive router disagree on far fewer than 17 tasks per
+harder — a cascade and a one-shot router disagree on far fewer than 17 tasks per
 100, because both spend most of the set agreeing with `always_cheap` on the 77
 `both_ok` tasks.
 
@@ -696,13 +716,14 @@ Verified on 6 August rather than quoted:
 Taking everything at the current settings gives **504 tasks**, not the 787 this
 file previously promised — `MIN_MATH_LEVEL = 5` cut the maths pool from 367 to
 134. Dropping to level 4 would buy back 128 maths tasks and restore the
-predictive router's difficulty signal (see the comment on `MIN_MATH_LEVEL`), at
+level variance the deleted predictive heuristic needed (see the comment on
+`MIN_MATH_LEVEL`), at
 the cost of an easier maths half.
 
 ### Why this is cheap to fix
 
 Cost scales linearly with tasks. From the **measured** per-call figures in §1, a
-two-arm probe over all 504 costs about **$3.60**; a full eleven-policy run is the
+two-arm probe over all 504 costs about **$3.60**; a full ten-policy run is the
 number to be careful with, because self-consistency verification samples the
 cheap rung k times per task and maths is the expensive domain. Budget in the
 $15–25 range for `wide` at n=504 rather than the $0.37 in §3, and re-read the
@@ -732,7 +753,7 @@ how thorough the marking is. See [DATASETS.md](docs/DATASETS.md).
 The remaining escalation path, if 12.5% is judged too thin:
 
 1. **Drop `MIN_MATH_LEVEL` to 4** and rebalance toward maths — buys 128 maths
-   tasks and restores the predictive router's difficulty signal, at the cost of an
+   tasks and restores level variance to the maths half, at the cost of an
    easier maths half.
 2. **BigCodeBench** for the code half. 1140 tasks, genuinely hard, but the `test`
    field is a `unittest` class rather than an assert list so `graders.py` needs
@@ -827,7 +848,7 @@ ignore rule:
 
 **`results.jsonl` exists again as of 7 August 2026, and it is real.** 420 rows,
 `mode: replay`, every one `simulated: false`, covering the nine policies the
-cache can serve: `always_cheap`, `always_expensive`, `predictive`,
+cache can serve: `always_cheap`, `always_expensive`, `routellm`,
 `random_matched`, `llm_router`, `cascade`, `cascade_routing`, `cascade_degraded`
 (20 rows, code half only by design) and `oracle`. The remaining two are dropped
 by name with the reason printed — `routellm` for want of current scores,
@@ -854,7 +875,7 @@ two-arm probe has been run for real: **routable = 15.0%** [9.3%, 23.3%] on the
 That is up from an effective zero on 30 July, so the MBPP+ and level-5 hardening
 did what it was supposed to — **but read that 15.0% as ~10%**: the 7 August
 redraw of the 21 decisive tasks showed a third of it was single-draw noise, with
-~9% reproducible and nearly all of that in the code half. Nine of the eleven
+~9% reproducible and nearly all of that in the code half. Nine of the ten
 policies now have real numbers, from 420 replayed rows over 1,097 committed
 responses and $4.40 of spend.
 Two measurement bugs were found and fixed on the way
@@ -866,7 +887,8 @@ The signal is real, significant, and thin: every policy competes over a 17-point
 ceiling, and 15% sits exactly on the floor of the band `routable.py` asks for —
 which more tasks cannot resolve, since the CI just shrinks around the boundary.
 The next move is to enlarge the task set to the full 504 available at the current
-settings for statistical power, then pay for a full eleven-policy run — budgeting
+settings for statistical power, then pay for a full ten-policy run — budgeting
 from the measured $0.0078/call on maths rather than the modelled figures in §3,
-which the probe showed to be low by about 2.5x. Two of the eleven policies still
-have no real accuracy data at all: `routellm` and `always_mid`.
+which the probe showed to be low by about 2.5x. One of the ten policies still
+has no real accuracy data at all: `always_mid`, which exists only on the
+three-rung `claude` ladder.

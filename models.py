@@ -849,7 +849,7 @@ PROMPTS = {
     ),
     # The LLM-as-router prompt. Deliberately austere:
     #   - it shows the QUESTION ONLY, never the tests or the answer, so it sees
-    #     exactly what predict_is_hard sees and the comparison is fair;
+    #     no more than any other pre-call router and the comparison is fair;
     #   - it forbids reasoning, because a router that thinks before routing is
     #     just a slow expensive model and the whole premise is that it is cheap;
     #   - one word out, so ROUTER_MAX_TOKENS can be 8 and the cost is bounded.

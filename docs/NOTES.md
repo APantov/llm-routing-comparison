@@ -6,13 +6,20 @@ much each one would change a conclusion.
 
 ## Blocking
 
-### 1. Two of the eleven policies still have no real accuracy data
+### 1. One of the ten policies still has no real accuracy data
 
-> **RESOLVED for nine of eleven, 7 August 2026.** This issue was written when the
-> only real run was a degenerate 5-task plumbing check. The cache now holds
+> **RESOLVED on the `wide` ladder, 8 August 2026.** This issue was written when
+> the only real run was a degenerate 5-task plumbing check. The cache now holds
 > **1,097 real responses** for **$4.40**, and `ROUTER_MODE=replay run_eval.py`
 > scores nine policies on real models with `simulated: false` meaning it. The
 > table is in STATUS.md §1.
+>
+> Nine is now *all of them* on this ladder. The count fell from eleven to ten
+> when the degenerate `predictive` policy was deleted (SHIP_PLAN §0.2), and the
+> last outstanding row was filled when RouteLLM's scores were regenerated for the
+> rebuilt task set — free, local, and overdue. `always_mid` is the remaining
+> unmeasured policy and it exists only on the three-rung `claude` ladder, which
+> has never been run for real.
 >
 > The last step was small and worth recording, because it is a general lesson
 > about caches. A cache is only as complete as the runs that filled it, and the
@@ -35,9 +42,7 @@ much each one would change a conclusion.
 > and it sat unnoticed because the mock fallback (issue 19) had been quietly
 > filling the hole.
 >
-> **Still open:** `routellm`, whose cached scores no longer cover the rebuilt
-> task set — regenerating is free and local but needs torch — and `always_mid`,
-> which needs the three-rung `claude` ladder.
+> **Still open:** `always_mid` alone, which needs the three-rung `claude` ladder.
 
 The original text follows, kept because its warning about degenerate runs is
 still the right warning.
@@ -50,7 +55,7 @@ ROUTER_LADDER=wide run_eval.py --limit 10` produced **47 real model responses**
 and **47 rows in `results.jsonl`** with `"mode": "real"`, `"simulated": false`, for
 **$0.0481**. So the repo is past "nothing has ever been called".
 
-It is not past "there is no result". All eleven policies scored **100% on all five
+It is not past "there is no result". All policies scored **100% on all five
 reported tasks**, so that run contains zero accuracy information — every pairwise
 comparison is a tie by construction and the routing-skill denominator is 0/0. Every
 accuracy figure the repo *reports* is still simulated. Everything below is written
@@ -287,45 +292,72 @@ drop — possibly a lot — on the first real run. Do not quote the mock figure.
 
 ### 5. Hyperparameters are calibrated, but the calibration is thin
 
-Four numbers are free parameters. Two control the cascade's verifier, two control
-the predictive router's guess. All four live in `policies.py` next to the code
-they govern, marked `DECISION #2`, `#3` and `#4`.
+Three numbers are free parameters. Two control the cascade's verifier, one sets
+the learned router's operating point. They live in `policies.py` and
+`routellm_router.py` next to the code they govern, marked `DECISION #2`, `#3`
+and `#8b`.
 
 | constant | value | what it controls | which way it biases |
 |---|---|---|---|
 | `SELF_CONSISTENCY_K` | 5 | how many times `verify_math` samples the model before judging whether it agrees with itself | higher k detects failure better and costs linearly more, so it trades the cascade's accuracy against its cost |
 | `AGREEMENT_THRESHOLD` | 0.8 | what fraction of those samples must give the same answer for the cheap answer to be accepted. At k=5 this means 4 of 5 | higher escalates more often: better accuracy, more double-paying |
-| `PREDICTIVE_HARD_LEVEL` | 5 | the MATH500 difficulty level at or above which `predictive` pays for the expensive model | sets how much of the maths half goes expensive, so it sets the router's whole cost position |
-| `PREDICTIVE_CODE_CHARS` | 100 | the prompt-length cutoff, in characters, above which a code task is called hard | same, for the code half; chosen to match the maths half's escalation rate so the two are cost-comparable |
+| `FIXED_THRESHOLD` | 0.80 | the RouteLLM score at or above which `routellm` pays for the expensive model | sets the router's whole cost position. Declared rather than calibrated, so it is not tied to any other policy's spend |
+
+**Two of these were `PREDICTIVE_HARD_LEVEL` and `PREDICTIVE_CODE_CHARS` until
+8 August 2026**, and the first is the cautionary tale for this whole section. It
+was set to 5 while `MIN_MATH_LEVEL` was 3, and stayed at 5 when the task set was
+rebuilt at level 5 — at which point it selected everything and the policy stopped
+routing. A free parameter that is never re-derived does not merely go stale; it
+can silently become a constant. The policy was deleted (SHIP_PLAN §0.2).
 
 `splits.py` now holds out half the task set, `run_eval.py --split eval` reports on
 the held-out half by default, and `cascade_routing`'s quality estimators are fitted
 on the calibration half only. So the worst version of this problem is fixed.
 
-What remains: the four constants above were *originally* chosen while looking at
+What remains: the constants above were *originally* chosen while looking at
 all 100 tasks, and re-deriving them properly on the calibration half has not been
 done — they are inherited values that the split now merely protects from getting
 worse. `frontier.py` sidesteps the issue for comparison purposes by sweeping each
 knob across its whole range instead of trusting any single setting.
 
-`PREDICTIVE_CODE_CHARS` is the weakest of the four: it is pure calibration rather
-than a discovered signal, so it has no independent justification at all.
-
 Note that this is a separate problem from the mock constants in `models.py`
 (`MOCK_SKILL`, `MOCK_ROUTER_SKILL`, `MOCK_TOKENS_OUT`, `MOCK_LATENCY_S`). Those are
 not tuned against a result — they *are* the result, in mock mode. See items 3 and 8.
 
-### 6. The predictive router's maths signal is flattering
+### 6. There is no ex-ante quality estimator in this repository
 
-It reads MATH500's shipped human-assigned difficulty `level`. That is legitimate —
-it arrives with the question rather than being derived from the answer — but
-production traffic does not come labelled with its difficulty. The maths half is
-an optimistic upper bound on what a predictive router can do, and should be
-reported that way.
+This issue used to read "the predictive router's maths signal is flattering": it
+read MATH500's shipped human-assigned `level`, which arrives with the question
+rather than being derived from the answer, so it passed the leak test while being
+unavailable to any production router.
 
-The code half is the honest half, and there the available signal is close to
-nothing: prompt length is the best of a weak set, and the report shows what that
-is worth.
+**It was not flattering, it was absent.** Under `MIN_MATH_LEVEL = 5` the level is
+constant across the maths half, so the predicate selected every task and the
+policy was `always_expensive` there. It has been deleted (SHIP_PLAN §0.2).
+
+What is left is a genuine gap rather than a broken implementation, and it is
+worth stating as one. Dekoninck et al. identify a good **ex-ante** quality
+estimator — can I predict this model will do well? — as what routing needs, and
+this repository does not have one. The evidence:
+
+| candidate feature | AUC for "cheap rung fails" | AUC for "routable" |
+|---|---|---|
+| code `prompt_chars` | 0.688 | 0.586 |
+| code `n_asserts` | 0.450 | 0.457 |
+| math `level` | 0.500 (constant) | 0.500 |
+| math `prompt_chars` | 0.510 | 0.460 |
+
+Note how the one feature with any signal loses most of it when the target changes
+from *hard* to *routable* — because on the code half 5 of 40 tasks defeat both
+rungs, so a hardness feature partly detects tasks escalation cannot fix.
+
+`policies._Q_EXANTE` now records the absence in its shape: it keys on
+`(tier, domain, EXANTE_FEATURE)` with the feature slot empty, so `cascade_routing`
+runs with a deliberately uninformative ex-ante term and only the post-hoc half
+working. `EXANTE_FEATURE` is the hook a real estimator would plug into.
+
+The **post-hoc** side is the half this repo does have, on the code domain, and it
+is what `sweep_degraded.py` manipulates.
 
 ### 7. Every rung's capability is stipulated in mock mode
 
@@ -400,7 +432,7 @@ What would settle it is a code verifier that needs no shipped tests — asking t
 cheap model to generate its own tests, or self-consistency over code — measured
 on the same 40 tasks against the same graded outcomes, which the committed cache
 already supports for the answer half. That is the next experiment worth running,
-and it is more informative than a full eleven-policy run.
+and it is more informative than a full ten-policy run.
 
 ## Resolved, recorded so they are not reintroduced
 
@@ -472,7 +504,7 @@ free**.
 Fixed by `_verdict_is_predetermined`, which skips a non-final rung whose verdict is
 knowable without seeing its answer. Deliberately narrow: it asks "is the verdict
 knowable in advance", not "do I expect a rejection". A cascade that skipped rungs it
-merely expected to fail would be a predictive router in disguise, and the whole
+merely expected to fail would be a one-shot router in disguise, and the whole
 comparison rests on the two being different.
 
 Worth noting as a general lesson: this was an API contract (Sonnet 5 rejects

@@ -3,7 +3,7 @@
 > **Written 8 August 2026, after an independent audit of the working tree.**
 >
 > **This file supersedes [STATUS.md](STATUS.md) §2 "Do this next".** That section
-> tells you to go to step 5 and pay for a full eleven-policy run at n=100. Do not
+> tells you to go to step 5 and pay for a full ten-policy run at n=100. Do not
 > do that. The audit found three defects that make the current headline numbers
 > mean something other than what they say, and all three are free to fix. Fixing
 > them first changes what is worth buying.
@@ -47,7 +47,7 @@ they are broken. The 17-point ceiling is set by four defective tasks.
 
 **The routing signal itself survives untouched** — see §0.4.
 
-### 0.2 The one-shot router comparison is degenerate
+### 0.2 The one-shot router comparison is degenerate — **RESOLVED 8 August 2026**
 
 `MIN_MATH_LEVEL = 5` makes `predict_features.level` **constant at 5 across all 60
 math tasks**. `predict_is_hard` returns `level >= 5`, so `predictive` escalates
@@ -62,6 +62,31 @@ consequence of the level filter, not a measurement.
 
 [docs/NOTES.md](docs/NOTES.md) issue 6 calls the math signal "flattering". It is
 not flattering, it is absent.
+
+> **What was done.** The `predictive` policy was **deleted**, not repaired. It
+> measured 86.0% against `random_matched`'s 88.0% — below the coin flip — so it
+> was not the "upper bound on a deployable predictive router" it had been
+> documented as. Predictive routing is half of this repository's subject and
+> survives intact; it is now carried by `llm_router` and `routellm`, neither of
+> which reads a difficulty label.
+>
+> Three dependencies had to move with it. `random_matched` re-anchored to
+> `llm_router`'s realised rate. `routellm` moved to a **fixed** threshold (0.80),
+> so no policy's operating point is defined by another's — and its scores were
+> regenerated, so it produces a row for the first time in the project's history.
+> `run_eval.routing_skill` now computes a null at **each policy's own spend** from
+> the `always_cheap` → `always_expensive` chord, which both cascades had never
+> had; they were being scored against a null matched to the deleted heuristic.
+>
+> The claim is re-established on the learned router rather than dropped:
+> `routellm` scores **AUC 85.4%, −0.9% against a cost-matched coin flip**, and
+> contributes no frontier point above the floor. That is LLMRouterBench,
+> reproduced on real data, with an actual published router.
+>
+> One part does **not** resolve: `llm_router` still routes 30/30 maths tasks
+> expensive. That is now an empirical fact about DeepSeek v4-flash on level-5
+> problems rather than an artifact of a constant feature — but the maths half
+> still cannot discriminate one-shot routers, and only §3-C fixes that.
 
 ### 0.3 Smaller measurement gaps
 
@@ -145,9 +170,11 @@ directly reusable by the `claude` ladder, and the DeepSeek-flash rows by the
 
 Do all of these before spending anything. They change what is worth buying.
 
-1. **Commit the working tree.** 1,864 uncommitted lines including 759 new cache
-   lines. The cache is the irreplaceable asset and it is currently unversioned.
-   This is the most urgent item in the repository.
+1. ~~**Commit the working tree.**~~ **DONE 8 August 2026.** 1,937 lines
+   including 759 new cache rows, committed at tag `pre-predictive-removal`.
+   `results.jsonl` was force-added alongside: gitignored as fabricable, but that
+   copy was real and the next run overwrites it. Note there is still **no git
+   remote**, so the only backup is on this disk.
 2. **Quarantine the 5 broken code tasks** with the evidence from §0.1, and add the
    systematic version: during screening, any task where *both* rungs fail goes to
    a manual review queue rather than straight into the set. The screen data in
@@ -158,8 +185,12 @@ Do all of these before spending anything. They change what is worth buying.
    `max_tokens` should raise, not grade False.
 5. **Lower `run_eval.MAX_SPEND_USD` from $20 to $3.** At $20 a bug eats the whole
    budget before the cap binds.
-6. **Regenerate RouteLLM scores** — `python routellm_router.py --score`. Free,
-   local, no API key. Recovers one of the two never-run policies.
+6. ~~**Regenerate RouteLLM scores**~~ — **DONE 8 August 2026.** 100/100 tasks
+   scored with the `bert` variant, free and local, and committed. `routellm`
+   produced a row for the first time. The score distribution is itself a result:
+   every score lands in [0.509, 0.898], so the router never judges the weak model
+   favoured and the natural 0.5 threshold degenerates to `always_expensive`. It
+   runs at a fixed 0.80 instead (§0.2, `routellm_router.py` DECISION #8b).
 7. **Add the cross-ladder cache read path** described in §1.
 
 ---
@@ -192,8 +223,14 @@ reproducible signal, at $0.079 per unit of signal against math's $3.93.
 `build_taskset.py` selects on MATH500's shipped `level` — absolute difficulty
 against a 2021-era notion of hard. Difficulty and routability are different axes
 and at the top of the scale they decouple. Screening on *measured, reproducible
-cheap-rung failure* targets the quantity the experiment needs, and restores level
-variance, which is what un-breaks the predictive router from §0.2.
+cheap-rung failure* targets the quantity the experiment needs.
+
+Its §0.2 justification has changed but not weakened. C used to be worth buying
+partly because it "un-breaks the predictive router"; that router is gone. What C
+now buys is **routability variance on the maths half**, which is what would let
+`llm_router` and `routellm` be discriminated there at all — today `llm_router`
+sends 30 of 30 maths tasks expensive and the half contributes nothing to the
+one-shot comparison.
 
 **G is deliberately not what the 7 August redraw did.** That cost $2.96 and
 established that Opus is deterministic. Redrawing the expensive rung again would
@@ -230,7 +267,7 @@ repository and an overclaiming one.
 | claim | where | status |
 |---|---|---|
 | "Code is now the harder domain in absolute terms" | STATUS §1 | **retract** — all 4 `both_fail` code tasks are spec-broken (§0.1) |
-| "`predictive` contributes no frontier point — LLMRouterBench reproduced on real data" | STATUS §1, README | **retract** — degenerate feature (§0.2) |
+| "`predictive` contributes no frontier point — LLMRouterBench reproduced on real data" | STATUS §1, README | **DONE 8 Aug** — retracted, policy deleted, and the claim re-established on `routellm` (AUC 85.4%, −0.9% vs random) |
 | "The cascade is within one task of always-expensive — the project's thesis, confirmed" | STATUS §1, README | **qualify** — rests on b/c = 0/1, one discordant task |
 
 Two findings that *are* real and currently buried should be promoted:
