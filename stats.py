@@ -59,22 +59,35 @@ BOOTSTRAP_SEED = 0
 # The comparisons worth printing by default. Every pair is a multiple-comparisons
 # problem, so the default is a short list of pre-registered questions rather than
 # all 78 pairs mined for whichever came out significant.
+#
+# Re-based on 8 August 2026: `predictive` was deleted, and five of the eight
+# pairs named it. `llm_router` takes its place as the predictive family's
+# representative, because it is the member that runs in every mode.
+#
+# ONLY THE FIRST PAIR IS COST-MATCHED. random_matched is calibrated to
+# llm_router's escalation rate, so that one comparison holds spend roughly fixed
+# and isolates skill. Every other pair compares policies at DIFFERENT spending
+# levels - routellm now runs at a fixed threshold, and the cascades spend what
+# they spend. McNemar is blind to cost, so the accuracy verdict alone is not a
+# recommendation: read it next to the d_cost column, which this module prints for
+# every pair. run_eval's routing-skill table is the cost-adjusted view.
 DEFAULT_PAIRS = [
-    # Does the heuristic beat a coin flip at matched spend? The null hypothesis.
-    ("predictive", "random_matched"),
-    # Does the learned router beat the hand-written one?
-    ("routellm", "predictive"),
+    # Does the LLM-as-router beat a coin flip at its own spend? The null
+    # hypothesis, and the one genuinely cost-matched comparison here.
+    ("llm_router", "random_matched"),
     # Does a learned router beat a coin flip at all?
     ("routellm", "random_matched"),
-    # The project's headline architecture comparison.
-    ("cascade", "predictive"),
+    # Learned router against LLM-as-router: the predictive family, internally.
+    ("routellm", "llm_router"),
+    # The project's headline architecture comparison, cascading vs predictive.
+    ("cascade", "llm_router"),
     # Does verifying beat simply always paying for the best model?
     ("cascade", "always_expensive"),
     # Does the unified policy beat each of the two it unifies?
     ("cascade_routing", "cascade"),
-    ("cascade_routing", "predictive"),
-    # Is an LLM routing call worth its round trip?
-    ("llm_router", "predictive"),
+    ("cascade_routing", "llm_router"),
+    # Is routing at all better than not routing? The floor.
+    ("llm_router", "always_cheap"),
 ]
 
 
@@ -176,13 +189,29 @@ def compare(a_name, b_name, full, n_resamples):
 
 
 def verdict(r):
-    """A one-line reading, written to be hard to over-claim from."""
+    """A one-line reading, written to be hard to over-claim from.
+
+    Always mentions cost. Since 8 August 2026 only one pre-registered pair is
+    cost-matched, so "A is more accurate" on its own is an invitation to quote a
+    win that was bought rather than earned. If A wins on accuracy while spending
+    more, the price is part of the finding and is stated in the same sentence.
+    """
     sig = r["p"] < 0.05
     crosses_zero = r["acc_lo"] <= 0 <= r["acc_hi"]
+    d_cost = r["d_cost"]
+    # "Free" means the cost interval spans zero: no detectable price difference.
+    cost_free = r["cost_lo"] <= 0 <= r["cost_hi"]
+    if cost_free:
+        price = "at no detectable cost difference"
+    elif d_cost > 0:
+        price = f"while A spends +${d_cost:.6f}/task"
+    else:
+        price = f"while A spends -${abs(d_cost):.6f}/task"
+
     if not sig or crosses_zero:
-        return "no detectable accuracy difference at this n"
-    return "accuracy difference is detectable" + (
-        " (A better)" if r["d_acc"] > 0 else " (B better)")
+        return f"no detectable accuracy difference at this n, {price}"
+    better = "A better" if r["d_acc"] > 0 else "B better"
+    return f"accuracy difference is detectable ({better}), {price}"
 
 
 def main():
@@ -237,8 +266,8 @@ def main():
     print("bootstrap interval. b/c are the discordant counts McNemar reads.")
     print()
     print(f"{'A':<17}{'B':<17}{'acc A':>7}{'acc B':>7}{'d_acc':>8}"
-          f"{'  95% CI':>17}{'b/c':>8}{'p':>8}")
-    print("-" * 96)
+          f"{'  95% CI':>17}{'b/c':>8}{'p':>8}{'d_$/task':>12}")
+    print("-" * 108)
     out = []
     for x, y in todo:
         r = compare(x, y, full, args.bootstrap)
@@ -249,10 +278,13 @@ def main():
         star = "*" if r["p"] < 0.05 else " "
         print(f"{x:<17}{y:<17}{r['acc_a']:>6.1%} {r['acc_b']:>6.1%} "
               f"{r['d_acc']:>+7.1%} {ci:>16} "
-              f"{r['discordant_a']}/{r['discordant_b']:<5} {r['p']:>7.3f}{star}")
+              f"{r['discordant_a']}/{r['discordant_b']:<5} {r['p']:>7.3f}{star}"
+              f"{r['d_cost']:>+12.6f}")
 
     print()
     print("* p < 0.05 on the exact McNemar test.")
+    print("d_$/task is carried in this table on purpose: only the first pair is")
+    print("cost-matched, so an accuracy win at a higher price is not a free win.")
     print()
     print("cost differences, same pairing (dollars per task, A minus B):")
     print(f"{'A':<17}{'B':<17}{'d_cost':>11}{'  95% CI':>26}")

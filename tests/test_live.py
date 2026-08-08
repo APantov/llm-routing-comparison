@@ -104,16 +104,39 @@ class TestPredictIsHardLive:
         task = live.synthesize_task("prove it", domain="math")
         assert live.predict_is_hard_live(task) is True
 
-    def test_defers_to_benchmark_predicate_when_level_present(self, benchmark_task):
-        """An evaluation task must be routed by the benchmark's own predicate.
+    def test_a_difficulty_label_has_no_effect(self):
+        """A shipped `level` must not change the verdict. The inverse of the
+        test this replaces, and it encodes why the benchmark policy was deleted.
 
-        Otherwise the serving heuristic would silently replace
-        policies.predict_is_hard and the two would stop being comparable.
+        Until 8 August 2026 this function delegated to policies.predict_is_hard
+        whenever a `level` was present, so the "query text only" promise held
+        only for queries that happened to lack the field. That predicate read a
+        difficulty annotation written by someone who had already solved the
+        problem, and under MIN_MATH_LEVEL = 5 it was a constant - which is what
+        made the `predictive` policy `always_expensive` on the whole maths half.
+
+        A serving router sees query text. Adding a label must be inert.
         """
-        import policies
+        task = live.synthesize_task("What is 2+2?", domain="math")
+        baseline = live.predict_is_hard_live(task)
+        assert baseline is False
+
+        for level in (1, 3, 5, 99):
+            labelled = dict(task)
+            labelled["predict_features"] = {**task.get("predict_features", {}),
+                                            "level": level}
+            assert live.predict_is_hard_live(labelled) is baseline, level
+
+    def test_benchmark_tasks_are_routed_on_text_alone(self, benchmark_task):
+        """Real evaluation tasks carry a level; it must still be ignored."""
         maths = [t for t in benchmark_task if t["domain"] == "math"]
         if not maths:
             import pytest as _pytest
             _pytest.skip("no math tasks")
         for task in maths[:20]:
-            assert live.predict_is_hard_live(task) == policies.predict_is_hard(task)
+            stripped = dict(task)
+            stripped["predict_features"] = {
+                k: v for k, v in task.get("predict_features", {}).items()
+                if k != "level"
+            }
+            assert live.predict_is_hard_live(task) == live.predict_is_hard_live(stripped)

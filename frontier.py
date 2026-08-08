@@ -3,8 +3,8 @@
 WHY A CURVE AND NOT A TABLE ROW
 -------------------------------
 Every policy in this repo has a knob. `cascade` has an agreement threshold,
-`predictive` has its difficulty cutoffs, `routellm` has a score threshold,
-`cascade_routing` has lambda. Turning any of them buys accuracy with money.
+`routellm` has a score threshold, `cascade_routing` has lambda, and the random
+baseline has its escalation rate. Turning any of them buys accuracy with money.
 
 So comparing two policies at one setting each compares two arbitrary points, and
 the winner can be changed by turning either knob. That is the single most common
@@ -114,47 +114,18 @@ def sweep_cascade(tasks, _n_points):
     return out
 
 
-def sweep_predictive(tasks, n_points):
-    """Sweep the predictive router by target escalation rate.
-
-    Its two knobs are in different units - a MATH500 level and a character count -
-    so sweeping them independently would trace a surface, not a curve, and the two
-    halves would drift to different spending levels. Instead, pick the per-domain
-    threshold that lands closest to a shared target rate. That keeps the two halves
-    cost-matched at every point on the curve, which is the same discipline
-    random_matched and routellm are held to.
-    """
-    out = []
-    saved = (policies.PREDICTIVE_HARD_LEVEL, policies.PREDICTIVE_CODE_CHARS)
-    math_vals = sorted({t["predict_features"]["level"]
-                        for t in tasks if t["domain"] == "math"})
-    code_vals = sorted({t["predict_features"]["prompt_chars"]
-                        for t in tasks if t["domain"] == "code"})
-    try:
-        for i in range(n_points + 1):
-            target = i / n_points
-            # Highest threshold whose realised rate is still at least the target,
-            # so the curve is monotone in spend.
-            def pick(vals, key, domain):
-                sub = [t for t in tasks if t["domain"] == domain]
-                if not sub:
-                    return (vals[-1] + 1) if vals else 0
-                best = (vals[-1] + 1) if vals else 0
-                for v in sorted(vals, reverse=True):
-                    rate = sum(t["predict_features"][key] >= v for t in sub) / len(sub)
-                    if rate >= target:
-                        best = v
-                        break
-                return best
-
-            policies.PREDICTIVE_HARD_LEVEL = pick(math_vals, "level", "math")
-            policies.PREDICTIVE_CODE_CHARS = pick(code_vals, "prompt_chars", "code")
-            acc, cost = _measure(tasks, policies.policy_predictive)
-            out.append({"knob": "target_rate", "value": round(target, 4),
-                        "accuracy": acc, "cost_per_task": cost})
-    finally:
-        policies.PREDICTIVE_HARD_LEVEL, policies.PREDICTIVE_CODE_CHARS = saved
-    return out
+# `sweep_predictive` was removed on 8 August 2026 with the policy it swept.
+#
+# Worth recording WHY it was not merely unused but wrong. It picked per-domain
+# thresholds to hit a target escalation rate, drawn from the values actually
+# present in the task set. On the math half those values were {5} - a single
+# level, because MIN_MATH_LEVEL = 5 - so the sweep had exactly two attainable
+# points there, rate 0 and rate 1, and could not trace a curve at all.
+#
+# The report that came out of it, "predictive contributes no point to the
+# frontier", was therefore a description of a degenerate sweep rather than a
+# finding about predictive routing. The predictive family is now represented by
+# sweep_routellm below, whose knob is a continuous score threshold.
 
 
 def sweep_routellm(tasks, n_points):
@@ -206,7 +177,6 @@ def sweep_cascade_routing(tasks, n_points):
 
 SWEEPS = {
     "random": sweep_random,
-    "predictive": sweep_predictive,
     "routellm": sweep_routellm,
     "cascade": sweep_cascade,
     "cascade_routing": sweep_cascade_routing,

@@ -51,14 +51,27 @@ N_CODE = 40
 # the real cheap rung went 10-for-10 on the sampled set. Level 5 alone leaves 134
 # candidates, comfortably more than the 60 sampled.
 #
-# KNOWN COST, accepted deliberately. A single level means `difficulty_proxy` is
-# constant across the maths half, so add_difficulty_pct() gives every maths task
-# the same percentile and `predict_features.level` carries no signal at all. The
-# predictive router is therefore BLIND on maths under this setting, and splits.py
-# can only stratify maths by domain. Both are recoverable with
-# --min-math-level 4, which restores two distinct levels. Neither affects the
-# always_cheap / always_expensive probe, which is what this setting exists to
-# serve: those two policies never look at difficulty.
+# KNOWN COST, and it cost more than this comment expected. A single level means
+# `difficulty_proxy` is constant across the maths half, so add_difficulty_pct()
+# gives every maths task the same percentile and `predict_features.level` carries
+# no signal at all. splits.py can only stratify maths by domain.
+#
+# WHAT THIS COMMENT UNDERSTATED, recorded 8 August 2026. The hand-written
+# predictive policy read `level >= 5` and therefore returned True for all 60
+# maths tasks: not "blind" but CONSTANT, which made it `always_expensive` on 60%
+# of the task set while still being reported as a router. It scored below the
+# coin flip it was meant to beat, and its frontier sweep had two attainable
+# points rather than a curve. The policy was deleted (policies.py DECISION #4)
+# and predictive routing is now measured with `llm_router` and `routellm`,
+# neither of which reads this field.
+#
+# The lesson worth carrying: a consequence recorded at the place that CAUSES it
+# does not reach the place that SUFFERS it. This note existed and was correct
+# from 6 August; nothing downstream ever read it.
+#
+# Recoverable with --min-math-level 4, which restores two distinct levels. None
+# of it affects the always_cheap / always_expensive probe, which is what this
+# setting exists to serve: those two policies never look at difficulty.
 MIN_MATH_LEVEL = 5
 
 
@@ -80,8 +93,10 @@ def load_math500(min_level=None):
                     "grader": "exact_match_str",
                     "grader_payload": {"answer": row["answer"]},
                     # MATH500 ships a 1-5 difficulty level. Unlike a reference
-                    # solution's length, this arrives WITH the question, so the
-                    # predictive router may use it without leaking the answer.
+                    # solution's length, this arrives WITH the question, so a
+                    # router may use it without leaking the answer. Passing the
+                    # leak test is not the same as being useful: under
+                    # MIN_MATH_LEVEL = 5 this field is constant. See DECISION #4.
                     "difficulty_proxy": row["level"],
                     "subject": row["subject"],
                     # See the note on predict_features in load_mbpp.
@@ -129,8 +144,8 @@ def load_mbpp():
                 # for driving the mock's success rate; it would be a leak as a
                 # router feature, which is why the router cannot reach it.
                 "difficulty_proxy": len(row["code"].splitlines()),
-                # Everything the predictive router is allowed to see, in its own
-                # field on purpose: the router reads ONLY from here, so the leak
+                # Everything a router is allowed to see before calling anything,
+                # in its own field on purpose: routers read ONLY from here, so the leak
                 # above cannot be reintroduced by someone reaching for
                 # difficulty_proxy because it happens to be nearby. Every entry
                 # must be derivable from the question alone.
@@ -235,7 +250,7 @@ def add_difficulty_pct(tasks):
     TIES SHARE A PERCENTILE. This matters because the math proxy is `level`:
     only three distinct values across 60 tasks, so roughly 20 tasks tie at each
     one. Ranking them by position would break those ties on file order, and both
-    the mock's success rate and the predictive router's threshold would then be
+    the mock's success rate and any difficulty-based threshold would then be
     reading sort artefacts as difficulty.
     """
     for domain in ("math", "code"):

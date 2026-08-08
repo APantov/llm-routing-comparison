@@ -1,17 +1,24 @@
 """RouteLLM's pretrained routers, as a policy in this experiment.
 
-The weakest link in the project is the hand-written predictive heuristic, whose
-signal on the code half is barely better than random. This replaces it with a
-published learned router, trained on Chatbot Arena preference data, at zero
-training cost.
+One of the two predictive routers this repository compares against cascading -
+the other being `llm_router`, which asks the cheap model. This one is a published
+learned router, trained on Chatbot Arena preference data, at zero training cost
+and with no per-query API call on the bert path.
+
+It replaced a hand-written heuristic that was deleted on 8 August 2026 for being
+a constant on 60% of the task set (policies.py DECISION #4).
 
 The interesting outcome is the unflattering one. RouteLLM's routers were trained
 on human preference between GPT-4-class and Mixtral-class models on open-ended
-chat. This applies them to Haiku 4.5 vs Opus 5 on objectively-graded competition
-maths and MBPP. That is squarely out of distribution, and if the learned router
-loses to a one-line threshold on MATH500's difficulty level, that is a real
-finding rather than a disappointment: preference-trained routers transfer poorly
-to objectively-graded reasoning, because preference is not correctness.
+chat. This applies them to DeepSeek v4-flash vs Opus 5 on objectively-graded
+competition maths and MBPP+. That is squarely out of distribution, and the
+prediction has now been checked: across all 100 tasks the router's scores span
+[0.509, 0.898] and NEVER fall below 0.5, so it never once judges the weak model
+favoured. At the semantically natural threshold it degenerates into
+always_expensive. Preference-trained routers transfer poorly to objectively
+graded reasoning, because preference is not correctness - and the failure is
+visible in the score distribution before any accuracy is measured. See
+DECISION #8b for what threshold is used instead, and why.
 
 
 WHICH VARIANT, AND WHY - read this before changing it
@@ -249,10 +256,50 @@ def score_tasks(tasks, variant="bert", force=False):
 # Threshold calibration
 # ---------------------------------------------------------------------------
 
-# Filled by calibrate(). Per domain, like RANDOM_MATCHED_RATES, so the
-# comparison against predictive AND random_matched is cost-matched on both
-# halves rather than only in aggregate.
+# Filled by use_fixed_threshold() for the headline run, or by calibrate() for
+# frontier.py's rate sweep. Per domain, because a single global threshold would
+# let the router spend unevenly across the two halves.
 THRESHOLDS = {}
+
+# ---------------------------------------------------------------------------
+# DECISION #8b: the operating threshold. FIXED, not calibrated. 8 August 2026.
+#
+# This used to be calibrated to reproduce `predictive`'s expensive-call rate, so
+# the two routers were cost-matched by construction. `predictive` was deleted
+# (policies.py DECISION #4), and re-anchoring to another policy would just move
+# the dependency: a router whose spending level is defined by a different
+# router's spending level cannot be read on its own.
+#
+# So the threshold is now a declared constant. It is ARBITRARY in the sense that
+# it was not tuned for accuracy, and it is not derived from anything else in this
+# repository.
+#
+# WHY NOT 0.5. `calculate_strong_win_rate` returns P(the strong model wins), so
+# 0.5 is the semantically natural cut: escalate when the strong model is more
+# likely than not to win. On this task set it routes EVERYTHING expensive. The
+# scores never fall below 0.509 - measured across all 100 tasks the range is
+# [0.509, 0.898], median 0.783. The router never once says the weak model is
+# favoured.
+#
+# That is a finding rather than an inconvenience, and it is the out-of-
+# distribution behaviour this module's docstring predicted: bert_gpt4_augmented
+# was trained on human preference between chat models, and it is being asked
+# about competition maths and MBPP+. Preference is not correctness, and a model
+# asked "which answer would a human prefer" on a task it cannot judge says
+# "the big one" every time.
+#
+# 0.80 is a round number inside the observed range. It splits the set 42/58
+# (math 50%, code 30%) rather than degenerating - which is the whole point, since
+# a policy that routes 100% one way is `always_expensive` wearing a router's
+# name, and that is exactly what `predictive` was deleted for.
+#
+# The consequence to keep in view: routellm is no longer cost-matched to any
+# other policy, so an accuracy difference against one conflates routing skill
+# with spending level. run_eval.routing_skill handles this by computing a null at
+# each policy's OWN cost, and frontier.py sweeps the rate across its whole range,
+# which is the comparison that never depended on a matched operating point.
+# ---------------------------------------------------------------------------
+FIXED_THRESHOLD = 0.80
 
 # Whether calibrate() has run against the current task set.
 #
@@ -266,17 +313,38 @@ THRESHOLDS = {}
 CALIBRATED = False
 
 
+def use_fixed_threshold(tasks=None, value=None):
+    """Set the operating threshold to the declared constant. See DECISION #8b.
+
+    This is what the headline run uses. `tasks` is optional and only narrows
+    which domains get an entry; without it every domain this repo knows about is
+    covered, because routes_expensive raises on a domain it has no threshold for.
+
+    IT MUST SET `CALIBRATED`. run_eval gates the policy on that flag, and it was
+    previously assigned only inside calibrate(). Setting THRESHOLDS from outside
+    without it makes routellm sit out the entire run in silence - no error, no
+    dropped-policy line, just a missing row. That is why this is a function
+    rather than an assignment at the call site.
+    """
+    global THRESHOLDS, CALIBRATED
+    th = FIXED_THRESHOLD if value is None else value
+    domains = ({t["domain"] for t in tasks} if tasks else {"math", "code"})
+    THRESHOLDS = {d: th for d in domains}
+    CALIBRATED = bool(THRESHOLDS)
+    return THRESHOLDS
+
+
 def calibrate(tasks, target_rates):
-    """Pick the score threshold that reproduces predictive's expensive-call rate.
+    """Pick the score threshold that reproduces a target expensive-call rate.
 
-    RouteLLM's own threshold is a free parameter, so comparing its default
-    against a heuristic tuned to a particular escalation rate would compare two
-    different spending levels and then call the difference quality. Calibrating
-    to a matched rate is what makes the comparison like-for-like.
+    NOT used by the headline run any more - see use_fixed_threshold() and
+    DECISION #8b. This is the rate-parameterised form frontier.py needs: it
+    sweeps `target_rates` from 0 to 1 to trace the router's whole cost-quality
+    curve, which is the comparison that never depended on matching some other
+    policy's operating point.
 
-    Per domain rather than global, because predictive's rate differs by domain
-    and a single global threshold would let the router spend unevenly across the
-    two halves while the heuristic could not.
+    Per domain rather than global, so the router cannot spend unevenly across
+    the two halves at a given point on the sweep.
 
     Concretely: take the (1 - rate) quantile of the scores in that domain, so
     exactly `rate` of tasks score at or above it. Ties can make the realised
@@ -318,7 +386,6 @@ def main():
     args = ap.parse_args()
 
     import run_eval
-    import policies
 
     tasks = run_eval.load_tasks()
 
@@ -332,26 +399,40 @@ def main():
         print("  python3 routellm_router.py --score --variant mf   # needs OPENAI_API_KEY")
         return
 
-    rates = policies.calibrate_random_rates(tasks)
-    th = calibrate(tasks, rates)
+    th = use_fixed_threshold(tasks)
     print(f"\nrouter: routellm {variant!r} ({VARIANTS[variant]['checkpoint']})")
     print(f"scored tasks: {sum(1 for t in tasks if available([t]))}/{len(tasks)}")
-    print(f"\n{'domain':<8} {'target rate':>12} {'threshold':>11} {'realised':>10} "
+    print(f"threshold: {FIXED_THRESHOLD} (fixed, not calibrated - DECISION #8b)")
+    print(f"\n{'domain':<8} {'threshold':>11} {'realised':>10} "
           f"{'score min':>10} {'median':>9} {'max':>9}")
-    print("-" * 74)
+    print("-" * 62)
     for domain in sorted(th):
         sub = [t for t in tasks if t["domain"] == domain]
         sc = sorted(score_of(t) for t in sub)
         realised = sum(routes_expensive(t) for t in sub) / len(sub)
-        print(f"{domain:<8} {rates[domain]:>12.1%} {th[domain]:>11.4f} "
+        print(f"{domain:<8} {th[domain]:>11.4f} "
               f"{realised:>10.1%} {sc[0]:>10.4f} {sc[len(sc) // 2]:>9.4f} {sc[-1]:>9.4f}")
 
-    # How much the learned router and the heuristic actually disagree. If they
-    # route the same tasks, any accuracy difference is noise.
-    agree = sum(1 for t in tasks if routes_expensive(t) == policies.predict_is_hard(t))
-    print(f"\nagreement with predict_is_hard: {agree}/{len(tasks)} = {agree / len(tasks):.1%}")
-    print("  (both send the same fraction of traffic expensive by construction,")
-    print("   so this is purely whether they pick the SAME tasks)")
+    # The distribution matters more than the threshold, because it is what makes
+    # the natural cut unusable. A preference-trained router that never scores
+    # below 0.5 cannot be thresholded at 0.5.
+    allsc = sorted(score_of(t) for t in tasks)
+    below = sum(s < 0.5 for s in allsc)
+    print(f"\nscores below 0.5 (the weak model favoured): {below}/{len(allsc)}")
+    if below == 0:
+        print("  none. At the semantically natural threshold this router is")
+        print("  always_expensive. See DECISION #8b - preference is not correctness.")
+
+    # What the threshold is sitting on. A fixed cut is only meaningful if it
+    # lands somewhere the scores actually are, so print how far it is from the
+    # nearest score and how fast the rate moves around it. A threshold in a gap
+    # is brittle: a rescore that shifts scores by 0.01 would move the rate a lot.
+    print(f"\nsensitivity of the {FIXED_THRESHOLD} cut:")
+    for delta in (-0.05, -0.02, 0.0, 0.02, 0.05):
+        th = FIXED_THRESHOLD + delta
+        rate = sum(score_of(t) >= th for t in tasks) / len(tasks)
+        mark = "  <- in use" if delta == 0.0 else ""
+        print(f"  threshold {th:.2f}  ->  {rate:>5.1%} expensive{mark}")
 
 
 if __name__ == "__main__":

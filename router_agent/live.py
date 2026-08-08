@@ -22,17 +22,21 @@ pretending otherwise is how a routing result stops replicating:
 nothing here reports correctness - only `verified`, which is a verifier's
 opinion. `verifiers.py` is where that distinction is enforced.
 
-**2. The difficulty label.** `policies.predict_is_hard` routes maths on
-`predict_features["level"] >= 5`. That level is MATH500's own annotation,
-shipped with the dataset and written by a human who had already solved the
-problem. A user's query arrives with no such field and never will.
+**2. The difficulty label.** The benchmark used to route maths on
+`predict_features["level"] >= 5` - MATH500's own annotation, shipped with the
+dataset and written by a human who had already solved the problem. A user's
+query arrives with no such field and never will.
 
-That second one is worth stating plainly, because it flatters the benchmark:
-**the predictive router measured in this repo has an advantage its deployed
-counterpart cannot have.** Whatever `predictive` scores in `results.jsonl` is
-therefore an upper bound on what a deployed predictive router would score. The
-serving heuristic below is honest about being weaker; it reads only the query
-text, which is all a real router ever has.
+That asymmetry was stated here as a caveat, and on 8 August 2026 it turned out
+to be worse than a caveat. With the maths half restricted to level 5, the label
+was CONSTANT, so the benchmark's `predictive` policy was not routing at all -
+it was `always_expensive` on 60% of the task set. The policy has been deleted
+(policies.py DECISION #4) and predictive routing in the benchmark is now
+represented by `llm_router` and `routellm`, neither of which reads a label.
+
+The serving heuristic below never had that problem and no longer has the branch
+that could import it: it reads only the query text, which is all a real router
+ever has.
 
 This cuts in the cascade's favour and it is not a thumb on the scale - it is a
 real structural difference between the two architectures. A cascade needs no
@@ -219,23 +223,24 @@ _HARD_MARKERS = (
 
 
 def predict_is_hard_live(task: dict) -> bool:
-    """The deployable predictive heuristic: query text only.
+    """The deployable predictive heuristic: query text only, always.
 
-    Weaker than `policies.predict_is_hard`, on purpose and unavoidably. The
-    benchmark's version reads MATH500's shipped `level`; this one cannot,
-    because a user's question does not come with a difficulty annotation.
+    QUERY TEXT ONLY IS NOW UNCONDITIONAL. Until 8 August 2026 this function had
+    a branch: when a task carried a `level` field it delegated to the
+    benchmark's `policies.predict_is_hard`, so that the serving heuristic and
+    the benchmark policy could not drift apart on evaluation tasks.
 
-    Anyone reporting a number from this function should not compare it to the
-    `predictive` row of `results.jsonl` - that row was produced with an oracle
-    feature. See the module docstring.
+    That branch is gone, along with the predicate it called. It was the one path
+    on which a function documented as reading only the query text quietly
+    consumed a difficulty label written by someone who had already solved the
+    problem - and that label turned out to be constant, which is what got the
+    benchmark's `predictive` policy deleted (policies.py DECISION #4).
+
+    So a supplied `level` now has no effect here whatsoever. That is the point:
+    this is what a router can actually see in production, and it is the same
+    thing whether the task came from MATH500 or from a user.
     """
     features = task.get("predict_features", {})
-
-    # If a real level is present the caller has an evaluation task, not a live
-    # one, and the benchmark's own predicate is the right thing to use.
-    if "level" in features:
-        from policies import predict_is_hard
-        return predict_is_hard(task)
 
     prompt = task["prompt"].lower()
     if any(m in prompt for m in _HARD_MARKERS):

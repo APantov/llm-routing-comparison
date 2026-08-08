@@ -363,6 +363,15 @@ def policies_resource() -> str:
             "pays": "exactly one call, no verification",
             "buys": "no wasted cheap call",
             "loses_when": "it misroutes - and it never finds out that it did",
+            "note": (
+                "This is predictive routing the architecture, served on query "
+                "text alone. Do not read the benchmark's old `predictive` row "
+                "as a measurement of it: that policy routed on a shipped "
+                "difficulty label which was constant across the maths half, "
+                "making it always_expensive there, and it was deleted on "
+                "2026-08-08. The benchmark now measures this architecture with "
+                "`llm_router` and `routellm`."
+            ),
         },
         "always_cheap": {"does": "always the bottom rung", "role": "cost floor"},
         "always_expensive": {

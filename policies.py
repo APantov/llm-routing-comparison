@@ -5,14 +5,26 @@ Each takes a task and returns a PolicyResult. The values marked DECISION are the
 tuneable choices the experiment rests on; changing one and re-running is the
 intended way to see what it does.
 
+The two architectures this repository compares:
+
+  PREDICTIVE (one-shot)   inspect the query, pick a tier, commit. Pays once.
+                          Misroutes silently and never finds out.
+
+    llm_router          the cheap model itself picks the tier, then answers
+    routellm            a pretrained learned router scores the prompt
+
+  CASCADING               answer, verify, escalate on failure. Never misroutes
+                          an easy query. Double-pays on every escalation.
+
+    cascade             cheap -> verify -> escalate, over every rung
+    cascade_routing     routing and cascading unified under one lambda
+    cascade_degraded    cascade with a deliberately damaged verifier (code only)
+
+  Fixed and bounds:
+
     always_cheap        one cheap call, always
     always_expensive    one expensive call, always
-    predictive          hand-written heuristic picks a tier up front
-    routellm            a pretrained learned router picks a tier up front
-    llm_router          the cheap model itself picks the tier, then answers
-    random_matched      coin flip at predictive's own escalation rate
-    cascade             cheap -> verify -> escalate on failure
-    cascade_degraded    cascade with a deliberately damaged verifier (code only)
+    random_matched      coin flip at llm_router's own escalation rate
     oracle              hindsight-optimal, not deployable
 
 Three of them exist for reasons that are not obvious from the name:
@@ -23,13 +35,16 @@ Three of them exist for reasons that are not obvious from the name:
 
   random_matched    is the null hypothesis. A router that escalates the same
                     fraction of tasks AT RANDOM also gains accuracy - it just
-                    pays for it. Without this baseline, a gap between predictive
+                    pays for it. Without this baseline, a gap between a router
                     and always_cheap establishes only that spending more helps,
-                    not that the heuristic has any skill.
+                    not that the router has any skill.
 
-  llm_router        exists to test DECISION #4's own claim that an LLM routing
-                    call "would defeat the purpose". That is a cost claim, and
-                    cost is measurable.
+  llm_router        exists to test the claim recorded in DECISION #4 that an LLM
+                    routing call "would defeat the purpose". That is a cost
+                    claim, and cost is measurable.
+
+A hand-written `predictive` policy was removed on 8 August 2026. See the
+DECISION #4 tombstone below: it was not a router, it was a constant.
 """
 
 from dataclasses import dataclass, field
@@ -440,84 +455,88 @@ def policy_cascade_degraded(task):
 
 
 # ---------------------------------------------------------------------------
-# DECISION #4: the predictive heuristic.
+# DECISION #4: the hand-written predictive heuristic. RETRACTED 8 August 2026.
 #
-# Route ONCE, up front, using only features available before calling anything.
-# Deliberately NOT a trained model and NOT an LLM call - an LLM call would add a
-# full round trip. (That claim is itself tested; see DECISION #7.)
+# The numbering is kept and the slot left empty on purpose. DECISIONS #1-#9 are
+# cited by number in README.md, docs/NOTES.md and docs/WALKTHROUGH.md, and
+# renumbering would silently rewrite the record. This is a tombstone.
 #
-# The rule is DOMAIN-AWARE because the available signal is wildly asymmetric, and
-# that asymmetry is a result rather than an inconvenience:
+# WHAT IT WAS. `predict_is_hard` routed math on MATH500's shipped `level >= 5`
+# and code on `prompt_chars >= 100`, choosing one tier up front and committing.
 #
-#   math - MATH500 ships a human-assigned `level` (1-5) alongside the question.
-#          Legitimate under the leak test, since it arrives with the question
-#          rather than being derived from the answer, and it is strongly
-#          predictive. But it is FLATTERING: production traffic does not arrive
-#          labelled with its difficulty, so the math half is an optimistic upper
-#          bound on what a predictive router can do.
+# WHY IT IS GONE. build_taskset.MIN_MATH_LEVEL was raised to 5 on 6 August, which
+# makes `predict_features.level` CONSTANT at 5 across all 60 math tasks. The
+# predicate therefore returned True for every one of them: on 60% of the task set
+# the policy was not a router, it was `always_expensive` spelled differently.
+# build_taskset.py:54-61 recorded that consequence when the filter was raised; it
+# never reached this file, the report, or the README.
 #
-#   code - nothing in an MBPP prompt predicts difficulty. Correlations against
-#          the reference solution's line count on this task set are all weak:
-#          prompt characters is the strongest of a bad set at r ~ +0.3, and
-#          assert count is indistinguishable from zero. The hard part of a coding
-#          task lives in the solution, not in the question. Prompt length is used
-#          because it is the least bad option, and it is reported as near-random
-#          rather than dressed up.
+# It was measured at 86.0% accuracy against `random_matched`'s 88.0% and
+# `llm_router`'s 88.0% on the held-out half - BELOW the coin flip it was supposed
+# to beat - and its frontier sweep drew two attainable points rather than a curve,
+# because a threshold sweep over a constant has nowhere to go. The published
+# reading of that sweep, "predictive contributes no point to the frontier,
+# LLMRouterBench reproduced on real data", was an arithmetic consequence of the
+# level filter and is retracted. See SHIP_PLAN.md 0.2 and 5.
 #
-# That is the second asymmetry in the project: predictive routing needs a
-# difficulty signal up front, and a cascade does not, because it looks at the
-# answer.
+# THE CLAIM IT MADE, which DECISION #7 exists to test and run_eval still prints:
+# an LLM routing call "would add a full round trip and defeat the purpose". The
+# latency half is true. The cost half is quantitatively wrong at this project's
+# own prices, and `llm_router` measures by how much.
+#
+# WHAT REPLACED IT. Predictive routing did not go away - it is one of the two
+# architectures this repository exists to compare. It is now represented by its
+# two real implementations, `llm_router` and `routellm`, neither of which reads a
+# difficulty label that no production query carries. That was always the deeper
+# problem with this heuristic: `level` is written by someone who has already
+# solved the problem. The asymmetry it was meant to illustrate survives it -
+# predictive routing needs a difficulty signal up front, and a cascade does not,
+# because it looks at the answer.
+#
+# `predict_features` stays in the task set. It is the leak-discipline artifact
+# (build_taskset.py populates it with question-derived values ONLY, keeping the
+# reference solution's line count out of reach of any router), and
+# router_agent/live.py reads `prompt_chars` from it.
 # ---------------------------------------------------------------------------
-
-# MATH500 level at or above which the expensive model is used. On the shipped
-# 60-task math half, 5 selects fewer tasks than 4 does; run_eval prints the
-# realised escalation rate, which is the number to read.
-PREDICTIVE_HARD_LEVEL = 5
-
-# Prompt-length cutoff for code, in characters. This is a calibration rather than
-# a discovered signal: it was chosen to put the code half at roughly the same
-# escalation rate as the math half, so the two are cost-comparable.
-PREDICTIVE_CODE_CHARS = 100
-
-
-def predict_is_hard(task) -> bool:
-    # Reads ONLY from predict_features, which build_taskset.py populates with
-    # question-derived values. Not from difficulty_proxy, which for code is the
-    # reference solution's line count - information unavailable before answering.
-    # Keeping the allowed inputs in their own field is what stops that leak from
-    # creeping back in.
-    f = task["predict_features"]
-    if task["domain"] == "math":
-        return f["level"] >= PREDICTIVE_HARD_LEVEL
-    return f["prompt_chars"] >= PREDICTIVE_CODE_CHARS
-
-
-def policy_predictive(task):
-    tier = "expensive" if predict_is_hard(task) else "cheap"
-    r = models.call(tier, task)
-    return PolicyResult(
-        task_id=task["id"], policy="predictive",
-        correct=grade(task, r.text),
-        cost_usd=r.cost_usd, latency_s=r.latency_s,
-        calls=[tier],
-    )
 
 
 # ---------------------------------------------------------------------------
-# DECISION #6: the random baselines. THE NULL HYPOTHESIS.
+# DECISION #6: the random baseline. THE NULL HYPOTHESIS.
 #
-# A gap between predictive and always_cheap is uninterpretable on its own,
-# because a router that escalates the same NUMBER of tasks at random also gains
-# accuracy - it just spends money to do it. Without this baseline there is no
-# evidence that predict_is_hard has any skill, only evidence that spending more
-# helps. run_eval reports the resulting "routing skill"
-# figure, which is the interpretable version of the raw accuracy gap.
+# A gap between a router and always_cheap is uninterpretable on its own, because
+# a router that escalates the same NUMBER of tasks at random also gains accuracy
+# - it just spends money to do it. Without this baseline there is no evidence
+# that any router has skill, only evidence that spending more helps.
 #
-# The escalation rate is matched PER DOMAIN, not globally, because predictive's
+# THE ANCHOR IS `llm_router`, changed 8 August 2026 from the deleted `predictive`
+# heuristic (DECISION #4). It is the only member of the predictive family that
+# runs in every mode with no external dependency: `routellm` sits out whenever
+# its score cache is stale, and anchoring the null to a policy that may not run
+# is a bad structural bet.
+#
+# Reading the rate costs nothing. The routing decisions go through
+# models.call(..., kind="route"), which is response_cache-backed, so the pre-pass
+# hits exactly the entries policy_llm_router hits moments later. In replay and
+# mock it is free by construction; in real mode the policy pays for those calls
+# anyway and the cache deduplicates.
+#
+# TWO DISCLOSURES, both of which run_eval prints:
+#   - random_matched does NOT pay the router call, so it is cheaper than
+#     llm_router by exactly mean(ROUTER_CALL_COST). The LLM-as-router overhead
+#     block reports that number.
+#   - in mock mode the anchor derives from models.MOCK_ROUTER_SKILL, so the null
+#     is fabricated along with everything else. The SIMULATED banner covers it.
+#
+# The escalation rate is matched PER DOMAIN, not globally, because the router's
 # rate differs by domain and a global match would compare a router that spends
-# unevenly against one that spends evenly. The rates are measured off
-# predict_is_hard at run time rather than hard-coded, so they cannot drift when
-# PREDICTIVE_HARD_LEVEL changes.
+# unevenly against one that spends evenly. Measured at run time on the tasks
+# actually being run, so --limit and --domain runs stay cost-matched.
+#
+# ONE ANCHORED NULL CANNOT SERVE A WHOLE FAMILY. Policies that spend differently
+# from llm_router - routellm on a fixed threshold, and both cascades - need a
+# null at THEIR OWN spend. run_eval.routing_skill computes that analytically from
+# the always_cheap -> always_expensive chord. This policy stays as the printed
+# empirical check that the chord is not a fiction.
 #
 # One draw is not a baseline. RANDOM_SEED picks which draw goes into
 # results.jsonl for pairing; frontier.py sweeps the rate across its whole range,
@@ -526,24 +545,28 @@ def policy_predictive(task):
 RANDOM_SEED = 0
 
 # Set by calibrate_random_rates(), which run_eval, frontier and routellm_router
-# all call before running anything. The defaults are a fallback
-# so the policy is usable uncalibrated; every entry point calibrates.
+# all call before running anything. The defaults are a fallback so the policy is
+# usable uncalibrated; every entry point calibrates.
 RANDOM_MATCHED_RATES = {"math": 0.40, "code": 0.35}
 
 
-def calibrate_random_rates(tasks):
-    """Set random_matched's escalation rate to predictive's realised rate.
+def calibrate_random_rates(tasks, decisions=None):
+    """Set random_matched's escalation rate to llm_router's realised rate.
 
-    Measured on the tasks actually being run rather than assumed, so that
-    --limit and --domain runs stay cost-matched instead of silently comparing a
-    router at one spending level against a router at another.
+    `decisions` maps task id -> True when the router said HARD, as returned by
+    llm_router_decisions(). Passing None keeps the declared defaults rather than
+    guessing, which is the same "sit out rather than invent" rule routellm and
+    cascade_routing follow; the caller is expected to say so out loud.
     """
     global RANDOM_MATCHED_RATES
+    if decisions is None:
+        return RANDOM_MATCHED_RATES
     rates = {}
     for domain in ("math", "code"):
         sub = [t for t in tasks if t["domain"] == domain]
         if sub:
-            rates[domain] = sum(predict_is_hard(t) for t in sub) / len(sub)
+            rates[domain] = sum(
+                bool(decisions.get(t["id"], False)) for t in sub) / len(sub)
     RANDOM_MATCHED_RATES = rates or RANDOM_MATCHED_RATES
     return RANDOM_MATCHED_RATES
 
@@ -572,7 +595,7 @@ def _policy_random(task, rate, name):
 
 
 def policy_random_matched(task):
-    """The null hypothesis: escalate at predictive's own rate, but at random.
+    """The null hypothesis: escalate at llm_router's own rate, but at random.
 
     There used to be a second `random_50` anchor at a fixed 50/50 rate. It was
     removed rather than kept: frontier.py sweeps this policy's rate from 0 to 1, so
@@ -612,6 +635,33 @@ ROUTER_CALL_COST = []
 ROUTER_CALL_LATENCY = []
 
 
+def _said_hard(text) -> bool:
+    """Parse the router's reply. Anything unrecognised routes CHEAP.
+
+    Extracted so the policy and the rate pre-pass cannot drift apart. If they
+    read the same reply differently, random_matched would be calibrated to a
+    rate llm_router never realised, and the null would stop being cost-matched
+    without anything failing.
+    """
+    return "HARD" in text.strip().upper()
+
+
+def llm_router_decisions(tasks):
+    """{task_id: said_hard} for DECISION #6's rate anchor. Costs nothing extra.
+
+    Every call here is the same (tier, prompt, kind) tuple policy_llm_router
+    makes, so response_cache serves this pass and the policy from one draw. In
+    replay a missing entry raises ReplayMiss, which the caller catches and
+    degrades from - it does not invent a decision.
+
+    Deliberately does NOT append to ROUTER_CALL_COST / ROUTER_CALL_LATENCY. The
+    policy appends on its own pass, and double-counting here would inflate the
+    overhead figure the report prints to test DECISION #4's cost claim.
+    """
+    return {t["id"]: _said_hard(models.call("cheap", t, kind="route").text)
+            for t in tasks}
+
+
 def policy_llm_router(task):
     """Ask the cheap model whether the task is hard, then route on the answer.
 
@@ -626,9 +676,8 @@ def policy_llm_router(task):
     r = models.call("cheap", task, kind="route")
     ROUTER_CALL_COST.append(r.cost_usd)
     ROUTER_CALL_LATENCY.append(r.latency_s)
-    said_hard = "HARD" in r.text.strip().upper()
 
-    tier = "expensive" if said_hard else "cheap"
+    tier = "expensive" if _said_hard(r.text) else "cheap"
     ans = models.call(tier, task)
     return PolicyResult(
         task_id=task["id"], policy="llm_router",
@@ -687,11 +736,19 @@ def policy_routellm(task):
 #
 # and, more precisely, that routing needs good EX-ANTE quality estimation (can I
 # predict this model will do well?) while cascading needs good POST-HOC quality
-# estimation (was that answer any good?). This repo already has one of each:
-# predict_is_hard is the ex-ante estimator and the verifier is the post-hoc one.
-# So it is in a position to test their claim empirically on objectively-graded
-# tasks, which their RouterBench experiments could only do by injecting synthetic
-# Gaussian noise into a quality signal.
+# estimation (was that answer any good?). The verifier is this repo's post-hoc
+# estimator, and it is a good one on the code half. So the repo is in a position
+# to test their claim empirically on objectively-graded tasks, which their
+# RouterBench experiments could only do by injecting synthetic Gaussian noise
+# into a quality signal - and sweep_degraded.py does exactly that.
+#
+# The EX-ANTE side is where this repository comes up empty, which is a result
+# rather than a gap in the implementation. `predict_is_hard` held that slot until
+# 8 August 2026 and turned out to be a constant (DECISION #4). `_Q_EXANTE` now
+# carries a domain prior and an empty feature slot, so cascade_routing runs with
+# a deliberately uninformative ex-ante term. Read its numbers as "the unified
+# strategy with only the post-hoc half working", which is the honest description
+# and is the paper's own prediction about what happens next.
 #
 # THE STRATEGY. Every model i gets a quality estimate q_i and a cost estimate
 # c_i. A single parameter lambda prices quality against money, and the strategy
@@ -763,9 +820,21 @@ CASCADE_ROUTING_LAMBDA = _default_lambda()
 # split only. Empty means uncalibrated, and the policy refuses to run rather than
 # invent a quality estimate - the same rule routellm follows.
 #
-#   _Q_EXANTE[(tier, is_hard)]     P(tier correct | ex-ante hardness flag)
-#   _Q_POSTHOC[(domain, accepted)] P(answer correct | verifier verdict)
-#   _Q_RESCUE[(tier, from_tier)]   P(tier correct | from_tier was wrong)
+#   _Q_EXANTE[(tier, domain, feat)]  P(tier correct | what is knowable pre-call)
+#   _Q_POSTHOC[(domain, accepted)]   P(answer correct | verifier verdict)
+#   _Q_RESCUE[(tier, from_tier)]     P(tier correct | from_tier was wrong)
+#
+# _Q_EXANTE was keyed on (tier, predict_is_hard(task)) until 8 August 2026. With
+# `level` constant across the math half, that flag was really reading DOMAIN -
+# `hard=True` pooled all math plus long code, `hard=False` was short code only.
+# The two rows differed, and run_eval printed that as evidence the flag carried
+# signal. It was a false positive: the rows differed because the domains differ.
+#
+# So the key is now (tier, domain, EXANTE_FEATURE(task)), with the feature slot
+# empty by default. That is the honest state of this repository - Dekoninck et
+# al. identify a good EX-ANTE quality estimator as what routing needs, and this
+# repo does not have one. Recording the absence in the shape of the table beats
+# filling it with a constant. EXANTE_FEATURE is where a real one plugs in.
 #
 # The third table is the one that makes escalation decisions honest. The value of
 # climbing a rung is not "how good is the next model" but "how good is the next
@@ -776,6 +845,17 @@ _Q_EXANTE = {}
 _Q_POSTHOC = {}
 _Q_RESCUE = {}
 ESTIMATORS_FITTED = False
+
+# Optional pre-call feature for the ex-ante estimate: callable(task) -> hashable,
+# or None for "this repository has no ex-ante signal". Set it and both
+# fit_estimators and policy_cascade_routing pick it up; they must agree, which is
+# why they both go through _exante_key.
+EXANTE_FEATURE = None
+
+
+def _exante_key(tier, task):
+    feat = EXANTE_FEATURE(task) if EXANTE_FEATURE is not None else None
+    return (tier, task["domain"], feat)
 
 
 def fit_estimators(tasks):
@@ -798,16 +878,18 @@ def fit_estimators(tasks):
         for t in tasks:
             correct[(tier, t["id"])] = grade(t, models.call(tier, t).text)
 
-    # Ex-ante: how often each tier is right, split by the router's own hardness
-    # flag. This is what makes the flag worth anything - if the two rows come out
-    # equal, predict_is_hard carries no signal and the policy will ignore it.
+    # Ex-ante: how often each tier is right, given only what is knowable before
+    # calling anything. With EXANTE_FEATURE unset that is the domain prior and
+    # nothing more, which is the true state of this repo's ex-ante signal. Set
+    # EXANTE_FEATURE and the buckets split further; if the resulting rows come
+    # out equal, the feature carries nothing and the policy will ignore it.
+    buckets = {}
     for tier in models.TIERS:
-        for hard in (False, True):
-            sub = [t for t in tasks if predict_is_hard(t) == hard]
-            if sub:
-                _Q_EXANTE[(tier, hard)] = (
-                    sum(correct[(tier, t["id"])] for t in sub) / len(sub)
-                )
+        for t in tasks:
+            buckets.setdefault(_exante_key(tier, t), []).append(
+                correct[(tier, t["id"])])
+    for key, vals in buckets.items():
+        _Q_EXANTE[key] = sum(vals) / len(vals)
 
     # Post-hoc: how much the verifier's verdict actually tells you. The gap
     # between the accepted and rejected rows IS the verifier's quality, which is
@@ -870,7 +952,6 @@ def policy_cascade_routing(task, lam=None):
         )
     lam = CASCADE_ROUTING_LAMBDA if lam is None else lam
     domain = task["domain"]
-    hard = predict_is_hard(task)
 
     remaining = list(models.TIERS)
     cost = 0.0
@@ -887,11 +968,11 @@ def policy_cascade_routing(task, lam=None):
         # wrong.
         options = []
         for tier in remaining:
+            q_exante = _Q_EXANTE.get(_exante_key(tier, task), 0.5)
             if last_tier is None:
-                q_new = _Q_EXANTE.get((tier, hard), 0.5)
+                q_new = q_exante
             else:
-                q_new = _Q_RESCUE.get((tier, last_tier),
-                                      _Q_EXANTE.get((tier, hard), 0.5))
+                q_new = _Q_RESCUE.get((tier, last_tier), q_exante)
             # Combined quality if we pay for this tier: we keep what we have, and
             # the new tier saves the remaining probability mass of being wrong.
             q_combined = best_q + (1.0 - best_q) * q_new
@@ -1015,7 +1096,6 @@ POLICIES = {
     **{f"always_{tier}": (lambda t, _tier=tier: policy_always(t, _tier))
        for tier in models.TIERS},
     "random_matched": policy_random_matched,
-    "predictive": policy_predictive,
     "routellm": policy_routellm,
     "llm_router": policy_llm_router,
     "cascade": policy_cascade,

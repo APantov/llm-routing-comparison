@@ -342,51 +342,104 @@ def _used_expensive(row):
 def routing_skill(by_policy):
     """How much of the achievable routing gain each router actually captured.
 
-        skill = (acc_router - acc_random_matched) / (acc_oracle - acc_random_matched)
+        skill = (acc_router - null_at_router's_cost) / (acc_oracle - null)
 
-    Random is the floor and the oracle is the ceiling, so this reads as "what
-    fraction of the available headroom did the router find". It is the number that
-    makes the routing arm interpretable at all: raw accuracy conflates routing
-    skill with willingness to spend, and a cost-matched random baseline holds the
-    spending fixed so only skill is left.
+    THE NULL IS COMPUTED AT EACH POLICY'S OWN SPEND, changed 8 August 2026.
 
-    Reported PER DOMAIN as well as overall, because the aggregate is the mean of a
-    router with a real signal (math, where MATH500 ships a difficulty level) and
-    one with almost none (code, where nothing in an MBPP prompt predicts
-    difficulty). Averaging those two into one number hides the finding.
+    It used to be `random_matched`'s accuracy for everybody. That was only ever
+    valid for one policy - the one `random_matched` was rate-matched to - and it
+    quietly compared every other policy against a null at somebody else's
+    spending level. Both cascades were being scored against a null matched to the
+    predictive heuristic's rate, which was never the intent. Deleting that
+    heuristic and putting `routellm` on a fixed threshold removed the last reason
+    to pretend one null fits all.
 
-    A negative value means the router did worse than a coin flip at the same
-    spend. That is a result and is printed as one rather than clipped to zero.
+    The null for a one-shot router that spends C is closed-form: randomising
+    between the two rungs at probability p costs C_cheap + p*(C_exp - C_cheap)
+    and scores A_cheap + p*(A_exp - A_cheap). Invert the first for p, substitute
+    into the second, and you have the chord of the cost-accuracy line - the
+    accuracy a policy with NO signal would reach at exactly this budget.
+
+    p is taken from cost rather than from the realised expensive-call rate, so
+    one rule covers cascades too: a cascade that spends more than always_expensive
+    clamps to p=1, which correctly says that at that budget randomising cannot
+    beat simply always paying for the best rung.
+
+    `random_matched` stays in the report as the empirical check that the chord is
+    not a fiction: it is a real policy that actually flips a coin, and its
+    measured accuracy should land near its own chord value.
+
+    Reported PER DOMAIN as well as overall, because the aggregate averages two
+    halves whose routing signal differs by an order of magnitude. A negative
+    value means the router did worse than chance at its own spend. That is a
+    result and is printed as one rather than clipped to zero.
     """
-    def acc(name, domain=None):
+    def stat(name, domain=None):
         rs = by_policy.get(name, [])
         if domain:
             rs = [r for r in rs if r["domain"] == domain]
-        return (sum(r["correct"] for r in rs) / len(rs)) if rs else None
+        if not rs:
+            return None, None, 0
+        return (sum(r["correct"] for r in rs) / len(rs),
+                sum(r["cost_usd"] for r in rs) / len(rs),
+                len(rs))
 
-    routers = [n for n in ("predictive", "routellm", "llm_router", "cascade",
-                           "cascade_routing") if by_policy.get(n)]
-    if not routers or not by_policy.get("random_matched") or not by_policy.get("oracle"):
+    def null_at(cost, domain):
+        """Accuracy of a signal-free policy at this budget. None if unavailable."""
+        a_lo, c_lo, _ = stat("always_cheap", domain)
+        a_hi, c_hi, _ = stat("always_expensive", domain)
+        if None in (a_lo, a_hi) or c_hi - c_lo < 1e-12:
+            return None
+        p = (cost - c_lo) / (c_hi - c_lo)
+        p = 0.0 if p < 0.0 else (1.0 if p > 1.0 else p)
+        return a_lo + p * (a_hi - a_lo)
+
+    ranked = ("routellm", "llm_router", "random_matched", "cascade",
+              "cascade_routing")
+    routers = [n for n in ranked if by_policy.get(n)]
+    if not routers or not by_policy.get("oracle"):
+        return
+    if not (by_policy.get("always_cheap") and by_policy.get("always_expensive")):
         return
 
     print()
     print(tag())
-    print("routing skill = (router - random_matched) / (oracle - random_matched)")
-    print(f"{'router':<16} {'domain':<8} {'random':>8} {'router':>8} {'oracle':>8} {'skill':>9}")
-    print("-" * 62)
+    print("routing skill = (router - null) / (oracle - null)")
+    print("  null = the accuracy a policy with NO signal reaches at the SAME")
+    print("  cost, by randomising between the rungs. Each policy gets its own.")
+    print(f"{'router':<16} {'domain':<8} {'cost/task':>10} {'null':>8} "
+          f"{'router':>8} {'oracle':>8} {'skill':>9}")
+    print("-" * 74)
+    any_na = False
     for name in routers:
         for domain in (None, "math", "code"):
-            lo, mid, hi = acc("random_matched", domain), acc(name, domain), acc("oracle", domain)
-            if None in (lo, mid, hi):
+            mid, cost, n = stat(name, domain)
+            hi, _, _ = stat("oracle", domain)
+            if None in (mid, cost, hi):
+                continue
+            lo = null_at(cost, domain)
+            if lo is None:
                 continue
             label = domain or "all"
-            if abs(hi - lo) < 1e-9:
-                # No headroom: random already matches the oracle, so the ratio is
-                # 0/0 and any number printed here would be invented.
+            # The ratio needs headroom to be meaningful, and "meaningful" here
+            # has a natural unit: one task, worth 1/n of accuracy. A policy that
+            # spends near always_expensive gets a null that sits within a task or
+            # two of the oracle, and then a single task flipping moves the ratio
+            # by more than the entire headroom - which is how a coin flip prints
+            # -417% and looks like a finding. Report n/a instead. This is a
+            # property of the policy's SPENDING LEVEL, not of its skill: at that
+            # budget there is almost nothing left for any router to win.
+            headroom = hi - lo
+            if headroom < 1.0 / max(n, 1) + 1e-12:
                 skill = "     n/a"
+                any_na = True
             else:
-                skill = f"{(mid - lo) / (hi - lo):>8.1%}"
-            print(f"{name:<16} {label:<8} {lo:>8.1%} {mid:>8.1%} {hi:>8.1%} {skill:>9}")
+                skill = f"{(mid - lo) / headroom:>8.1%}"
+            print(f"{name:<16} {label:<8} {cost:>10.6f} {lo:>8.1%} "
+                  f"{mid:>8.1%} {hi:>8.1%} {skill:>9}")
+    if any_na:
+        print("  n/a = the oracle is less than one task above the null at that")
+        print("        spend, so no ratio computed from n tasks can be estimated.")
 
 
 def oracle_bound_check(by_policy):
@@ -437,13 +490,15 @@ def report(rows):
     for r in rows:
         by_policy[r["policy"]].append(r)
 
-    # Ordered roughly by spend, so the table reads as a cost ladder. The two
-    # random policies sit next to predictive on purpose: they are what predictive
-    # has to beat before its accuracy means anything.
     # Roughly a cost ladder, so the table reads bottom-to-top on spend. Built
     # from models.TIERS rather than listed, so it adapts to the loaded ladder.
+    #
+    # random_matched sits immediately before the predictive family - routellm and
+    # llm_router - because it is what they have to beat before their accuracy
+    # means anything. The cascades follow, so the two architectures are adjacent
+    # blocks rather than interleaved.
     order = (
-        ["always_cheap", "random_matched", "predictive", "routellm", "llm_router",
+        ["always_cheap", "random_matched", "routellm", "llm_router",
          "cascade_degraded", "cascade_routing"]
         + [f"always_{t}" for t in models.TIERS[1:-1]]
         + ["cascade", "oracle", f"always_{models.TIERS[-1]}"]
@@ -510,11 +565,13 @@ def report(rows):
             if by_policy.get("always_expensive") else None
         print()
         print(tag())
-        print("LLM-as-router overhead (the claim in policies.py DECISION #4):")
+        print("LLM-as-router overhead (the claim recorded at policies.py DECISION #4):")
         print(f"  routing call        ${router_cost:.6f}/task, +{router_lat:.2f}s/task")
         print(f"    as % of a cheap answer call     {100 * router_cost / cheap:>5.1f}%")
         if exp:
             print(f"    as % of an expensive answer call{100 * router_cost / exp:>6.1f}%")
+        print("  This is also what random_matched does NOT pay: it is calibrated to")
+        print("  llm_router's rate but flips a coin, so it is cheaper by this much.")
         print("  Cost and latency above are arithmetic on the price table and are")
         print("  the only part of this policy that mock mode can measure. Its")
         print("  ACCURACY restates models.MOCK_ROUTER_SKILL and measures nothing.")
@@ -825,26 +882,49 @@ def main():
     else:
         print("cascade_routing: SKIPPED - calibration half is empty", file=sys.stderr)
 
-    # Match the random baseline's spend to predictive's on the REPORTING tasks,
+    # Match the random baseline's spend to llm_router's on the REPORTING tasks,
     # before anything runs. Doing it afterwards would compare against a rate
-    # measured on a different task set.
-    rates = policies.calibrate_random_rates(report_tasks)
+    # measured on a different task set. See policies.py DECISION #6.
+    #
+    # The pre-pass reads the same cached routing calls policy_llm_router will
+    # make, so it costs nothing. In replay a missing one raises ReplayMiss, and
+    # the null then falls back to its declared rates - loudly, because a null
+    # that is silently at the wrong spend is worse than no null at all.
+    decisions = None
+    try:
+        decisions = policies.llm_router_decisions(report_tasks)
+    except models.ReplayMiss as e:
+        print(
+            f"random_matched: llm_router's routing calls are not in the cache "
+            f"({e}).\n  Falling back to the DECLARED rates - the null is NOT "
+            f"cost-matched to any router in this run.",
+            file=sys.stderr,
+        )
+    rates = policies.calibrate_random_rates(report_tasks, decisions)
+    anchor = "llm_router" if decisions is not None else "the declared defaults"
     print(
-        "random_matched calibrated to predictive: "
+        f"random_matched calibrated to {anchor}: "
         + ", ".join(f"{d}={r:.0%}" for d, r in sorted(rates.items())),
         file=sys.stderr,
     )
     tasks = report_tasks
 
-    # RouteLLM shares the same calibration target, so its threshold is set from
-    # the same rates rather than from its own default. With no scores it sits out;
-    # it is never approximated.
+    # RouteLLM runs at a FIXED threshold rather than one calibrated to another
+    # policy's spend - see routellm_router.py DECISION #8b. With no scores it
+    # sits out; it is never approximated.
     import routellm_router
     if routellm_router.available(tasks):
-        th = routellm_router.calibrate(tasks, rates)
+        th = routellm_router.use_fixed_threshold(tasks)
+        realised = {}
+        for d in sorted(th):
+            sub = [t for t in tasks if t["domain"] == d]
+            realised[d] = sum(routellm_router.routes_expensive(t) for t in sub) / len(sub)
         print(
-            f"routellm ({routellm_router.cached_variant()}) calibrated to the same rates: "
-            + ", ".join(f"{d}=score>={v:.4f}" for d, v in sorted(th.items())),
+            f"routellm ({routellm_router.cached_variant()}) at fixed "
+            f"score>={routellm_router.FIXED_THRESHOLD}: "
+            + ", ".join(f"{d}={r:.0%} expensive" for d, r in sorted(realised.items()))
+            + "\n  Not cost-matched to any other policy by construction; read the"
+              " routing-skill table, which nulls each policy at its own spend.",
             file=sys.stderr,
         )
     else:
