@@ -53,6 +53,14 @@ sweep_degraded.jsonl
 frontier.jsonl
 results.*.bak
 
+# The per-ladder files scripts/run_all_ladders.py writes. Same rule as the
+# unsuffixed names above and for the same reason - `git add -f
+# results.claude.jsonl` is the deliberate act that publishes a ladder's run.
+results.*.jsonl
+frontier.*.jsonl
+sweep_degraded.*.jsonl
+run_all_ladders.log
+
 # Figures are generated from the jsonl above by plot.py, in seconds, with no
 # dependencies. While the inputs are simulated the figures are too, and a chart is
 # far more likely than a table to be screenshotted and quoted without its caption.

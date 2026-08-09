@@ -863,8 +863,10 @@ def guard_regression(rows, force: bool):
         "  Most likely this ladder's cache cannot serve every policy, and they\n"
         "  were dropped mid-run - scroll up for the SKIPPED lines. Regenerating\n"
         "  the file you are about to destroy needs a cache that still covers it.\n\n"
+        "  Keep both:      python3 run_eval.py --out results.<ladder>.jsonl\n"
+        "                  (the right answer for a ladder change - one file per\n"
+        "                   ladder is what scripts/run_all_ladders.py does)\n"
         "  Write anyway:   python3 run_eval.py --force\n"
-        "  Keep both:      cp results.jsonl results.<ladder>.jsonl\n"
     )
 
 
@@ -892,6 +894,15 @@ def main():
         "--force", action="store_true",
         help="allow a mock run to overwrite existing real results",
     )
+    ap.add_argument(
+        "--out", metavar="PATH", default=None,
+        help="write results here instead of results.jsonl. THE POINT IS LADDERS: "
+             "one ladder per file, so results.wide.jsonl and results.claude.jsonl "
+             "can sit side by side and be compared. Without this there is exactly "
+             "one results.jsonl, and guard_regression correctly refuses to let a "
+             "second ladder overwrite the first - see its docstring for the run "
+             "that made that guard necessary.",
+    )
     args = ap.parse_args()
 
     # A filtered run is a probe, not a result. It writes elsewhere so it can never
@@ -913,6 +924,24 @@ def main():
         for name in list(POLICIES):
             if name not in selected:
                 del POLICIES[name]
+
+    # --out wins over the probe redirect: it is an explicit instruction, where the
+    # redirect is a default applied on the caller's behalf. Said out loud, because
+    # silently ignoring either one writes a file somewhere the caller is not
+    # looking, and a results file in the wrong place is how a partial run gets
+    # read as a complete one.
+    if args.out:
+        if selected:
+            print(
+                f"--policy would redirect to results.probe.jsonl; --out overrides "
+                f"that.\n  This is a PARTIAL run ({len(selected)} of the available "
+                f"policies) going to a\n  path of your choosing. Do not let it "
+                f"stand in for a full one.",
+                file=sys.stderr,
+            )
+        RESULTS = Path(args.out)
+        if RESULTS.parent != HERE and not RESULTS.parent.exists():
+            sys.exit(f"--out directory does not exist: {RESULTS.parent}")
 
     guard_clobber(args.force)
 
@@ -1067,10 +1096,10 @@ if __name__ == "__main__":
         # status is still non-zero, so a script that chains runs stops here.
         print(
             "\n" + "=" * 62
-            + "\n  SPEND CAP - RUN ABORTED, results.jsonl NOT WRITTEN\n"
+            + f"\n  SPEND CAP - RUN ABORTED, {RESULTS.name} NOT WRITTEN\n"
             + "=" * 62 + f"\n{exc}\n"
             + "  A partial run must not look like a complete one, so the\n"
-            + "  previous results.jsonl is left exactly as it was.",
+            + f"  previous {RESULTS.name} is left exactly as it was.",
             file=sys.stderr,
         )
         raise SystemExit(2)

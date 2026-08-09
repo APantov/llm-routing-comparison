@@ -176,10 +176,11 @@ def _mark(rows):
     return "measured"
 
 
-def plot_frontier(out):
-    rows = _read(HERE / "frontier.jsonl")
+def plot_frontier(out, src=None):
+    src = src or HERE / "frontier.jsonl"
+    rows = _read(src)
     if not rows:
-        print("  frontier.jsonl not found - run: python3 frontier.py", file=sys.stderr)
+        print(f"  {src.name} not found - run: python3 frontier.py", file=sys.stderr)
         return False
 
     fams = {}
@@ -229,10 +230,11 @@ def plot_frontier(out):
     return True
 
 
-def plot_degradation(out):
-    rows = _read(HERE / "sweep_degraded.jsonl")
+def plot_degradation(out, src=None):
+    src = src or HERE / "sweep_degraded.jsonl"
+    rows = _read(src)
     if not rows:
-        print("  sweep_degraded.jsonl not found - run: python3 sweep_degraded.py",
+        print(f"  {src.name} not found - run: python3 sweep_degraded.py",
               file=sys.stderr)
         return False
 
@@ -274,16 +276,28 @@ def plot_degradation(out):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--outdir", default=str(HERE / "figures"))
+    ap.add_argument("--frontier", metavar="PATH", default=None,
+                    help="read this frontier file instead of frontier.jsonl")
+    ap.add_argument("--sweep", metavar="PATH", default=None,
+                    help="read this degradation sweep instead of "
+                         "sweep_degraded.jsonl")
+    ap.add_argument("--suffix", default="",
+                    help="appended to each figure's stem, e.g. --suffix .claude "
+                         "gives figures/frontier.claude.svg. Without it a second "
+                         "ladder's figures overwrite the first ladder's.")
     args = ap.parse_args()
 
     outdir = Path(args.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
 
+    frontier_svg = outdir / f"frontier{args.suffix}.svg"
+    degradation_svg = outdir / f"degradation{args.suffix}.svg"
+
     made = []
-    if plot_frontier(outdir / "frontier.svg"):
-        made.append(outdir / "frontier.svg")
-    if plot_degradation(outdir / "degradation.svg"):
-        made.append(outdir / "degradation.svg")
+    if plot_frontier(frontier_svg, Path(args.frontier) if args.frontier else None):
+        made.append(frontier_svg)
+    if plot_degradation(degradation_svg, Path(args.sweep) if args.sweep else None):
+        made.append(degradation_svg)
 
     if not made:
         sys.exit("no figures written; generate the data files first")

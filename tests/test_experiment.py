@@ -1001,3 +1001,64 @@ class TestRealizedRatio:
         if "realized_ratio" not in r:
             pytest.skip("no committed wide cache")
         assert r["realized_ratio"] > r["effective_ratio"]
+
+
+class TestLadderScopedOutputs:
+    """Every artefact-writing entry point must accept an output path.
+
+    The project's thesis is that the sign of the cascading-vs-routing result
+    depends on the PRICE RATIO between rungs, and a price ratio is a property of
+    a ladder. Testing that claim means holding three ladders' numbers side by
+    side - so the moment any analysis script hard-codes its output filename,
+    running a second ladder silently overwrites the first.
+
+    That is not hypothetical. `run_eval.guard_regression` exists because on
+    8 August 2026 a `deepseek` run overwrote a complete nine-policy `wide` run
+    with 47 rows of one policy. The guard caught it; the underlying cause was one
+    fixed path shared by every ladder.
+
+    This is a structural tripwire rather than a behavioural test: it fails when
+    someone adds a new analysis script with a fixed output path, which is the
+    mistake, not the symptom.
+    """
+
+    WRITERS = [
+        ("run_eval.py", "--out"),
+        ("frontier.py", "--out"),
+        ("sweep_degraded.py", "--out"),
+        ("stats.py", "--results"),
+        ("plot.py", "--frontier"),
+    ]
+
+    @pytest.mark.parametrize("script,flag", WRITERS)
+    def test_it_accepts_an_output_override(self, script, flag):
+        import subprocess
+        import sys
+
+        proc = subprocess.run(
+            [sys.executable, str(REPO_ROOT / script), "--help"],
+            capture_output=True, text=True, cwd=REPO_ROOT,
+        )
+        assert proc.returncode == 0, f"{script} --help failed:\n{proc.stderr}"
+        assert flag in proc.stdout, (
+            f"{script} has no {flag}, so every ladder writes to the same file "
+            f"and the second run destroys the first. See "
+            f"scripts/run_all_ladders.py."
+        )
+
+    def test_the_driver_covers_every_ladder_models_defines(self):
+        """A ladder that exists but is never run is an unmeasured comparison.
+
+        `always_mid` only exists on the three-rung `claude` ladder, so a driver
+        that quietly skipped it would leave one policy permanently unmeasured
+        while every summary still said "all policies".
+        """
+        import models
+
+        src = (REPO_ROOT / "scripts" / "run_all_ladders.py").read_text(
+            encoding="utf-8")
+        assert "models.LADDERS" in src, (
+            "run_all_ladders.py should read the ladder list from models rather "
+            "than hard-coding it, so a new ladder is picked up automatically"
+        )
+        assert models.LADDERS, "models defines no ladders"

@@ -220,9 +220,18 @@ def main():
     ap.add_argument("--bootstrap", type=int, default=BOOTSTRAP_N)
     ap.add_argument("--all-pairs", action="store_true",
                     help="every pair. Read the multiple-comparisons warning first.")
+    ap.add_argument("--results", metavar="PATH", default=None,
+                    help="read this results file instead of results.jsonl, e.g. "
+                         "results.claude.jsonl. NOTE these tests are PAIRED within "
+                         "one file: every policy answered the same tasks from the "
+                         "same cache. Do not try to pair across two ladders' files "
+                         "- different ladders are different models, so the pairing "
+                         "that makes these tests powerful does not hold.")
     args = ap.parse_args()
 
-    rows = load()
+    path = Path(args.results) if args.results else RESULTS
+    rows = load(path)
+    print(f"reading {path.name}", file=sys.stderr)
     full, partial, n = index(rows)
 
     simulated = any(r.get("simulated", r.get("mode") == "mock") for r in rows)

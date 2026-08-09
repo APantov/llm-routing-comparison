@@ -263,7 +263,15 @@ def main():
     ap.add_argument("--domain", choices=["math", "code"])
     ap.add_argument("--points", type=int, default=10,
                     help="sweep resolution. Free: every response is a cache hit.")
+    ap.add_argument("--out", metavar="PATH", default=None,
+                    help="write the curve here instead of frontier.jsonl. One "
+                         "file per ladder, so three ladders' curves can be read "
+                         "side by side rather than overwriting each other.")
     args = ap.parse_args()
+
+    global OUT
+    if args.out:
+        OUT = Path(args.out)
 
     all_tasks = run_eval.load_tasks(domain=args.domain)
     calibration, evaluation = splits.split(all_tasks)

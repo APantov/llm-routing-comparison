@@ -151,7 +151,15 @@ def main():
     ap.add_argument("--repeats", type=int, default=200,
                     help="independent corruption draws per level. Free: every "
                          "model response is a cache hit.")
+    ap.add_argument("--out", metavar="PATH", default=None,
+                    help="write the sweep here instead of sweep_degraded.jsonl. "
+                         "One file per ladder: the verifier-degradation curve is "
+                         "a property of the ladder it was measured on.")
     args = ap.parse_args()
+
+    global OUT
+    if args.out:
+        OUT = Path(args.out)
 
     tasks = run_eval.load_tasks(domain=args.domain)
     print(run_eval.banner(), file=sys.stderr)
