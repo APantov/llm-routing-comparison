@@ -31,15 +31,25 @@ The cross-tab cannot tell, nobody looked for four months, and the two need
 different responses. Any task landing in `both_fail` is unmeasured until someone
 runs a textbook solution against its tests.
 
-Evidence per task is in `build_taskset.QUARANTINED`; the rule, the enforcement
-points and what it moved are in SHIP_PLAN.md §0.5. Three tests pin it
-(`TestQuarantine`). **`redraw.wide.json` is stale** and still covers 5 of them.
+**They were deleted outright on 9 August 2026, not filtered.** The first fix kept
+their responses and screened them out at each point of use; that spread five
+broken tasks through the codebase as permanent complexity to preserve $0.1667 of
+API calls no rerun could ever use. `scripts/purge_quarantined.py` removed every
+trace — 115 cache rows, 10 probe rows, 5 RouteLLM scores, 5 `redraw.wide.json`
+entries — and the filters went with them. Committed spend is now **982 responses,
+$4.2372**. No result moved: the task set had already excluded them.
+
+Evidence per task is in `build_taskset.QUARANTINED`, which is the only place the
+rule now appears in code; the full account is SHIP_PLAN.md §0.5. `TestQuarantine`
+is a tripwire, not a filter — it fails if a quarantined id turns up in any
+artefact, because nothing downstream would catch it any more. Commit `24302ba`
+is the last one holding the purged rows.
 
 ### 1. One of the ten policies still has no real accuracy data
 
 > **RESOLVED on the `wide` ladder, 8 August 2026.** This issue was written when
 > the only real run was a degenerate 5-task plumbing check. The cache now holds
-> **1,097 real responses** for **$4.40**, and `ROUTER_MODE=replay run_eval.py`
+> **982 real responses** for **$4.24**, and `ROUTER_MODE=replay run_eval.py`
 > scores nine policies on real models with `simulated: false` meaning it. The
 > table is in STATUS.md §1.
 >

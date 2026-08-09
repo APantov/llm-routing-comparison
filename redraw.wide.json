@@ -4,7 +4,7 @@
   "temperature": 0.0,
   "tau": 0.2,
   "cells_redrawn": "decisive",
-  "n_graded": 100,
+  "n_graded": 95,
   "p_hat": {
     "math-422": {
       "cheap": 0.5,
@@ -69,30 +69,10 @@
     "math-154": {
       "cheap": 0.0,
       "expensive": 0.0
-    },
-    "codeplus-305": {
-      "cheap": 0.0,
-      "expensive": 0.5
-    },
-    "codeplus-119": {
-      "cheap": 0.0,
-      "expensive": 0.0
-    },
-    "codeplus-630": {
-      "cheap": 0.0,
-      "expensive": 0.0
-    },
-    "codeplus-792": {
-      "cheap": 0.0,
-      "expensive": 0.0
-    },
-    "codeplus-771": {
-      "cheap": 0.0,
-      "expensive": 0.0
     }
   },
-  "observed": 0.15,
-  "expected": 0.10200000000000001,
-  "reproducible": 0.09,
-  "noise_share": 0.11764705882352955
+  "observed": 0.15789473684210525,
+  "expected": 0.10210526315789475,
+  "reproducible": 0.09473684210526316,
+  "noise_share": 0.07216494845360832
 }

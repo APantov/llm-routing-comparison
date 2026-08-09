@@ -116,7 +116,7 @@ _conflicts = []        # keys seen twice on disk with different payloads
 # decided which FILE it landed in.
 #
 # That matters for money. `wide` and `claude` share Opus 5 as their top rung, and
-# `wide` and `deepseek` share DeepSeek v4-flash as their bottom rung, so the 1,095
+# `wide` and `deepseek` share DeepSeek v4-flash as their bottom rung, so the 980
 # responses already bought for `wide` cover a large part of both other ladders.
 # Without this, running the `claude` ladder re-buys every Opus call - about $1.91
 # at the current task set. See SHIP_PLAN.md section 1.

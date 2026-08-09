@@ -87,7 +87,7 @@ If you only read one section, read [SHIP_PLAN.md](SHIP_PLAN.md).
 > The re-run was clean: 337 real responses, 0 fabricated, 220 rows — and five
 > policies dropped for want of data. `scripts/record_missing.py` then bought that
 > data for **$0.0503** (see §1), and the current `results.jsonl` is **420 rows,
-> nine policies, every row `simulated: false`**, replayed from the **1,097 real
+> nine policies, every row `simulated: false`**, replayed from the **982 real
 > responses** in `cache/`.
 >
 > **The product surfaced one thing the experiment had not stated, and it turned
@@ -105,7 +105,7 @@ If you only read one section, read [SHIP_PLAN.md](SHIP_PLAN.md).
 > serving heuristic reads query text only — unconditionally, since the branch
 > that consulted the benchmark predicate went with it.
 >
-> Spend to date is now **$4.40** across 1,097 committed responses: $1.36 on the
+> Spend to date is now **$4.24** across 982 committed responses: $1.36 on the
 > experiment through 6 August, $0.0276 on the three recorded demo traces, $2.96
 > on the 7 August redraw of the 21 decisive tasks, and $0.0503 recording the
 > self-consistency samples every cascade needs.
@@ -473,15 +473,15 @@ make that hard to miss.
 > figure.** Their expected answers cannot be derived from their prompts, so they
 > are unpassable rather than hard — and they were *all* of `always_expensive`'s
 > failures, which capped every policy at 92% instead of 100%. The list and the
-> evidence live in `build_taskset.QUARANTINED`; the rule and what it moved are in
-> [SHIP_PLAN.md §0.5](SHIP_PLAN.md). `--keep-quarantined` reproduces the old
-> numbers and produces an artefact, not a measurement.
+> per-task evidence live in `build_taskset.QUARANTINED`; the full account is
+> [SHIP_PLAN.md §0.5](SHIP_PLAN.md).
 >
-> Artefacts recorded before the quarantine still contain them and are filtered at
-> the point of use, not deleted — `results.probe.jsonl` via
-> `router_agent.findings.load_probe`. **`redraw.wide.json` is stale**: it covers
-> 21 tasks, 5 of them broken, and needs regenerating with
-> `scripts/redraw_decisive.py --go` (the decisive set is now 16).
+> **Every trace of them was deleted on 9 August 2026**, not filtered —
+> `scripts/purge_quarantined.py` took 115 cache rows, 10 probe rows, 5 RouteLLM
+> scores and 5 `redraw.wide.json` entries, discarding $0.1667 of responses that
+> nothing could ever use. Committed spend is now **982 responses, $4.2372**. No
+> result moved. Nothing screens them out downstream any more, so `TestQuarantine`
+> is a tripwire: it fails if a quarantined id reappears in any artefact.
 
 The code half needs **numpy** to grade, because every MBPP+ test program compares
 floats with `np.allclose`. The easier originals are still one flag away:
@@ -644,7 +644,7 @@ response cache deduplicates identical calls, so the number that costs money is
 | `wide` | 100 calls, **$0.004** | 540 calls, **$0.37** |
 | `claude` | 100 calls, **$0.049** | 640 calls, **$0.72** |
 
-**Actually spent to date: $4.4039**, essentially all on `wide`. $0.0481 on the
+**Actually spent to date: $4.2372**, essentially all on `wide`. $0.0481 on the
 30 July plumbing run, $0.39 on a two-arm probe at `MAX_TOKENS=2048` that was
 abandoned when it truncated, $0.9234 on the probe that replaced it, $0.0276 on
 the three recorded demo traces, $2.9637 on the 7 August redraw of the 21
@@ -853,8 +853,8 @@ a measurement.
 The real artefacts are the exception and are **force-added to git** despite the
 ignore rule:
 
-- `cache/raw_calls.{wide,claude,deepseek}.jsonl` — **1,097 real responses, $4.40 of
-  spend** (1,095 of them on `wide`; the other two ladders hold one probe call
+- `cache/raw_calls.{wide,claude,deepseek}.jsonl` — **982 real responses, $4.24 of
+  spend** (980 of them on `wide`; the other two ladders hold one probe call
   each and have never been run for real). The irreplaceable asset. `ROUTER_MODE=replay`
   reproduces every paid run from them field-for-field, and it is what makes
   `scripts/demo.py` free.
@@ -891,8 +891,8 @@ That is up from an effective zero on 30 July, so the MBPP+ and level-5 hardening
 did what it was supposed to — **but read that 15.0% as ~10%**: the 7 August
 redraw of the 21 decisive tasks showed a third of it was single-draw noise, with
 ~9% reproducible and nearly all of that in the code half. Nine of the ten
-policies now have real numbers, from 420 replayed rows over 1,097 committed
-responses and $4.40 of spend.
+policies now have real numbers, from 393 replayed rows over 982 committed
+responses and $4.24 of spend.
 Two measurement bugs were found and fixed on the way
 and both mattered: the maths grader was rejecting 7 of 20 correct-but-differently-
 formatted answers (worth 5 points of Opus accuracy, and invisible to a regression

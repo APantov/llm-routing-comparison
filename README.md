@@ -13,7 +13,7 @@ between your models, and this repository measures where the crossover is.
 | **What runs** | A LangGraph state machine — `classify → answer → verify → escalate ⟲` — with human-in-the-loop approval *inside* the escalation loop and checkpointed resume, exposed over an MCP server with four tools and four resources. |
 | **What decides its policy** | 100 tasks (MBPP+ code, MATH500 level 5), 10 policies, 3 price ladders, cost–quality frontiers, exact McNemar and a paired bootstrap. |
 | **Built with** | Python 3.10–3.13 · LangGraph · MCP · Anthropic + DeepSeek APIs · pytest (164 tests) · GitHub Actions. The research core is **pure standard library** — no dependency can change a benchmark number. |
-| **Measured against real models** | **~10%** of tasks are ones the cheap model reliably gets wrong and the expensive one reliably gets right (n=100, wide ladder). A single draw per task said 15%; ten draws on the 21 decisive tasks showed **four of them were coin-flips the cheap model wins every time**. The routing signal is real, thinner than it first looked, and lives almost entirely in the code half. 1,097 real responses committed, so anyone can replay all of it for $0.00. Total spend to date: **$4.40**. |
+| **Measured against real models** | **~10%** of tasks are ones the cheap model reliably gets wrong and the expensive one reliably gets right (n=95, wide ladder). A single draw per task said 15%; ten draws on the 16 decisive tasks showed **four of them were coin-flips the cheap model wins every time**. The routing signal is real, thinner than it first looked, and lives almost entirely in the code half. 982 real responses committed, so anyone can replay all of it for $0.00. Total spend to date: **$4.24**. |
 | **Measured, not simulated** | **Every policy the `wide` ladder defines — 9 of 10**, on real models, on the held-out half. `cascade` reaches **90.0% against always-expensive's 92.0% at 23% of the cost**, and the cost gap is significant while the accuracy gap is not. See [§ Status](#status-every-policy-on-this-ladder-now-has-real-numbers). |
 | **Not yet measured** | `always_mid` only, because it exists only on the three-rung `claude` ladder. Any policy a replay cannot serve is **dropped by name**, never scored on a subset. |
 
@@ -69,7 +69,7 @@ python -m router_agent.cli --demo      # real model output, no API key, $0.00
   cost      $0.059111  (2 calls, 1 escalation)
 ```
 
-That demo runs against **1,097 real model responses committed to this
+That demo runs against **982 real model responses committed to this
 repository**, so it needs no API key, no account and no money — and it is real
 output, not a simulation.
 
@@ -194,8 +194,8 @@ one thing a cascade depends on and a predictive router does not have at all.
 > ### Status: every policy on this ladder now has real numbers
 >
 > **Updated 8 August 2026.** Every accuracy figure in this section was measured
-> against real models. `cache/raw_calls.wide.jsonl` holds **1,095** real
-> responses, 1,097 across all three ladder files, for **$4.40** total.
+> against real models. `cache/raw_calls.wide.jsonl` holds **980** real
+> responses, 982 across all three ladder files, for **$4.2372** total.
 >
 > It got there in four steps: the 30 July plumbing run ($0.05), the 6 August
 > two-arm probe ($0.92), the 7 August redraw of the 21 decisive tasks ($2.96),
@@ -743,7 +743,7 @@ than quietly omitted.
 ├── tests/              pytest, agent layer only
 ├── docs/               reference and dated analyses  (docs/README.md indexes them)
 ├── data/               MATH500 and MBPP+ source data
-├── cache/              1,097 real model responses - what makes replay free
+├── cache/              982 real model responses - what makes replay free
 └── archive/            real data superseded by the 6 Aug rebuild, kept not deleted
 ```
 

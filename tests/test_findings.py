@@ -51,14 +51,13 @@ class TestProbe:
         assert probe.cheap_acc == pytest.approx(0.832, abs=0.001)
         assert probe.expensive_acc == pytest.approx(0.968, abs=0.001)
 
-    def test_quarantined_tasks_never_reach_a_reported_figure(self):
-        """The quarantine is not only a build-time filter.
+    def test_probe_holds_no_quarantined_rows(self):
+        """The probe was purged on 9 August 2026, not filtered.
 
-        results.probe.jsonl predates it and still contains every broken task,
-        so load_probe has to drop them at the point of use. If this fails, a
-        rerun is counting tasks whose expected answers cannot be derived from
-        their prompt - and since they were ALL of always_expensive's failures,
-        they set the ceiling for every policy in the project.
+        load_probe has no quarantine logic in it any more - there is nothing
+        left to screen. If a broken task reappeared in this file it would be
+        counted straight into every figure the agent layer serves, which is why
+        the check lives here rather than in the loader.
         """
         from build_taskset import QUARANTINED
 
@@ -67,11 +66,8 @@ class TestProbe:
             for line in findings.PROBE_PATH.read_text(encoding="utf-8").splitlines()
             if line.strip()
         ]
-        present = {r["task_id"] for r in raw} & set(QUARANTINED)
-        assert present, "probe no longer contains them; this test is now vacuous"
-
-        probe = findings.load_probe()
-        assert probe.n == len({r["task_id"] for r in raw}) - len(present)
+        assert not ({r["task_id"] for r in raw} & set(QUARANTINED))
+        assert findings.load_probe().n == len({r["task_id"] for r in raw})
 
     def test_confidence_interval_matches_documented(self):
         probe = findings.load_probe()

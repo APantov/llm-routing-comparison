@@ -160,32 +160,54 @@ solution can pass them. Counting them does not make a result conservative, it
 makes it wrong: they were **all** of `always_expensive`'s failures, so they set
 the ceiling for every policy at 92% instead of 100%.
 
-`build_taskset.QUARANTINED` is the single source of truth. Implemented 8 August
-2026 in two halves, because removing them from the task set is only half the job:
+`build_taskset.QUARANTINED` is the single source of truth, and it is now the
+*only* place the rule appears in code.
 
-| half | where | what |
+### They were deleted, not filtered — 9 August 2026
+
+The first implementation kept their recorded responses and screened them out at
+every point of use: a filter in `build_taskset`, another in
+`router_agent.findings.load_probe`, a `--keep-quarantined` escape hatch, and a
+rule every future reader had to remember.
+
+**That was the wrong trade, and it was reversed.** It spread five broken tasks
+through the codebase as permanent complexity, and what it bought was **$0.1667**
+of API responses that nothing can ever use — the tasks are unpassable, so no
+rerun, ladder or future experiment will want them. Deleting the data deleted
+every filter with it.
+
+`scripts/purge_quarantined.py` is the auditable record of what went, and can be
+re-run to prove nothing came back:
+
+| artefact | before | after |
 |---|---|---|
-| build time | `build_taskset.drop_quarantined` | removed **after** sampling and `add_difficulty_pct`, so survivors stay byte-identical and the existing cache stays valid |
-| point of use | `build_taskset.drop_quarantined_rows` | filters artefacts recorded *before* the quarantine, which still contain them |
+| `cache/raw_calls.wide.jsonl` | 1,095 rows, $4.4020 | **980 rows, $4.2352** |
+| `cache/routellm_scores.jsonl` | 100 | **95** |
+| `results.probe.jsonl` | 200 | **190** |
+| `redraw.wide.json` | 21 `p_hat` | **16** |
+| mock caches | 1,617 rows | **deleted** — derived, regenerate free |
+| **total real committed** | **1,097 / $4.4039** | **982 / $4.2372** |
 
-The artefacts that still contain them, deliberately — nothing measured is
-deleted here, because that would destroy the evidence for the quarantine itself:
+**Nothing else moved.** Every accuracy, cost and frontier number reproduces
+identically after the purge, because the task set had already excluded these
+five — the purge removed dead weight, not evidence. The one figure that changes
+is `redraw.wide.json`'s `observed`, **0.150 → 0.158**, and only because the
+denominator shrank from 100 to 95; the same 15 routable tasks are now a share of
+fewer. `expected` is unmoved at 0.102, because unpassable tasks contribute
+`(1 − p_cheap) × p_expensive = 0` to it.
 
-- `results.probe.jsonl` — all 200 original rows. Filtered by
-  `router_agent.findings.load_probe`, so the MCP `probe` resource and every
-  served figure now report n=95.
-- `redraw.wide.json` — **stale**: its per-task `p_hat` covers 21 tasks, 5 of them
-  broken, and its headline `observed 0.15 / expected 0.102 / reproducible 0.09`
-  are over the old 100. Regenerating needs `scripts/redraw_decisive.py --go`,
-  which refuses to run in replay mode. The decisive set is now 16 tasks, not 21.
-- `cache/raw_calls.*.jsonl` — their responses. Harmless: unreachable once the
-  task set no longer names them.
+`--keep-quarantined` was removed. It became meaningless once the responses were
+gone: the tasks it restored would have no cached data, so every policy would be
+dropped by `ReplayMiss` and the run would measure nothing.
 
-Three tests enforce it (`TestQuarantine`): a rebuild never reintroduces them, the
-row filter works, and every entry carries written evidence rather than a bare id.
+**What is not lost.** Commit `24302ba` is the last one holding every purged row,
+so the responses stay recoverable and §0.1 stays reproducible from history. The
+*evidence* also survives in prose — each `QUARANTINED` entry records the specific
+input that breaks it, and a test asserts that it does.
 
-`--keep-quarantined` exists only to reproduce pre-8-August numbers. **Anything it
-produces is an artefact of broken tests, not a measurement.**
+`TestQuarantine` is now a **tripwire rather than a filter**: it fails if a
+quarantined id appears in *any* artefact. Nothing screens them out downstream any
+more, so reintroduction has to be caught rather than silently absorbed.
 
 ### What moved when the rule was applied
 

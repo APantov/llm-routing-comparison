@@ -28,12 +28,6 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
-# The canonical list of tasks whose expected answers are not derivable from
-# their prompt. Imported rather than copied: two lists would drift, and the one
-# that drifted would quietly put broken tasks back into a served figure.
-# Same import style as router_agent.engine, which takes `models` from the root.
-from build_taskset import QUARANTINED
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PROBE_PATH = REPO_ROOT / "results.probe.jsonl"
 FRONTIER_PATH = REPO_ROOT / "frontier.jsonl"
@@ -436,13 +430,6 @@ def load_probe(path: str | None = None) -> Probe | None:
                 continue
             # Simulated rows must never reach a "measured" figure.
             if row.get("simulated", True):
-                continue
-            # Neither must quarantined ones. This file was recorded over the old
-            # 100-task set and still contains all 5 unpassable code tasks, and
-            # they were ALL of always_expensive's failures - left in, they drag
-            # every figure this module serves. Same rule as taskset.jsonl; see
-            # build_taskset.drop_quarantined_rows.
-            if row.get("task_id") in QUARANTINED:
                 continue
             tid, policy = row.get("task_id"), row.get("policy")
             if tid is None or policy not in ("always_cheap", "always_expensive"):

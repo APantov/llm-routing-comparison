@@ -310,7 +310,7 @@ def stratified_sample(tasks, n, rng):
 # Removal happens AFTER sampling and AFTER add_difficulty_pct, deliberately.
 # Filtering the pool first would let stratified_sample draw five replacements,
 # and a replacement task has no cached response, so every policy would be
-# dropped by ReplayMiss and $4.40 of committed data would go unused. Filtering
+# dropped by ReplayMiss and $4.24 of committed data would go unused. Filtering
 # last leaves the survivors byte-identical to their entries in the previous task
 # set, so the existing cache stays valid.
 QUARANTINED = {
@@ -333,47 +333,26 @@ QUARANTINED = {
 }
 
 
-def drop_quarantined_rows(rows, source, key="task_id", warn=True):
-    """Strip quarantined tasks out of any artefact recorded before the quarantine.
+def drop_quarantined(tasks):
+    """Remove known-unpassable tasks, and say which and why.
 
-    THE RULE: a quarantined task is never counted, anywhere, ever again - not in
-    a rerun, not in a cross-tab, not in a figure, not in anything the agent layer
-    serves. Removing them from `taskset.jsonl` is only half of that. The other
-    half is the artefacts already on disk that were recorded over the old
-    100-task set and still contain them:
+    THE RULE: a quarantined task is never selected, anywhere, ever again. This
+    is the only place it needs enforcing, because on 9 August 2026 every trace
+    of them was deleted from every artefact on disk - `scripts/purge_quarantined.py`
+    is the record of what went. Nothing downstream filters them any more; there
+    is nothing left to filter.
 
-        results.probe.jsonl   200 rows, both arms, all 5 broken tasks present
-        redraw.wide.json      per-task p_hat, 5 of its 21 tasks are broken ones
-        cache/raw_calls.*     their responses, harmless but reachable
+    That replaced a worse design. The first fix kept their responses and screened
+    them out at each point of use - one filter in this module, another in
+    `router_agent.findings`, and a rule every future reader had to remember. It
+    spread five broken tasks across the codebase as permanent complexity in
+    order to preserve $0.17 of API calls that no rerun could ever use. Deleting
+    the data deleted the filters with it.
 
-    Those files are real and are deliberately kept - nothing measured gets
-    deleted in this repository - so the filtering has to happen at every point
-    of USE instead. This is that filter. Anything that loads one of those files
-    calls it, so the rule is enforced in one place rather than remembered in
-    several.
-
-    Deleting the artefacts instead would be the other option, and it is worse:
-    it destroys evidence for the quarantine itself, and the numbers in
-    SHIP_PLAN.md section 0.1 could no longer be reproduced.
+    `tests.test_experiment.TestQuarantine` is the tripwire: it fails if a
+    quarantined id reappears in ANY artefact, so reintroduction is caught rather
+    than silently absorbed.
     """
-    kept = [r for r in rows if r.get(key) not in QUARANTINED]
-    dropped = len(rows) - len(kept)
-    if dropped and warn:
-        print(
-            f"  {source}: dropped {dropped} row(s) on quarantined tasks "
-            f"(recorded before the 8 August 2026 quarantine; see "
-            f"build_taskset.QUARANTINED)",
-            file=sys.stderr,
-        )
-    return kept
-
-
-def drop_quarantined(tasks, keep=False):
-    """Remove known-unpassable tasks, and say which and why."""
-    if keep:
-        print(f"  !! keeping {len(QUARANTINED)} quarantined task(s) - "
-              f"the ceiling this produces is an artefact, not a measurement")
-        return tasks
     kept = [t for t in tasks if t["id"] not in QUARANTINED]
     dropped = [t["id"] for t in tasks if t["id"] in QUARANTINED]
     for task_id in sorted(dropped):
@@ -398,12 +377,10 @@ def main():
         "--min-math-level", type=int, default=MIN_MATH_LEVEL,
         help="MATH500 difficulty floor. Raise it to make the maths half harder.",
     )
-    ap.add_argument(
-        "--keep-quarantined", action="store_true",
-        help="keep the known-unpassable tasks listed in QUARANTINED. Only for "
-             "reproducing pre-8-August numbers; the ceiling it produces is an "
-             "artefact of broken tests rather than a measurement.",
-    )
+    # No --keep-quarantined. It existed briefly, to reproduce pre-quarantine
+    # numbers, and became meaningless when the responses were deleted on
+    # 9 August 2026: the tasks it restored would have no cached data, so every
+    # policy would be dropped by ReplayMiss and the run would measure nothing.
     args = ap.parse_args()
 
     rng = random.Random(SEED)
@@ -415,7 +392,7 @@ def main():
     rng.shuffle(tasks)
     # After the shuffle, so the surviving tasks keep exactly the difficulty_pct
     # and ordering they had before the quarantine existed.
-    tasks = drop_quarantined(tasks, keep=args.keep_quarantined)
+    tasks = drop_quarantined(tasks)
 
     # newline="" so this file is byte-identical on Windows and Linux. Without
     # it, Python translates \n to \r\n on Windows, the same code produces

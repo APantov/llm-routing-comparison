@@ -383,44 +383,63 @@ class TestSplits:
 # ---------------------------------------------------------------------------
 
 class TestQuarantine:
-    """A quarantined task must never be counted again, in any rerun.
+    """A quarantined task must never come back, in any artefact.
 
     Five MBPP+ tasks were found on 8 August 2026 to have expected answers that
     cannot be derived from their prompt - they score against whatever the MBPP
     reference happened to return on inputs the prompt never describes. They were
-    ALL of always_expensive's failures on the eval split, so leaving them in caps
-    every policy in the project at 92% instead of 100%.
+    ALL of always_expensive's failures on the eval split, so leaving them in
+    capped every policy at 92% instead of 100%.
 
-    The rule has two halves and both are enforced here: they are absent from a
-    freshly built task set, and they are filtered out of the artefacts recorded
-    before the quarantine existed, which still contain them.
+    On 9 August 2026 every trace of them was deleted rather than filtered
+    (`scripts/purge_quarantined.py`). This class is the tripwire that keeps it
+    that way: nothing downstream screens them out any more, so a reintroduced id
+    would be counted rather than ignored.
     """
+
+    def test_no_artefact_mentions_them(self):
+        """The whole rule, in one assertion, over every file that stores a task id."""
+        import build_taskset
+
+        quarantined = set(build_taskset.QUARANTINED)
+        targets = [
+            "taskset.jsonl", "results.jsonl", "results.probe.jsonl",
+            "cache/raw_calls.wide.jsonl", "cache/raw_calls.claude.jsonl",
+            "cache/raw_calls.deepseek.jsonl", "cache/routellm_scores.jsonl",
+            "redraw.wide.json",
+        ]
+        offenders = {}
+        for rel in targets:
+            path = REPO_ROOT / rel
+            if not path.exists():
+                continue
+            text = path.read_text(encoding="utf-8")
+            hits = sorted(q for q in quarantined if q in text)
+            if hits:
+                offenders[rel] = hits
+        assert not offenders, (
+            f"quarantined tasks are back in {offenders}.\n"
+            f"They are unpassable, not hard, and nothing filters them any more. "
+            f"Re-run `python scripts/purge_quarantined.py --go`, and work out "
+            f"what put them back before trusting any number from this run."
+        )
 
     def test_rebuild_never_reintroduces_them(self):
         import build_taskset
 
-        tasks = [json.loads(l) for l in
-                 (REPO_ROOT / "taskset.jsonl").read_text(encoding="utf-8").splitlines()
-                 if l.strip()]
-        present = {t["id"] for t in tasks} & set(build_taskset.QUARANTINED)
-        assert not present, (
-            f"taskset.jsonl contains quarantined task(s) {sorted(present)}. "
-            f"Rebuild with `python build_taskset.py` - and if this came from "
-            f"--keep-quarantined, every number downstream is an artefact."
+        pool = build_taskset.load_mbppplus()
+        assert set(build_taskset.QUARANTINED) <= {t["id"] for t in pool}, (
+            "a quarantined id is no longer in the MBPP+ pool; if the source "
+            "changed, re-verify the quarantine rather than carrying it forward"
         )
-
-    def test_row_filter_drops_them_from_older_artefacts(self):
-        import build_taskset
-
-        victim = next(iter(build_taskset.QUARANTINED))
-        rows = [{"task_id": victim}, {"task_id": "math-1"}, {"task_id": "codeplus-800"}]
-        kept = build_taskset.drop_quarantined_rows(rows, "unit test", warn=False)
-        assert [r["task_id"] for r in kept] == ["math-1", "codeplus-800"]
+        kept = build_taskset.drop_quarantined([{"id": t["id"]} for t in pool])
+        assert not ({t["id"] for t in kept} & set(build_taskset.QUARANTINED))
 
     def test_every_quarantined_task_carries_its_evidence(self):
         """A bare id is not a justification. Each needs a stated reason, because
         'both models failed' is exactly the reasoning that got these five
-        mistaken for hard tasks in the first place."""
+        mistaken for hard tasks in the first place - and the responses that
+        would let someone re-derive it have now been deleted."""
         import build_taskset
 
         for task_id, reason in build_taskset.QUARANTINED.items():
@@ -660,18 +679,31 @@ class TestRoutableReestimate:
 
     def test_it_reproduces_the_published_re_estimate(self):
         """End to end against the committed artefact. If redraw.wide.json is
-        present, the numbers in README and STATUS must fall out of it."""
+        present, the numbers in README and STATUS must fall out of it.
+
+        Updated 9 August 2026 for the purge. The redrawn set went from 21 tasks
+        to 16 - the five removed were all both_fail - and the denominator from
+        100 to 95. `observed` therefore RISES, 0.150 -> 0.158, purely because
+        the same 15 routable tasks are now a share of fewer: no task changed
+        cell. `expected` is unmoved at 0.102, because the tasks that left
+        contributed (1-p_cheap) * p_expensive = 0 to it; they were unpassable,
+        so p_expensive was 0.
+        """
         path = REPO_ROOT / "redraw.wide.json"
         if not path.exists():
             pytest.skip("redraw.wide.json not present; run scripts/redraw_decisive.py")
         import json
         d = json.loads(path.read_text(encoding="utf-8"))
-        assert d["observed"] == pytest.approx(0.15)
+        assert d["n_graded"] == 95
+        assert len(d["p_hat"]) == 16
+        assert d["observed"] == pytest.approx(0.158, abs=0.001)
         assert d["expected"] == pytest.approx(0.102, abs=0.002)
-        assert d["reproducible"] == pytest.approx(0.09)
-        # Four phantoms: cheap solves them every time.
+        assert d["reproducible"] == pytest.approx(0.095, abs=0.001)
+        # Four phantoms: cheap solves them every time. All four are maths, and
+        # the purge did not touch them.
         phantoms = [t for t, p in d["p_hat"].items() if p["cheap"] >= 0.9]
         assert len(phantoms) == 4
+        assert all(t.startswith("math-") for t in phantoms)
 
 
 # ---------------------------------------------------------------------------
