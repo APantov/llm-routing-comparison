@@ -231,6 +231,29 @@ def stratified_sample(tasks, n, rng):
     hard ones, where staying cheap is a failure.
     """
     tasks = sorted(tasks, key=lambda t: t["difficulty_proxy"])
+
+    # A census is not a sample. Asking for the whole pool must return the whole
+    # pool, and going through the bucket arithmetic below to get there silently
+    # loses tasks: `size = len(tasks) // buckets` truncates, so the last chunk
+    # ends at `buckets * size` and everything past it is unreachable. Sorted by
+    # difficulty, "past it" means THE HARDEST TASKS IN THE POOL.
+    #
+    # Found 10 August 2026 while rebuilding the code half. `--n-code 370` over a
+    # 370-task pool returned 368: codeplus-622 (difficulty 26) and codeplus-100
+    # (difficulty 42, the hardest task in MBPP+) were not eligible for selection
+    # at any n. The whole justification for buying the full code half is that it
+    # is a complete enumeration rather than a screen, so two missing tasks is not
+    # a rounding detail - and dropping them from the hard tail is the direction
+    # that costs routing signal.
+    #
+    # This early return is deliberately narrow. The bucket arithmetic below is
+    # left exactly as it was, because it decides WHICH maths tasks are sampled
+    # (60 from a pool of 134), and changing that would strand the cached
+    # self-consistency samples that are most of the $4.24 spent so far. The
+    # maths half never reaches this branch.
+    if n >= len(tasks):
+        return list(tasks)
+
     buckets = 4
     per = n // buckets
     size = len(tasks) // buckets
