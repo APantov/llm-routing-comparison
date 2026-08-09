@@ -85,9 +85,17 @@ MOCK_PATH = CACHE_DIR / "raw_calls.mock.jsonl"
 # it. Both are practical concerns rather than correctness ones.
 LADDER = ""
 
-# Off switch, for measuring the un-cached call count and for debugging. Note that
-# replay mode cannot work with the cache disabled, since replay is nothing but a
-# cache read.
+# Off switch, for measuring the un-cached call count and for debugging.
+#
+# MOCK MODE ONLY, enforced in configure(). With it off, put() discards its
+# argument, so a real run would pay for every response and write none of them to
+# disk - the most expensive failure this file can have. Replay is worse only in
+# that it fails immediately: replay IS a cache read, so with the cache off every
+# lookup misses and the run measures nothing.
+#
+# Neither of those was reachable by accident before this check, but both were
+# reachable by a single environment variable, and this project has already been
+# bitten once by a silent fallback on the spend path.
 ENABLED = os.environ.get("ROUTER_CACHE", "1") not in ("0", "false", "no")
 
 # Set by configure(). PATH is written to; READ_PATHS are all read, in order, with
@@ -140,6 +148,16 @@ def _sibling_real_paths(ladder: str):
 def configure(mode: str, ladder: str = ""):
     """Point the cache at the right file(s) for the run mode and ladder."""
     global PATH, READ_PATHS, REAL_PATH, MOCK_PATH, LADDER, _store
+    if not ENABLED and mode != "mock":
+        raise SystemExit(
+            f"\nROUTER_CACHE is off and ROUTER_MODE is {mode!r}. Refusing.\n"
+            f"  real:   every response would be paid for and then discarded -\n"
+            f"          put() is a no-op with the cache off.\n"
+            f"  replay: replay is nothing but a cache read, so every lookup\n"
+            f"          would miss and the run would measure nothing.\n\n"
+            f"  The switch exists to count un-deduplicated calls in mock mode.\n"
+            f"  Unset ROUTER_CACHE, or run with ROUTER_MODE=mock.\n"
+        )
     LADDER = ladder
     suffix = f".{ladder}" if ladder else ""
     REAL_PATH = CACHE_DIR / f"raw_calls{suffix}.jsonl"

@@ -235,9 +235,16 @@ def main():
 
     print(f"\nrecorded {len(calls)} calls for ${spent:.4f} "
           f"(estimated ${est:.4f})")
-    if models.truncated_calls:
-        print(f"!! {models.truncated_calls} call(s) hit max_tokens. A truncated "
-              f"answer grades as WRONG; raise models.MAX_TOKENS and re-run.")
+    if models.truncated_ids:
+        # The deduped set, not a raw count: this script records each response
+        # once, but the set is what stays correct if that ever stops being true.
+        print(f"!! {len(models.truncated_ids)} response(s) hit max_tokens. A "
+              f"truncated answer grades as WRONG, so it is a MISSING "
+              f"measurement rather than a capability result:")
+        for task_id, tier, kind, idx in sorted(models.truncated_ids):
+            print(f"     {task_id:<16} {tier:<10} {kind} sample={idx}")
+        print("   Raising models.MAX_TOKENS re-charges every cached response "
+              "(SHIP_PLAN.md section 1). Exclude the task instead.")
     print("\nEverything replays free from here:")
     print(f"  ROUTER_MODE=replay ROUTER_LADDER={ladder} python3 run_eval.py")
 

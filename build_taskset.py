@@ -19,15 +19,15 @@ anything interesting.
 Output is taskset.jsonl, written with LF endings on every platform so the file
 is byte-identical wherever it is built.
 
-    python3 build_taskset.py                                  # the defaults above
-    python3 build_taskset.py --code mbpp --min-math-level 3   # the easier original
+    python3 build_taskset.py                            # the defaults above
+    python3 build_taskset.py --min-math-level 3         # the easier maths half
+    python3 build_taskset.py --n-code 370               # the whole MBPP+ pool
 
 BOTH DEFAULTS WERE HARDENED ON 6 AUGUST 2026, for one reason: the cheap rung
 solved 10 out of 10 on the original set, which leaves a router nothing to decide.
-See docs/ROUTABLE_2026-07-30.md for the cross-tabulation and docs/DATASETS.md for why MBPP+
-rather than a different benchmark. The originals remain one flag away, because
-the point of the change is to move the failure rate, and a change you cannot undo
-is a change you cannot measure.
+See docs/DATASETS.md for why MBPP+ rather than a different benchmark. The maths
+floor remains one flag away, because the point of the change is to move the
+failure rate, and a change you cannot undo is a change you cannot measure.
 """
 
 import argparse
@@ -110,59 +110,6 @@ def load_math500(min_level=None):
     return tasks
 
 
-def load_mbpp():
-    """Sanitized MBPP (427 hand-verified items), not the full 974.
-
-    The full set contains prompts that under-specify the task, most often by not
-    naming the function the asserts will call. Both tiers fail those equally,
-    which is cost with no routing signal, and it inflates the cheap-model
-    failure rate the pilot gate reads.
-
-    Note the sanitized format differs from mbpp.jsonl: it is a JSON array, the
-    question field is 'prompt' rather than 'text', and 'test_imports' is a list.
-    """
-    with open(DATA / "sanitized-mbpp.json", encoding="utf-8") as f:
-        rows = json.load(f)
-
-    tasks = []
-    for row in rows:
-        tests = row.get("test_list") or []
-        # task_id 1-10 are MBPP's canonical few-shot prompt examples.
-        if not tests or row["task_id"] <= 10:
-            continue
-        tasks.append(
-            {
-                "id": f"code-{row['task_id']}",
-                "domain": "code",
-                "prompt": row["prompt"],
-                "grader": "run_asserts",
-                "grader_payload": {
-                    "tests": tests,
-                    "setup": "\n".join(row.get("test_imports") or []),
-                },
-                # This is the reference solution's line count, which is NOT
-                # available before answering. Fine for stratified sampling and
-                # for driving the mock's success rate; it would be a leak as a
-                # router feature, which is why the router cannot reach it.
-                "difficulty_proxy": len(row["code"].splitlines()),
-                # Everything a router is allowed to see before calling anything,
-                # in its own field on purpose: routers read ONLY from here, so the leak
-                # above cannot be reintroduced by someone reaching for
-                # difficulty_proxy because it happens to be nearby. Every entry
-                # must be derivable from the question alone.
-                "predict_features": {
-                    "prompt_chars": len(row["prompt"]),
-                    "n_asserts": len(tests),
-                },
-                # Reference solution, used ONLY by the mock model, which needs
-                # something that genuinely passes the asserts in order to
-                # simulate a correct answer. Never shown to a real model.
-                "_ref_code": row["code"],
-            }
-        )
-    return tasks
-
-
 def load_mbppplus():
     """MBPP+ (evalplus/mbppplus): the same problems, roughly 35x more tests.
 
@@ -236,7 +183,11 @@ def load_mbppplus():
     return tasks
 
 
-CODE_SOURCES = {"mbpp": load_mbpp, "mbppplus": load_mbppplus}
+# Plain sanitized MBPP was the other code source until 9 August 2026, selected
+# with `--code mbpp`. It was removed, along with `data/sanitized-mbpp.json`,
+# because the only thing still reading it was the thin-asserts marking, and
+# nothing reports that any more: every code task in the set is MBPP+, graded on
+# the expanded suite. Its history is in docs/DATASETS.md and in git.
 
 
 def add_difficulty_pct(tasks):
@@ -364,13 +315,6 @@ def drop_quarantined(tasks):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument(
-        "--code", default="mbppplus", choices=sorted(CODE_SOURCES),
-        help="which code benchmark to use. mbppplus (default) is the same "
-             "problems with the expanded evalplus suites, which are far harder "
-             "to pass. mbpp is sanitized MBPP with its original thin asserts, "
-             "kept reachable so the easier marking can be reproduced.",
-    )
     ap.add_argument("--n-math", type=int, default=N_MATH)
     ap.add_argument("--n-code", type=int, default=N_CODE)
     ap.add_argument(
@@ -386,7 +330,7 @@ def main():
     rng = random.Random(SEED)
     math_tasks = stratified_sample(
         load_math500(args.min_math_level), args.n_math, rng)
-    code_tasks = stratified_sample(CODE_SOURCES[args.code](), args.n_code, rng)
+    code_tasks = stratified_sample(load_mbppplus(), args.n_code, rng)
     tasks = math_tasks + code_tasks
     add_difficulty_pct(tasks)
     rng.shuffle(tasks)
@@ -403,7 +347,7 @@ def main():
             f.write(json.dumps(t) + "\n")
 
     print(f"wrote {len(tasks)} tasks -> {OUT}")
-    print(f"  code source: {args.code}   math levels: >= {args.min_math_level}")
+    print(f"  code source: mbppplus   math levels: >= {args.min_math_level}")
     for domain in ("math", "code"):
         sub = [t for t in tasks if t["domain"] == domain]
         diffs = [t["difficulty_proxy"] for t in sub]

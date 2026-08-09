@@ -17,6 +17,7 @@ each row to interpret it without an external note.
 
 import argparse
 import json
+import os
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -32,13 +33,34 @@ RESULTS = HERE / "results.jsonl"
 
 # Hard spend cap, enforced in code rather than by willpower.
 #
-# Lowered from $20 to $3 on 8 August 2026. $20 was set when the whole project was
-# expected to cost about $1, so it was a runaway guard rather than a budget: a bug
-# could have spent the entire remaining budget several times over before it bound.
-# $3 is above the largest single run SHIP_PLAN.md asks for (§3-C, ~$2.22) and below
-# what would hurt. Raise it deliberately, per run, if a run genuinely needs more —
-# a cap that is routinely raised is not a cap.
-MAX_SPEND_USD = 3.0
+# It MOVED on 9 August 2026, from a check in this module's policy loop to
+# `models.call`, next to the one line that can charge a card. The old placement
+# only covered the loop, so everything spent before it - the llm_router routing
+# pre-pass, estimator fitting on the calibration half - was outside the cap.
+#
+# Re-exported under the old name because this is where a reader looks for it,
+# and because STATUS.md and README point at `run_eval.MAX_SPEND_USD`.
+#
+# PER RUN, not per project: a runaway guard, sitting above the largest planned
+# run and far below the funded card, so a bug costs one run rather than the
+# budget. $20 -> $3 on 8 August, $3 -> $5 on 9 August. The $5 is set against
+# next_step.md Stage 3, whose largest single buy is E at ~$2.64 and whose whole
+# sequence is ~$4.0; $3 would have bound partway through E, which is the worst
+# place for a cap to bind - not a bug, just a plan the guard had not been told
+# about.
+#
+# Override per run rather than editing anything - a cap that is routinely
+# edited is not a cap:
+#
+#     ROUTER_MAX_SPEND_USD=8 ROUTER_MODE=real python3 run_eval.py
+MAX_SPEND_USD = models.MAX_SPEND_USD
+
+# The EXCEPTION is deliberately not aliased here. `models` is reloaded by the
+# test suite's `use_ladder` fixture, which rebuilds the class object, and an
+# alias captured at import would then name a class that nothing raises any more
+# - so the handler at the bottom of this file would silently stop catching. It
+# reaches through `models.` at except time instead. The float above is safe to
+# alias because it is a value, and a reload reads the same environment variable.
 
 # ---------------------------------------------------------------------------
 # The pilot gate: the band the cheap-model failure rate has to land in for the
@@ -148,7 +170,6 @@ def credentials_line():
     Key NAMES only, never values, and never a prefix of a value. A log line is
     the easiest place in a project to leak a secret.
     """
-    import os
     from pathlib import Path as _P
 
     env_file = _P(models.__file__).parent / ".env"
@@ -253,7 +274,7 @@ def applicable(name, task):
 
 def run(tasks):
     rows = []
-    spend = 0.0
+    attributed = 0.0   # what the policies would each pay in production
     total = sum(1 for t in tasks for n in POLICIES if applicable(n, t))
     done = 0
 
@@ -266,9 +287,6 @@ def run(tasks):
         for name, fn in POLICIES.items():
             if name in uncached or not applicable(name, task):
                 continue
-            if spend > MAX_SPEND_USD:
-                print(f"\n!! spend cap ${MAX_SPEND_USD} hit, stopping early", file=sys.stderr)
-                return _drop_uncached(rows, uncached)
             # Measured per row, not inferred from the mode. A policy that made
             # even one fabricated call produced a fabricated row, whatever the
             # other calls were: a cascade that verifies a real cheap answer with
@@ -291,7 +309,7 @@ def run(tasks):
                 # missing recording is the thing that reveals the problem.
                 uncached[name] = task["id"]
                 continue
-            spend += res.cost_usd
+            attributed += res.cost_usd
             rows.append(
                 {
                     "task_id": res.task_id,
@@ -311,7 +329,11 @@ def run(tasks):
             )
             done += 1
             if done % 50 == 0:
-                print(f"  {done}/{total}  spend=${spend:.4f}", file=sys.stderr)
+                # Both, labelled. One line showing a single "spend" figure is how
+                # a replay gets read as though it cost money, and how a real run
+                # gets read as though it cost several times what it did.
+                print(f"  {done}/{total}  spent=${models.backend_spend_usd:.4f}"
+                      f"  attributed=${attributed:.4f}", file=sys.stderr)
     return _drop_uncached(rows, uncached)
 
 
@@ -1038,4 +1060,17 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except models.SpendCapExceeded as exc:
+        # Caught only to print it as a block rather than a traceback. The exit
+        # status is still non-zero, so a script that chains runs stops here.
+        print(
+            "\n" + "=" * 62
+            + "\n  SPEND CAP - RUN ABORTED, results.jsonl NOT WRITTEN\n"
+            + "=" * 62 + f"\n{exc}\n"
+            + "  A partial run must not look like a complete one, so the\n"
+            + "  previous results.jsonl is left exactly as it was.",
+            file=sys.stderr,
+        )
+        raise SystemExit(2)

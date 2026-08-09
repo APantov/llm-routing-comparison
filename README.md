@@ -521,7 +521,7 @@ repo has a concrete demonstration of the difference: the 6 August probe reports 
 fraction is 15.0% and sits on its floor. Six of those 21 failures are tasks
 neither rung can solve — and on the code half it is 5 of 10, so half the code
 cascade's escalations buy nothing. See
-[ROUTABLE_2026-07-30.md](docs/ROUTABLE_2026-07-30.md).
+`ROUTABLE_2026-07-30.md` (deleted 9 Aug; in git history).
 
 Ten tasks cannot answer this either — at n=10 the rate carries a ±28-point
 confidence interval, which spans the entire acceptable band.
@@ -551,8 +551,10 @@ Both difficulty settings were raised on 6 August 2026, because the probe showed
 the cheap rung solving essentially everything at the previous ones. MBPP+ is the
 same 378 problems as sanitized MBPP with roughly 35x more test cases, so the swap
 moves exactly one variable — how thorough the marking is — and the model is still
-shown the original thin asserts as its specification. The easier originals remain
-one flag away: `--code mbpp --min-math-level 3`. See [DATASETS.md](docs/DATASETS.md).
+shown the original thin asserts as its specification. The easier maths floor remains
+one flag away: `--min-math-level 3`. Plain MBPP was deleted on 9 August 2026 —
+nothing reported the thin-asserts marking it existed for. See
+[DATASETS.md](docs/DATASETS.md).
 Grading the code half now needs **numpy**, because the expanded suites compare
 floats with `np.allclose`.
 

@@ -209,7 +209,7 @@ The gate `run_eval.py` prints is friendlier — cheap-model failure rate 21.0%
 [13%, 29%] against a 20–55% target. **Prefer the routable figure.** `P(cheap
 fails)` is `routable + both_fail`, and 6 of those 21 failures are tasks the
 expensive rung cannot fix either. That is the exact confusion
-[ROUTABLE_2026-07-30.md](docs/ROUTABLE_2026-07-30.md) was written to warn about,
+`ROUTABLE_2026-07-30.md` (deleted 9 Aug; in git history) was written to warn about,
 though the gap is much smaller now that the grader is not manufacturing failures.
 
 So the honest reading: **there is a real routing signal, it is comfortably
@@ -484,8 +484,10 @@ make that hard to miss.
 > is a tripwire: it fails if a quarantined id reappears in any artefact.
 
 The code half needs **numpy** to grade, because every MBPP+ test program compares
-floats with `np.allclose`. The easier originals are still one flag away:
-`python3 build_taskset.py --code mbpp --min-math-level 3`.
+floats with `np.allclose`. The easier maths floor is still one flag away:
+`python3 build_taskset.py --min-math-level 3`. The easier *code* source is not —
+plain sanitized MBPP and its `--code` flag were deleted on 9 August 2026, since
+the only thing still reading them was a thin-asserts marking nothing reports.
 
 ### Step 2 — look at the three ladders (2 min, free)
 
@@ -558,7 +560,7 @@ ROUTER_MODE=replay python3 routable.py --real --ladders wide
 ```
 
 > **Do not use the one-arm version, and do not read the gate `run_eval.py`
-> prints.** See [ROUTABLE_2026-07-30.md](docs/ROUTABLE_2026-07-30.md). `P(cheap fails)`
+> prints.** See `ROUTABLE_2026-07-30.md` (deleted 9 Aug; in git history). `P(cheap fails)`
 > is `routable + both_fail`, and the one-arm gate cannot see the split. This run
 > is the concrete demonstration: it reports a 21.0% cheap failure rate against a
 > 20–55% target, while the quantity that actually matters is 15.0% and sits on
@@ -667,9 +669,17 @@ cost" the report also prints is the sum over policies of what each would pay to
 serve alone, which is the right number for a production comparison and the wrong
 one for your invoice.
 
-All three ladders, full runs, come to about **$1.15 total.** The spend cap in
-`run_eval.MAX_SPEND_USD` is $20 and enforced in code, so a bug cannot run away with
-your money.
+All three ladders, full runs, come to about **$1.15 total.** The spend cap is
+**$5 per run**, enforced in `models.call` itself — immediately before the one
+line in the program that can charge a card, so no entry point can reach a
+backend without passing it. It counts what actually reached a backend, not what
+the policies are attributed, and it applies in real mode only: mock and replay
+charge nothing. Raise it for one run with `ROUTER_MAX_SPEND_USD=8`.
+
+It **raises** rather than stopping early. Until 9 August 2026 it printed
+"stopping early" and carried on, which would have written a half-measured task
+set to `results.jsonl` where nothing downstream could tell it from a complete
+one.
 
 Two caveats, both in your favour:
 
@@ -742,8 +752,8 @@ two-arm probe over all 504 costs about **$3.60**; a full ten-policy run is the
 number to be careful with, because self-consistency verification samples the
 cheap rung k times per task and maths is the expensive domain. Budget in the
 $15–25 range for `wide` at n=504 rather than the $0.37 in §3, and re-read the
-spend cap in `run_eval.MAX_SPEND_USD` (currently $20) before starting — **it will
-bind.**
+spend cap (currently **$5 per run**, `models.MAX_SPEND_USD`) before starting —
+**it will bind**, and it now aborts the run rather than truncating it.
 
 Every analysis afterwards is free via replay. This is still the highest-value
 spend available to the project.

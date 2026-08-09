@@ -611,6 +611,108 @@ class TestResponseProvenance:
 
 
 # ---------------------------------------------------------------------------
+# The spend guards.
+#
+# Both of these were real hazards on 9 August 2026, before the largest paid
+# batch in the project's history. The cap printed "stopping early" and carried
+# on, so a half-measured task set would have been written to results.jsonl and
+# read as complete; and ROUTER_CACHE=0 would have paid for every response and
+# discarded it, because put() is a no-op with the cache off.
+#
+# Neither had a test, which is how they survived. A guard nothing exercises is
+# the same shape of defect as the silent mock fallback that fabricated 240
+# self-consistency samples.
+# ---------------------------------------------------------------------------
+
+class TestSpendCap:
+    def test_it_binds_in_real_mode(self, monkeypatch, benchmark_task):
+        """Raises rather than returning, and raises BEFORE reaching a backend."""
+        monkeypatch.setattr(models, "MODE", "real")
+        monkeypatch.setattr(models, "MAX_SPEND_USD", 1.0)
+        monkeypatch.setattr(models, "backend_spend_usd", 1.5)
+        monkeypatch.setattr(response_cache, "get", lambda k: None)
+        monkeypatch.setattr(
+            models, "_real_call",
+            lambda *a, **k: pytest.fail("reached a backend past the spend cap"))
+
+        with pytest.raises(models.SpendCapExceeded):
+            models.call("cheap", benchmark_task[0])
+
+    def test_it_does_not_bind_in_mock_or_replay(self, monkeypatch, benchmark_task):
+        """Mock and replay charge nothing, so a cap on them is a false positive.
+
+        Not a detail: mock cost_usd is modelled from synthetic token counts and
+        accumulates exactly like real cost, so a mode-blind cap would abort free
+        mock runs over a large task set for no reason at all.
+        """
+        monkeypatch.setattr(models, "MODE", "mock")
+        monkeypatch.setattr(models, "MAX_SPEND_USD", 0.0)
+        monkeypatch.setattr(models, "backend_spend_usd", 99.0)
+        monkeypatch.setattr(response_cache, "get", lambda k: None)
+        monkeypatch.setattr(response_cache, "put", lambda k, r: None)
+        assert models.call("cheap", benchmark_task[0]) is not None
+
+    def test_it_counts_backend_spend_not_attributed_cost(self, monkeypatch, benchmark_task):
+        """A cache hit charges the policy but not the card.
+
+        This is the distinction the cap turns on. Attributed cost grows with the
+        number of policies and is identical in replay, so capping on it would
+        abort a free replay of a large task set.
+        """
+        monkeypatch.setattr(models, "MODE", "replay")
+        models.reset_call_stats()
+        assert models.backend_spend_usd == 0.0
+
+        record = {"text": "42", "tier": "cheap", "tokens_in": 10, "tokens_out": 2,
+                  "latency_s": 0.1, "cost_usd": 0.50, "mode": "real"}
+        monkeypatch.setattr(response_cache, "get", lambda k: record)
+
+        r = models.call("cheap", benchmark_task[0])
+        assert r.cost_usd == 0.50          # the policy is charged
+        assert models.backend_spend_usd == 0.0   # the card is not
+
+    def test_reset_clears_it(self, monkeypatch):
+        monkeypatch.setattr(models, "backend_spend_usd", 3.0)
+        models.reset_call_stats()
+        assert models.backend_spend_usd == 0.0
+
+    def test_run_eval_still_exposes_the_name(self):
+        """STATUS.md and README point readers at run_eval.MAX_SPEND_USD."""
+        assert run_eval.MAX_SPEND_USD == models.MAX_SPEND_USD
+
+    def test_the_exception_is_not_aliased_at_import(self):
+        """`use_ladder` reloads models, which rebuilds the class object.
+
+        An alias captured at import would then name a class nothing raises, and
+        the handler in run_eval would silently stop catching - a spend guard
+        that fails open. Both entry points reach through `models.` instead.
+        """
+        assert not hasattr(run_eval, "SpendCapExceeded")
+
+
+class TestCacheOffIsRefusedOnThePaidPath:
+    def test_real_mode_is_refused(self, monkeypatch):
+        """With the cache off, put() discards - so a real run pays and keeps
+        nothing. The most expensive failure available in this repository."""
+        monkeypatch.setattr(response_cache, "ENABLED", False)
+        with pytest.raises(SystemExit):
+            response_cache.configure("real", "wide")
+
+    def test_replay_mode_is_refused(self, monkeypatch):
+        """Replay IS a cache read; with the cache off it measures nothing."""
+        monkeypatch.setattr(response_cache, "ENABLED", False)
+        with pytest.raises(SystemExit):
+            response_cache.configure("replay", "wide")
+
+    def test_mock_mode_is_allowed(self, monkeypatch):
+        """The switch exists to count un-deduplicated calls. That still works."""
+        monkeypatch.setattr(response_cache, "ENABLED", False)
+        response_cache.configure("mock", "wide")
+        # Put the module back the way the rest of the suite expects it.
+        response_cache.configure(models.MODE, models.LADDER)
+
+
+# ---------------------------------------------------------------------------
 # The routable re-estimate. This function corrected the repository's headline
 # from 15.0% to 10.2%, so it had better be right.
 # ---------------------------------------------------------------------------

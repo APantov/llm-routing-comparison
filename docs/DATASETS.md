@@ -43,12 +43,14 @@ Wired up and verified on 31 July 2026. Two commands:
 ```bash
 pip install datasets numpy
 python3 fetch_mbppplus.py                       # writes data/mbppplus.json
-python3 build_taskset.py --code mbppplus        # rebuild with the harder tests
+python3 build_taskset.py                        # MBPP+ is the only code source
 python3 sanity_check.py                         # must still be full marks
 ```
 
-`--code mbpp` remains the default, so nothing changes until you ask for it, and
-the default taskset still rebuilds byte-identically.
+MBPP+ became the default on 6 August 2026 and the **only** code source on
+9 August, when plain sanitized MBPP and its `--code` flag were deleted: the
+only thing still reading them was a thin-asserts marking nothing reports. The
+default taskset still rebuilds byte-identically.
 
 Verified concretely: on task 3 (`is_not_prime`), a solution that forgets the
 `n == 1` case **passes all four original MBPP asserts and fails the expanded
@@ -164,9 +166,9 @@ once the main set works.
 If that alone lifts the failure rate into 20–55%, stop — you have a working task
 set for the cost of one edit.
 
-**Step 2, cheap — already implemented.** `python3 fetch_mbppplus.py` then
-`python3 build_taskset.py --code mbppplus`. Same problems, far stricter marking.
-Probe again.
+**Step 2, cheap — already implemented, and now the only code source.**
+`python3 fetch_mbppplus.py` then `python3 build_taskset.py`. Same problems, far
+stricter marking. Probe again.
 
 **Step 3, only if needed.** Omni-MATH filtered to `difficulty >= 7` and to answers
 that survive `normalize_math_answer`, plus BigCodeBench. This is real work: a new

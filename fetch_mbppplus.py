@@ -15,7 +15,7 @@ MBPP, tightening the tests is the cheapest way to make the task set discriminate
 again.
 
     python3 fetch_mbppplus.py            # writes data/mbppplus.json
-    python3 build_taskset.py --code mbppplus
+    python3 build_taskset.py
     python3 sanity_check.py
 
 NEEDS THE `datasets` PACKAGE, and only this script does. It is a one-time
@@ -218,7 +218,7 @@ def _write(out, rows, dropped):
         print("\n  Other causes are possible; the error above is what actually")
         print("  happened, and is the thing to read rather than this explanation.")
 
-    print("\nnext:  python3 build_taskset.py --code mbppplus && python3 sanity_check.py")
+    print("\nnext:  python3 build_taskset.py && python3 sanity_check.py")
 
 
 if __name__ == "__main__":

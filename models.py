@@ -721,7 +721,6 @@ def _mock_call(
 # ---------------------------------------------------------------------------
 
 _CLIENTS = {}
-truncated_calls = 0
 
 
 def _note_truncation(task, tier, kind, sample_idx, *, from_cache):
@@ -820,7 +819,6 @@ def _real_call(
     # The FIRST draw for a given sample_idx is stored, and every later reader
     # gets that one. So real mode is reproducible after the fact rather than by
     # construction, which is the strongest guarantee a hosted API allows.
-    global truncated_calls
     cfg = MODELS[tier]
 
     # The two tiers have genuinely different API contracts, so the request is
@@ -845,7 +843,6 @@ def _real_call(
     # cap. Count it loudly instead of letting it pass as a result.
     truncated = msg.stop_reason == "max_tokens"
     if truncated:
-        truncated_calls += 1
         _note_truncation(task, tier, kind, sample_idx, from_cache=False)
 
     text = "".join(b.text for b in msg.content if b.type == "text")
@@ -958,11 +955,58 @@ call_stats = {"requested": 0, "from_cache": 0, "backend": 0,
 # number of damaged MEASUREMENTS does not. The set is what to report.
 truncated_ids = set()
 
+# Dollars that actually left the account on this run: summed over the calls that
+# reached a backend, and only those.
+#
+# This is NOT the number any policy is charged. A cache hit returns its full
+# cost_usd and the policy pays it, because that is what the policy would cost in
+# production - see response_cache's docstring. Attributed cost therefore grows
+# with the number of policies and is identical in replay, mock and real mode.
+#
+# A spend cap must read THIS one. Capping on attributed cost would abort a free
+# replay of a large task set - $0.00 spent, several dollars attributed - and
+# would under-count a real run that escalated less than expected.
+backend_spend_usd = 0.0
+
+# Hard per-process spend cap, REAL MODE ONLY.
+#
+# It lives here, next to the one line that adds to `backend_spend_usd`, rather
+# than in each entry point that can spend. That is the whole reason it moved:
+# run_eval's own cap only wrapped its policy loop, so anything spent BEFORE that
+# loop - the llm_router routing pre-pass, estimator fitting on the calibration
+# half - was invisible to it. A cap the spender can walk around is not a cap.
+#
+# Mock and replay are exempt by construction rather than by exemption: mock
+# responses have a modelled cost_usd that no card is charged for, and a $5 cap
+# would abort a free mock run over a large task set for no reason. `real` is the
+# only mode in which this counter corresponds to money.
+#
+#     ROUTER_MAX_SPEND_USD=8 ROUTER_MODE=real python3 run_eval.py
+MAX_SPEND_USD = float(os.environ.get("ROUTER_MAX_SPEND_USD", "5.0"))
+
+
+class SpendCapExceeded(RuntimeError):
+    """Raised by call() when real spend crosses MAX_SPEND_USD.
+
+    An EXCEPTION rather than a stop-and-return, and that is the point of it.
+    Until 9 August 2026 run_eval's cap printed "stopping early" and returned the
+    rows it had, which main() then wrote to results.jsonl and reported on. A
+    half-measured task set is indistinguishable from a complete one once it is a
+    file: every policy not yet reached simply scores lower, and nothing
+    downstream can tell that from a real result.
+
+    Nothing paid for is lost when it fires. response_cache.put writes each
+    response as it arrives, so an aborted run is fully replayable and a re-run
+    with a higher cap pays only for what it did not reach.
+    """
+
 
 def reset_call_stats():
+    global backend_spend_usd
     for k in call_stats:
         call_stats[k] = 0
     truncated_ids.clear()
+    backend_spend_usd = 0.0
 
 
 def call(
@@ -1044,12 +1088,35 @@ def call(
             f"it touches is stamped simulated: true."
         )
 
+    global backend_spend_usd
+    # Checked here, immediately before the only line in the program that can
+    # charge a card, so no caller can reach a backend without passing it.
+    if MODE == "real" and backend_spend_usd > MAX_SPEND_USD:
+        raise SpendCapExceeded(
+            f"spend cap hit: ${backend_spend_usd:.4f} of ${MAX_SPEND_USD:.2f} "
+            f"reached a backend.\n"
+            f"  Stopped before calling {MODELS[tier]['id']} for {task['id']} "
+            f"({kind}, sample {sample_idx}).\n"
+            f"  Every response paid for is already in "
+            f"{response_cache.PATH.name} - nothing is lost, and a re-run pays "
+            f"only for what it did not reach.\n"
+            f"  Raise the cap for one run once you know why the estimate was "
+            f"low:\n"
+            f"      ROUTER_MAX_SPEND_USD={max(1, int(backend_spend_usd * 2))} "
+            f"ROUTER_MODE=real python3 ...\n"
+            f"  If you do not know why, do not raise it - something is calling "
+            f"more than you think."
+        )
     call_stats["backend"] += 1
     backend = _mock_call if MODE == "mock" else _real_call
     r = backend(tier, prompt, task, temperature, sample_idx, kind)
     # One place rather than inside each backend, so a new backend cannot forget.
     r.simulated = MODE == "mock"
     call_stats["served_mock" if r.simulated else "served_real"] += 1
+    # The only line in the codebase that adds to real spend. Here rather than in
+    # each backend for the same reason as the line above, and after the call
+    # rather than before it because a call that raised was not billed.
+    backend_spend_usd += r.cost_usd
 
     # Written immediately rather than batched: a real run that dies halfway
     # through must keep every response it paid for.
