@@ -264,6 +264,26 @@ def stratified_sample(tasks, n, rng):
 # dropped by ReplayMiss and $4.24 of committed data would go unused. Filtering
 # last leaves the survivors byte-identical to their entries in the previous task
 # set, so the existing cache stays valid.
+#
+# ---------------------------------------------------------------------------
+# THE BAR, tightened 10 August 2026: a task may be quarantined only if EVERY
+# rung's multi-draw p-hat is exactly 0. "Both rungs failed once" is not enough.
+#
+# This is not a hypothetical tightening. `codeplus-305` was quarantined here on
+# 8 August with `redraw.wide.json` already recording, in the same commit,
+# cheap p-hat 0.0 and expensive p-hat 0.5 - the expensive rung solved it half
+# the time. It was reversed on 10 August; see the note below its old entry.
+#
+# The failure mode is specific and worth naming, because buy B multiplies these
+# judgements by eight: a task the cheap rung reliably fails and the expensive
+# rung sometimes solves is not an artefact, it is the single most valuable kind
+# of task in this project - a routable one. Quarantining it deletes the signal
+# the experiment exists to measure, and it does so silently, because a smaller
+# task set looks like a cleaner one.
+#
+# `scripts/triage_both_fail.py` gathers the evidence for this decision and will
+# not make it. Its `broken_evidence` bucket is where to start reading.
+# ---------------------------------------------------------------------------
 QUARANTINED = {
     "codeplus-119":
         "expects the XOR-fold of the reference: [1,2,3,4,5,6] -> 7, which is not "
@@ -275,12 +295,31 @@ QUARANTINED = {
     "codeplus-771":
         "expects '' -> False. An empty expression is balanced. A textbook solution "
         "mismatches exactly 1 of 106 inputs - that one.",
-    "codeplus-305":
-        "the reference yields mutually inconsistent expectations for "
-        "identically-shaped inputs.",
     "codeplus-630":
         "expected coordinate ordering is a reference artefact the prompt does not "
         "specify.",
+}
+
+# REVERSED 10 August 2026: codeplus-305, "return two words from a list of words
+# starting with letter 'p'". It was quarantined on 8 August as "the reference
+# yields mutually inconsistent expectations for identically-shaped inputs".
+#
+# It is passable. Of 11 greedy draws at the expensive rung, 5 pass the expanded
+# suite; the cheap rung fails 11 of 11. `redraw.wide.json` at the quarantine
+# commit (6ac741c) already recorded it as cheap 0.0 / expensive 0.5, against
+# 0.0 / 0.0 for the four tasks above - the evidence contradicting the decision
+# was in the same commit that made it.
+#
+# So it is not an unpassable task. It is a hard one that the cheap rung reliably
+# fails and the expensive rung solves about half the time, which is precisely a
+# ROUTABLE task. Removing it took routing signal out of the experiment.
+#
+# Kept as a comment rather than deleted, because the standing rule is that a
+# quarantine decision is recorded with its evidence - and a reversal is a
+# quarantine decision.
+UNQUARANTINED = {
+    "codeplus-305": "expensive p-hat 0.5 over 11 greedy draws; cheap 0.0. Hard "
+                    "and routable, not unpassable. Reversed 10 August 2026.",
 }
 
 

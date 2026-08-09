@@ -445,6 +445,56 @@ class TestQuarantine:
         for task_id, reason in build_taskset.QUARANTINED.items():
             assert len(reason) > 40, f"{task_id} has no real evidence recorded"
 
+    def test_nothing_passable_is_quarantined(self):
+        """The bar tightened on 10 August: every rung's p-hat must be 0.
+
+        `codeplus-305` was quarantined on 8 August while `redraw.wide.json` in
+        the same commit recorded its expensive rung at p-hat 0.5. A task the
+        cheap rung reliably fails and the expensive rung solves half the time is
+        ROUTABLE - the most valuable kind of task here - and quarantining it
+        deleted the signal the project exists to measure.
+
+        This reads whatever draw data is on disk and fails if any quarantined id
+        was ever observed passing. It is deliberately cheap to satisfy and hard
+        to argue with: one passing draw is a disproof of "unpassable".
+        """
+        import json
+
+        import build_taskset
+
+        quarantined = set(build_taskset.QUARANTINED)
+        offenders = {}
+        for name in ("redraw.wide.json", "redraw.claude.json",
+                     "redraw.deepseek.json"):
+            path = REPO_ROOT / name
+            if not path.exists():
+                continue
+            p_hat = json.loads(path.read_text(encoding="utf-8")).get("p_hat", {})
+            for task_id, rungs in p_hat.items():
+                if task_id not in quarantined:
+                    continue
+                passing = {r: p for r, p in rungs.items() if p}
+                if passing:
+                    offenders[task_id] = passing
+        assert not offenders, (
+            f"quarantined but observed passing: {offenders}.\n"
+            f"'Unpassable' is disproved by a single passing draw. Either the "
+            f"quarantine is wrong - see build_taskset.UNQUARANTINED for the "
+            f"codeplus-305 reversal - or the draw data is."
+        )
+
+    def test_a_reversal_records_its_evidence_too(self):
+        """A quarantine decision is recorded with its evidence, and a reversal
+        is a quarantine decision. Otherwise the next reader sees a task that was
+        removed and then silently restored, with no way to tell which call was
+        the considered one."""
+        import build_taskset
+
+        for task_id, reason in build_taskset.UNQUARANTINED.items():
+            assert task_id not in build_taskset.QUARANTINED, (
+                f"{task_id} is in both QUARANTINED and UNQUARANTINED")
+            assert len(reason) > 40, f"{task_id} reversal has no evidence recorded"
+
 
 class TestMathAnswerEquivalence:
     @pytest.mark.parametrize("got,want", [

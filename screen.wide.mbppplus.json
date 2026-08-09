@@ -1,0 +1,2218 @@
+{
+  "ladder": "wide",
+  "draws": 3,
+  "temperature": 0.0,
+  "tau": 0.2,
+  "tiers": [
+    "cheap"
+  ],
+  "p_hat": {
+    "codeplus-11": {
+      "cheap": 1.0
+    },
+    "codeplus-12": {
+      "cheap": 1.0
+    },
+    "codeplus-14": {
+      "cheap": 1.0
+    },
+    "codeplus-16": {
+      "cheap": 0.0
+    },
+    "codeplus-17": {
+      "cheap": 1.0
+    },
+    "codeplus-18": {
+      "cheap": 1.0
+    },
+    "codeplus-19": {
+      "cheap": 1.0
+    },
+    "codeplus-20": {
+      "cheap": 1.0
+    },
+    "codeplus-56": {
+      "cheap": 1.0
+    },
+    "codeplus-57": {
+      "cheap": 1.0
+    },
+    "codeplus-58": {
+      "cheap": 1.0
+    },
+    "codeplus-59": {
+      "cheap": 1.0
+    },
+    "codeplus-61": {
+      "cheap": 1.0
+    },
+    "codeplus-62": {
+      "cheap": 1.0
+    },
+    "codeplus-63": {
+      "cheap": 1.0
+    },
+    "codeplus-64": {
+      "cheap": 1.0
+    },
+    "codeplus-65": {
+      "cheap": 1.0
+    },
+    "codeplus-66": {
+      "cheap": 1.0
+    },
+    "codeplus-67": {
+      "cheap": 1.0
+    },
+    "codeplus-68": {
+      "cheap": 1.0
+    },
+    "codeplus-69": {
+      "cheap": 1.0
+    },
+    "codeplus-70": {
+      "cheap": 1.0
+    },
+    "codeplus-71": {
+      "cheap": 1.0
+    },
+    "codeplus-72": {
+      "cheap": 1.0
+    },
+    "codeplus-74": {
+      "cheap": 0.0
+    },
+    "codeplus-75": {
+      "cheap": 1.0
+    },
+    "codeplus-77": {
+      "cheap": 1.0
+    },
+    "codeplus-79": {
+      "cheap": 1.0
+    },
+    "codeplus-80": {
+      "cheap": 1.0
+    },
+    "codeplus-82": {
+      "cheap": 1.0
+    },
+    "codeplus-84": {
+      "cheap": 1.0
+    },
+    "codeplus-85": {
+      "cheap": 1.0
+    },
+    "codeplus-86": {
+      "cheap": 1.0
+    },
+    "codeplus-87": {
+      "cheap": 1.0
+    },
+    "codeplus-88": {
+      "cheap": 1.0
+    },
+    "codeplus-89": {
+      "cheap": 1.0
+    },
+    "codeplus-90": {
+      "cheap": 1.0
+    },
+    "codeplus-91": {
+      "cheap": 1.0
+    },
+    "codeplus-92": {
+      "cheap": 0.0
+    },
+    "codeplus-93": {
+      "cheap": 1.0
+    },
+    "codeplus-94": {
+      "cheap": 1.0
+    },
+    "codeplus-95": {
+      "cheap": 1.0
+    },
+    "codeplus-96": {
+      "cheap": 1.0
+    },
+    "codeplus-97": {
+      "cheap": 1.0
+    },
+    "codeplus-98": {
+      "cheap": 1.0
+    },
+    "codeplus-99": {
+      "cheap": 0.0
+    },
+    "codeplus-100": {
+      "cheap": 1.0
+    },
+    "codeplus-101": {
+      "cheap": 0.0
+    },
+    "codeplus-102": {
+      "cheap": 0.0
+    },
+    "codeplus-103": {
+      "cheap": 1.0
+    },
+    "codeplus-104": {
+      "cheap": 1.0
+    },
+    "codeplus-105": {
+      "cheap": 1.0
+    },
+    "codeplus-106": {
+      "cheap": 1.0
+    },
+    "codeplus-108": {
+      "cheap": 1.0
+    },
+    "codeplus-109": {
+      "cheap": 0.0
+    },
+    "codeplus-111": {
+      "cheap": 1.0
+    },
+    "codeplus-113": {
+      "cheap": 0.0
+    },
+    "codeplus-116": {
+      "cheap": 1.0
+    },
+    "codeplus-118": {
+      "cheap": 1.0
+    },
+    "codeplus-120": {
+      "cheap": 1.0
+    },
+    "codeplus-123": {
+      "cheap": 1.0
+    },
+    "codeplus-124": {
+      "cheap": 1.0
+    },
+    "codeplus-125": {
+      "cheap": 1.0
+    },
+    "codeplus-126": {
+      "cheap": 1.0
+    },
+    "codeplus-127": {
+      "cheap": 1.0
+    },
+    "codeplus-128": {
+      "cheap": 1.0
+    },
+    "codeplus-129": {
+      "cheap": 1.0
+    },
+    "codeplus-130": {
+      "cheap": 1.0
+    },
+    "codeplus-131": {
+      "cheap": 1.0
+    },
+    "codeplus-132": {
+      "cheap": 1.0
+    },
+    "codeplus-133": {
+      "cheap": 1.0
+    },
+    "codeplus-135": {
+      "cheap": 1.0
+    },
+    "codeplus-137": {
+      "cheap": 1.0
+    },
+    "codeplus-138": {
+      "cheap": 0.0
+    },
+    "codeplus-139": {
+      "cheap": 1.0
+    },
+    "codeplus-140": {
+      "cheap": 1.0
+    },
+    "codeplus-141": {
+      "cheap": 1.0
+    },
+    "codeplus-142": {
+      "cheap": 1.0
+    },
+    "codeplus-145": {
+      "cheap": 1.0
+    },
+    "codeplus-160": {
+      "cheap": 0.0
+    },
+    "codeplus-161": {
+      "cheap": 0.0
+    },
+    "codeplus-162": {
+      "cheap": 1.0
+    },
+    "codeplus-165": {
+      "cheap": 1.0
+    },
+    "codeplus-166": {
+      "cheap": 1.0
+    },
+    "codeplus-167": {
+      "cheap": 1.0
+    },
+    "codeplus-168": {
+      "cheap": 1.0
+    },
+    "codeplus-170": {
+      "cheap": 1.0
+    },
+    "codeplus-171": {
+      "cheap": 1.0
+    },
+    "codeplus-172": {
+      "cheap": 1.0
+    },
+    "codeplus-222": {
+      "cheap": 1.0
+    },
+    "codeplus-223": {
+      "cheap": 0.0
+    },
+    "codeplus-224": {
+      "cheap": 1.0
+    },
+    "codeplus-226": {
+      "cheap": 1.0
+    },
+    "codeplus-227": {
+      "cheap": 1.0
+    },
+    "codeplus-230": {
+      "cheap": 1.0
+    },
+    "codeplus-232": {
+      "cheap": 1.0
+    },
+    "codeplus-233": {
+      "cheap": 1.0
+    },
+    "codeplus-234": {
+      "cheap": 1.0
+    },
+    "codeplus-235": {
+      "cheap": 0.0
+    },
+    "codeplus-237": {
+      "cheap": 1.0
+    },
+    "codeplus-238": {
+      "cheap": 1.0
+    },
+    "codeplus-239": {
+      "cheap": 1.0
+    },
+    "codeplus-240": {
+      "cheap": 1.0
+    },
+    "codeplus-242": {
+      "cheap": 1.0
+    },
+    "codeplus-244": {
+      "cheap": 0.0
+    },
+    "codeplus-245": {
+      "cheap": 1.0
+    },
+    "codeplus-247": {
+      "cheap": 1.0
+    },
+    "codeplus-250": {
+      "cheap": 1.0
+    },
+    "codeplus-251": {
+      "cheap": 1.0
+    },
+    "codeplus-252": {
+      "cheap": 1.0
+    },
+    "codeplus-253": {
+      "cheap": 1.0
+    },
+    "codeplus-255": {
+      "cheap": 0.0
+    },
+    "codeplus-256": {
+      "cheap": 1.0
+    },
+    "codeplus-257": {
+      "cheap": 1.0
+    },
+    "codeplus-259": {
+      "cheap": 1.0
+    },
+    "codeplus-260": {
+      "cheap": 0.0
+    },
+    "codeplus-261": {
+      "cheap": 1.0
+    },
+    "codeplus-262": {
+      "cheap": 1.0
+    },
+    "codeplus-264": {
+      "cheap": 0.0
+    },
+    "codeplus-265": {
+      "cheap": 1.0
+    },
+    "codeplus-266": {
+      "cheap": 1.0
+    },
+    "codeplus-267": {
+      "cheap": 0.0
+    },
+    "codeplus-268": {
+      "cheap": 1.0
+    },
+    "codeplus-269": {
+      "cheap": 1.0
+    },
+    "codeplus-270": {
+      "cheap": 1.0
+    },
+    "codeplus-271": {
+      "cheap": 1.0
+    },
+    "codeplus-272": {
+      "cheap": 1.0
+    },
+    "codeplus-273": {
+      "cheap": 1.0
+    },
+    "codeplus-274": {
+      "cheap": 1.0
+    },
+    "codeplus-276": {
+      "cheap": 1.0
+    },
+    "codeplus-277": {
+      "cheap": 1.0
+    },
+    "codeplus-278": {
+      "cheap": 0.0
+    },
+    "codeplus-279": {
+      "cheap": 1.0
+    },
+    "codeplus-280": {
+      "cheap": 1.0
+    },
+    "codeplus-281": {
+      "cheap": 1.0
+    },
+    "codeplus-282": {
+      "cheap": 1.0
+    },
+    "codeplus-283": {
+      "cheap": 1.0
+    },
+    "codeplus-284": {
+      "cheap": 1.0
+    },
+    "codeplus-285": {
+      "cheap": 1.0
+    },
+    "codeplus-286": {
+      "cheap": 1.0
+    },
+    "codeplus-287": {
+      "cheap": 1.0
+    },
+    "codeplus-290": {
+      "cheap": 0.0
+    },
+    "codeplus-292": {
+      "cheap": 1.0
+    },
+    "codeplus-293": {
+      "cheap": 1.0
+    },
+    "codeplus-294": {
+      "cheap": 0.0
+    },
+    "codeplus-296": {
+      "cheap": 1.0
+    },
+    "codeplus-297": {
+      "cheap": 1.0
+    },
+    "codeplus-299": {
+      "cheap": 1.0
+    },
+    "codeplus-300": {
+      "cheap": 0.0
+    },
+    "codeplus-301": {
+      "cheap": 0.0
+    },
+    "codeplus-306": {
+      "cheap": 1.0
+    },
+    "codeplus-308": {
+      "cheap": 1.0
+    },
+    "codeplus-309": {
+      "cheap": 1.0
+    },
+    "codeplus-310": {
+      "cheap": 0.0
+    },
+    "codeplus-311": {
+      "cheap": 1.0
+    },
+    "codeplus-312": {
+      "cheap": 1.0
+    },
+    "codeplus-388": {
+      "cheap": 1.0
+    },
+    "codeplus-389": {
+      "cheap": 1.0
+    },
+    "codeplus-390": {
+      "cheap": 1.0
+    },
+    "codeplus-391": {
+      "cheap": 0.0
+    },
+    "codeplus-392": {
+      "cheap": 1.0
+    },
+    "codeplus-394": {
+      "cheap": 1.0
+    },
+    "codeplus-395": {
+      "cheap": 1.0
+    },
+    "codeplus-397": {
+      "cheap": 1.0
+    },
+    "codeplus-398": {
+      "cheap": 0.0
+    },
+    "codeplus-404": {
+      "cheap": 1.0
+    },
+    "codeplus-405": {
+      "cheap": 1.0
+    },
+    "codeplus-406": {
+      "cheap": 1.0
+    },
+    "codeplus-409": {
+      "cheap": 1.0
+    },
+    "codeplus-410": {
+      "cheap": 0.0
+    },
+    "codeplus-412": {
+      "cheap": 1.0
+    },
+    "codeplus-413": {
+      "cheap": 1.0
+    },
+    "codeplus-414": {
+      "cheap": 1.0
+    },
+    "codeplus-415": {
+      "cheap": 0.0
+    },
+    "codeplus-418": {
+      "cheap": 1.0
+    },
+    "codeplus-419": {
+      "cheap": 1.0
+    },
+    "codeplus-420": {
+      "cheap": 1.0
+    },
+    "codeplus-421": {
+      "cheap": 1.0
+    },
+    "codeplus-422": {
+      "cheap": 1.0
+    },
+    "codeplus-424": {
+      "cheap": 1.0
+    },
+    "codeplus-425": {
+      "cheap": 1.0
+    },
+    "codeplus-426": {
+      "cheap": 1.0
+    },
+    "codeplus-427": {
+      "cheap": 0.0
+    },
+    "codeplus-428": {
+      "cheap": 1.0
+    },
+    "codeplus-429": {
+      "cheap": 1.0
+    },
+    "codeplus-430": {
+      "cheap": 0.0
+    },
+    "codeplus-432": {
+      "cheap": 1.0
+    },
+    "codeplus-433": {
+      "cheap": 1.0
+    },
+    "codeplus-435": {
+      "cheap": 1.0
+    },
+    "codeplus-436": {
+      "cheap": 1.0
+    },
+    "codeplus-437": {
+      "cheap": 1.0
+    },
+    "codeplus-439": {
+      "cheap": 1.0
+    },
+    "codeplus-440": {
+      "cheap": 0.0
+    },
+    "codeplus-441": {
+      "cheap": 1.0
+    },
+    "codeplus-445": {
+      "cheap": 0.3333333333333333
+    },
+    "codeplus-446": {
+      "cheap": 0.0
+    },
+    "codeplus-447": {
+      "cheap": 1.0
+    },
+    "codeplus-448": {
+      "cheap": 0.0
+    },
+    "codeplus-450": {
+      "cheap": 1.0
+    },
+    "codeplus-451": {
+      "cheap": 1.0
+    },
+    "codeplus-453": {
+      "cheap": 1.0
+    },
+    "codeplus-454": {
+      "cheap": 0.0
+    },
+    "codeplus-455": {
+      "cheap": 1.0
+    },
+    "codeplus-456": {
+      "cheap": 1.0
+    },
+    "codeplus-457": {
+      "cheap": 1.0
+    },
+    "codeplus-458": {
+      "cheap": 1.0
+    },
+    "codeplus-459": {
+      "cheap": 0.0
+    },
+    "codeplus-460": {
+      "cheap": 1.0
+    },
+    "codeplus-462": {
+      "cheap": 0.0
+    },
+    "codeplus-463": {
+      "cheap": 1.0
+    },
+    "codeplus-465": {
+      "cheap": 1.0
+    },
+    "codeplus-468": {
+      "cheap": 0.0
+    },
+    "codeplus-470": {
+      "cheap": 1.0
+    },
+    "codeplus-471": {
+      "cheap": 1.0
+    },
+    "codeplus-472": {
+      "cheap": 1.0
+    },
+    "codeplus-473": {
+      "cheap": 1.0
+    },
+    "codeplus-474": {
+      "cheap": 1.0
+    },
+    "codeplus-475": {
+      "cheap": 1.0
+    },
+    "codeplus-476": {
+      "cheap": 1.0
+    },
+    "codeplus-477": {
+      "cheap": 1.0
+    },
+    "codeplus-478": {
+      "cheap": 1.0
+    },
+    "codeplus-479": {
+      "cheap": 1.0
+    },
+    "codeplus-554": {
+      "cheap": 1.0
+    },
+    "codeplus-555": {
+      "cheap": 1.0
+    },
+    "codeplus-556": {
+      "cheap": 0.0
+    },
+    "codeplus-557": {
+      "cheap": 1.0
+    },
+    "codeplus-558": {
+      "cheap": 0.0
+    },
+    "codeplus-559": {
+      "cheap": 0.0
+    },
+    "codeplus-560": {
+      "cheap": 1.0
+    },
+    "codeplus-562": {
+      "cheap": 1.0
+    },
+    "codeplus-563": {
+      "cheap": 1.0
+    },
+    "codeplus-564": {
+      "cheap": 0.0
+    },
+    "codeplus-565": {
+      "cheap": 1.0
+    },
+    "codeplus-566": {
+      "cheap": 1.0
+    },
+    "codeplus-567": {
+      "cheap": 1.0
+    },
+    "codeplus-568": {
+      "cheap": 1.0
+    },
+    "codeplus-569": {
+      "cheap": 1.0
+    },
+    "codeplus-572": {
+      "cheap": 1.0
+    },
+    "codeplus-573": {
+      "cheap": 1.0
+    },
+    "codeplus-576": {
+      "cheap": 0.0
+    },
+    "codeplus-577": {
+      "cheap": 0.0
+    },
+    "codeplus-578": {
+      "cheap": 1.0
+    },
+    "codeplus-579": {
+      "cheap": 1.0
+    },
+    "codeplus-580": {
+      "cheap": 1.0
+    },
+    "codeplus-581": {
+      "cheap": 0.0
+    },
+    "codeplus-583": {
+      "cheap": 1.0
+    },
+    "codeplus-585": {
+      "cheap": 1.0
+    },
+    "codeplus-586": {
+      "cheap": 1.0
+    },
+    "codeplus-587": {
+      "cheap": 1.0
+    },
+    "codeplus-588": {
+      "cheap": 1.0
+    },
+    "codeplus-589": {
+      "cheap": 0.0
+    },
+    "codeplus-591": {
+      "cheap": 1.0
+    },
+    "codeplus-592": {
+      "cheap": 1.0
+    },
+    "codeplus-593": {
+      "cheap": 0.0
+    },
+    "codeplus-594": {
+      "cheap": 0.0
+    },
+    "codeplus-596": {
+      "cheap": 1.0
+    },
+    "codeplus-597": {
+      "cheap": 0.0
+    },
+    "codeplus-598": {
+      "cheap": 1.0
+    },
+    "codeplus-599": {
+      "cheap": 1.0
+    },
+    "codeplus-600": {
+      "cheap": 1.0
+    },
+    "codeplus-602": {
+      "cheap": 1.0
+    },
+    "codeplus-603": {
+      "cheap": 0.0
+    },
+    "codeplus-604": {
+      "cheap": 1.0
+    },
+    "codeplus-605": {
+      "cheap": 1.0
+    },
+    "codeplus-606": {
+      "cheap": 1.0
+    },
+    "codeplus-607": {
+      "cheap": 1.0
+    },
+    "codeplus-608": {
+      "cheap": 1.0
+    },
+    "codeplus-610": {
+      "cheap": 0.0
+    },
+    "codeplus-611": {
+      "cheap": 1.0
+    },
+    "codeplus-612": {
+      "cheap": 1.0
+    },
+    "codeplus-614": {
+      "cheap": 1.0
+    },
+    "codeplus-615": {
+      "cheap": 1.0
+    },
+    "codeplus-616": {
+      "cheap": 1.0
+    },
+    "codeplus-618": {
+      "cheap": 1.0
+    },
+    "codeplus-619": {
+      "cheap": 1.0
+    },
+    "codeplus-620": {
+      "cheap": 0.0
+    },
+    "codeplus-622": {
+      "cheap": 0.0
+    },
+    "codeplus-623": {
+      "cheap": 1.0
+    },
+    "codeplus-624": {
+      "cheap": 1.0
+    },
+    "codeplus-626": {
+      "cheap": 1.0
+    },
+    "codeplus-628": {
+      "cheap": 1.0
+    },
+    "codeplus-629": {
+      "cheap": 1.0
+    },
+    "codeplus-631": {
+      "cheap": 0.0
+    },
+    "codeplus-632": {
+      "cheap": 1.0
+    },
+    "codeplus-633": {
+      "cheap": 0.0
+    },
+    "codeplus-635": {
+      "cheap": 1.0
+    },
+    "codeplus-637": {
+      "cheap": 1.0
+    },
+    "codeplus-638": {
+      "cheap": 0.0
+    },
+    "codeplus-639": {
+      "cheap": 0.0
+    },
+    "codeplus-641": {
+      "cheap": 1.0
+    },
+    "codeplus-643": {
+      "cheap": 1.0
+    },
+    "codeplus-644": {
+      "cheap": 1.0
+    },
+    "codeplus-720": {
+      "cheap": 1.0
+    },
+    "codeplus-721": {
+      "cheap": 1.0
+    },
+    "codeplus-722": {
+      "cheap": 0.0
+    },
+    "codeplus-723": {
+      "cheap": 1.0
+    },
+    "codeplus-724": {
+      "cheap": 1.0
+    },
+    "codeplus-725": {
+      "cheap": 1.0
+    },
+    "codeplus-726": {
+      "cheap": 1.0
+    },
+    "codeplus-728": {
+      "cheap": 1.0
+    },
+    "codeplus-730": {
+      "cheap": 1.0
+    },
+    "codeplus-731": {
+      "cheap": 1.0
+    },
+    "codeplus-732": {
+      "cheap": 1.0
+    },
+    "codeplus-733": {
+      "cheap": 1.0
+    },
+    "codeplus-734": {
+      "cheap": 1.0
+    },
+    "codeplus-735": {
+      "cheap": 0.0
+    },
+    "codeplus-736": {
+      "cheap": 1.0
+    },
+    "codeplus-737": {
+      "cheap": 1.0
+    },
+    "codeplus-739": {
+      "cheap": 0.0
+    },
+    "codeplus-740": {
+      "cheap": 1.0
+    },
+    "codeplus-741": {
+      "cheap": 0.0
+    },
+    "codeplus-742": {
+      "cheap": 1.0
+    },
+    "codeplus-743": {
+      "cheap": 1.0
+    },
+    "codeplus-744": {
+      "cheap": 1.0
+    },
+    "codeplus-745": {
+      "cheap": 1.0
+    },
+    "codeplus-748": {
+      "cheap": 0.0
+    },
+    "codeplus-749": {
+      "cheap": 0.0
+    },
+    "codeplus-750": {
+      "cheap": 1.0
+    },
+    "codeplus-751": {
+      "cheap": 1.0
+    },
+    "codeplus-752": {
+      "cheap": 0.6666666666666666
+    },
+    "codeplus-753": {
+      "cheap": 1.0
+    },
+    "codeplus-754": {
+      "cheap": 1.0
+    },
+    "codeplus-755": {
+      "cheap": 1.0
+    },
+    "codeplus-757": {
+      "cheap": 0.0
+    },
+    "codeplus-758": {
+      "cheap": 1.0
+    },
+    "codeplus-759": {
+      "cheap": 0.0
+    },
+    "codeplus-760": {
+      "cheap": 1.0
+    },
+    "codeplus-762": {
+      "cheap": 1.0
+    },
+    "codeplus-763": {
+      "cheap": 1.0
+    },
+    "codeplus-764": {
+      "cheap": 1.0
+    },
+    "codeplus-765": {
+      "cheap": 0.0
+    },
+    "codeplus-766": {
+      "cheap": 1.0
+    },
+    "codeplus-767": {
+      "cheap": 1.0
+    },
+    "codeplus-769": {
+      "cheap": 1.0
+    },
+    "codeplus-770": {
+      "cheap": 1.0
+    },
+    "codeplus-772": {
+      "cheap": 1.0
+    },
+    "codeplus-773": {
+      "cheap": 1.0
+    },
+    "codeplus-775": {
+      "cheap": 1.0
+    },
+    "codeplus-777": {
+      "cheap": 0.0
+    },
+    "codeplus-778": {
+      "cheap": 1.0
+    },
+    "codeplus-780": {
+      "cheap": 0.0
+    },
+    "codeplus-781": {
+      "cheap": 1.0
+    },
+    "codeplus-782": {
+      "cheap": 1.0
+    },
+    "codeplus-784": {
+      "cheap": 1.0
+    },
+    "codeplus-785": {
+      "cheap": 1.0
+    },
+    "codeplus-786": {
+      "cheap": 1.0
+    },
+    "codeplus-787": {
+      "cheap": 1.0
+    },
+    "codeplus-788": {
+      "cheap": 1.0
+    },
+    "codeplus-790": {
+      "cheap": 0.0
+    },
+    "codeplus-791": {
+      "cheap": 1.0
+    },
+    "codeplus-793": {
+      "cheap": 1.0
+    },
+    "codeplus-794": {
+      "cheap": 1.0
+    },
+    "codeplus-796": {
+      "cheap": 1.0
+    },
+    "codeplus-797": {
+      "cheap": 1.0
+    },
+    "codeplus-798": {
+      "cheap": 1.0
+    },
+    "codeplus-799": {
+      "cheap": 1.0
+    },
+    "codeplus-800": {
+      "cheap": 1.0
+    },
+    "codeplus-801": {
+      "cheap": 1.0
+    },
+    "codeplus-803": {
+      "cheap": 1.0
+    },
+    "codeplus-804": {
+      "cheap": 1.0
+    },
+    "codeplus-805": {
+      "cheap": 1.0
+    },
+    "codeplus-806": {
+      "cheap": 0.0
+    },
+    "codeplus-807": {
+      "cheap": 1.0
+    },
+    "codeplus-808": {
+      "cheap": 1.0
+    },
+    "codeplus-809": {
+      "cheap": 1.0
+    }
+  },
+  "draws_used": {
+    "codeplus-11": {
+      "cheap": 3
+    },
+    "codeplus-12": {
+      "cheap": 3
+    },
+    "codeplus-14": {
+      "cheap": 3
+    },
+    "codeplus-16": {
+      "cheap": 3
+    },
+    "codeplus-17": {
+      "cheap": 3
+    },
+    "codeplus-18": {
+      "cheap": 3
+    },
+    "codeplus-19": {
+      "cheap": 3
+    },
+    "codeplus-20": {
+      "cheap": 3
+    },
+    "codeplus-56": {
+      "cheap": 3
+    },
+    "codeplus-57": {
+      "cheap": 3
+    },
+    "codeplus-58": {
+      "cheap": 3
+    },
+    "codeplus-59": {
+      "cheap": 3
+    },
+    "codeplus-61": {
+      "cheap": 3
+    },
+    "codeplus-62": {
+      "cheap": 3
+    },
+    "codeplus-63": {
+      "cheap": 3
+    },
+    "codeplus-64": {
+      "cheap": 3
+    },
+    "codeplus-65": {
+      "cheap": 3
+    },
+    "codeplus-66": {
+      "cheap": 3
+    },
+    "codeplus-67": {
+      "cheap": 3
+    },
+    "codeplus-68": {
+      "cheap": 3
+    },
+    "codeplus-69": {
+      "cheap": 3
+    },
+    "codeplus-70": {
+      "cheap": 3
+    },
+    "codeplus-71": {
+      "cheap": 3
+    },
+    "codeplus-72": {
+      "cheap": 3
+    },
+    "codeplus-74": {
+      "cheap": 3
+    },
+    "codeplus-75": {
+      "cheap": 3
+    },
+    "codeplus-77": {
+      "cheap": 3
+    },
+    "codeplus-79": {
+      "cheap": 3
+    },
+    "codeplus-80": {
+      "cheap": 3
+    },
+    "codeplus-82": {
+      "cheap": 3
+    },
+    "codeplus-84": {
+      "cheap": 3
+    },
+    "codeplus-85": {
+      "cheap": 3
+    },
+    "codeplus-86": {
+      "cheap": 3
+    },
+    "codeplus-87": {
+      "cheap": 3
+    },
+    "codeplus-88": {
+      "cheap": 3
+    },
+    "codeplus-89": {
+      "cheap": 3
+    },
+    "codeplus-90": {
+      "cheap": 3
+    },
+    "codeplus-91": {
+      "cheap": 3
+    },
+    "codeplus-92": {
+      "cheap": 3
+    },
+    "codeplus-93": {
+      "cheap": 3
+    },
+    "codeplus-94": {
+      "cheap": 3
+    },
+    "codeplus-95": {
+      "cheap": 3
+    },
+    "codeplus-96": {
+      "cheap": 3
+    },
+    "codeplus-97": {
+      "cheap": 3
+    },
+    "codeplus-98": {
+      "cheap": 3
+    },
+    "codeplus-99": {
+      "cheap": 3
+    },
+    "codeplus-100": {
+      "cheap": 3
+    },
+    "codeplus-101": {
+      "cheap": 3
+    },
+    "codeplus-102": {
+      "cheap": 3
+    },
+    "codeplus-103": {
+      "cheap": 3
+    },
+    "codeplus-104": {
+      "cheap": 3
+    },
+    "codeplus-105": {
+      "cheap": 3
+    },
+    "codeplus-106": {
+      "cheap": 3
+    },
+    "codeplus-108": {
+      "cheap": 3
+    },
+    "codeplus-109": {
+      "cheap": 3
+    },
+    "codeplus-111": {
+      "cheap": 3
+    },
+    "codeplus-113": {
+      "cheap": 3
+    },
+    "codeplus-116": {
+      "cheap": 3
+    },
+    "codeplus-118": {
+      "cheap": 3
+    },
+    "codeplus-120": {
+      "cheap": 3
+    },
+    "codeplus-123": {
+      "cheap": 3
+    },
+    "codeplus-124": {
+      "cheap": 3
+    },
+    "codeplus-125": {
+      "cheap": 3
+    },
+    "codeplus-126": {
+      "cheap": 3
+    },
+    "codeplus-127": {
+      "cheap": 3
+    },
+    "codeplus-128": {
+      "cheap": 3
+    },
+    "codeplus-129": {
+      "cheap": 3
+    },
+    "codeplus-130": {
+      "cheap": 3
+    },
+    "codeplus-131": {
+      "cheap": 3
+    },
+    "codeplus-132": {
+      "cheap": 3
+    },
+    "codeplus-133": {
+      "cheap": 3
+    },
+    "codeplus-135": {
+      "cheap": 3
+    },
+    "codeplus-137": {
+      "cheap": 3
+    },
+    "codeplus-138": {
+      "cheap": 3
+    },
+    "codeplus-139": {
+      "cheap": 3
+    },
+    "codeplus-140": {
+      "cheap": 3
+    },
+    "codeplus-141": {
+      "cheap": 3
+    },
+    "codeplus-142": {
+      "cheap": 3
+    },
+    "codeplus-145": {
+      "cheap": 3
+    },
+    "codeplus-160": {
+      "cheap": 3
+    },
+    "codeplus-161": {
+      "cheap": 3
+    },
+    "codeplus-162": {
+      "cheap": 3
+    },
+    "codeplus-165": {
+      "cheap": 3
+    },
+    "codeplus-166": {
+      "cheap": 3
+    },
+    "codeplus-167": {
+      "cheap": 3
+    },
+    "codeplus-168": {
+      "cheap": 3
+    },
+    "codeplus-170": {
+      "cheap": 3
+    },
+    "codeplus-171": {
+      "cheap": 3
+    },
+    "codeplus-172": {
+      "cheap": 3
+    },
+    "codeplus-222": {
+      "cheap": 3
+    },
+    "codeplus-223": {
+      "cheap": 3
+    },
+    "codeplus-224": {
+      "cheap": 3
+    },
+    "codeplus-226": {
+      "cheap": 3
+    },
+    "codeplus-227": {
+      "cheap": 3
+    },
+    "codeplus-230": {
+      "cheap": 3
+    },
+    "codeplus-232": {
+      "cheap": 3
+    },
+    "codeplus-233": {
+      "cheap": 3
+    },
+    "codeplus-234": {
+      "cheap": 3
+    },
+    "codeplus-235": {
+      "cheap": 3
+    },
+    "codeplus-237": {
+      "cheap": 3
+    },
+    "codeplus-238": {
+      "cheap": 3
+    },
+    "codeplus-239": {
+      "cheap": 3
+    },
+    "codeplus-240": {
+      "cheap": 3
+    },
+    "codeplus-242": {
+      "cheap": 3
+    },
+    "codeplus-244": {
+      "cheap": 3
+    },
+    "codeplus-245": {
+      "cheap": 3
+    },
+    "codeplus-247": {
+      "cheap": 3
+    },
+    "codeplus-250": {
+      "cheap": 3
+    },
+    "codeplus-251": {
+      "cheap": 3
+    },
+    "codeplus-252": {
+      "cheap": 3
+    },
+    "codeplus-253": {
+      "cheap": 3
+    },
+    "codeplus-255": {
+      "cheap": 3
+    },
+    "codeplus-256": {
+      "cheap": 3
+    },
+    "codeplus-257": {
+      "cheap": 3
+    },
+    "codeplus-259": {
+      "cheap": 3
+    },
+    "codeplus-260": {
+      "cheap": 3
+    },
+    "codeplus-261": {
+      "cheap": 3
+    },
+    "codeplus-262": {
+      "cheap": 3
+    },
+    "codeplus-264": {
+      "cheap": 3
+    },
+    "codeplus-265": {
+      "cheap": 3
+    },
+    "codeplus-266": {
+      "cheap": 3
+    },
+    "codeplus-267": {
+      "cheap": 3
+    },
+    "codeplus-268": {
+      "cheap": 3
+    },
+    "codeplus-269": {
+      "cheap": 3
+    },
+    "codeplus-270": {
+      "cheap": 3
+    },
+    "codeplus-271": {
+      "cheap": 3
+    },
+    "codeplus-272": {
+      "cheap": 3
+    },
+    "codeplus-273": {
+      "cheap": 3
+    },
+    "codeplus-274": {
+      "cheap": 3
+    },
+    "codeplus-276": {
+      "cheap": 3
+    },
+    "codeplus-277": {
+      "cheap": 3
+    },
+    "codeplus-278": {
+      "cheap": 3
+    },
+    "codeplus-279": {
+      "cheap": 3
+    },
+    "codeplus-280": {
+      "cheap": 3
+    },
+    "codeplus-281": {
+      "cheap": 3
+    },
+    "codeplus-282": {
+      "cheap": 3
+    },
+    "codeplus-283": {
+      "cheap": 3
+    },
+    "codeplus-284": {
+      "cheap": 3
+    },
+    "codeplus-285": {
+      "cheap": 3
+    },
+    "codeplus-286": {
+      "cheap": 3
+    },
+    "codeplus-287": {
+      "cheap": 3
+    },
+    "codeplus-290": {
+      "cheap": 3
+    },
+    "codeplus-292": {
+      "cheap": 3
+    },
+    "codeplus-293": {
+      "cheap": 3
+    },
+    "codeplus-294": {
+      "cheap": 3
+    },
+    "codeplus-296": {
+      "cheap": 3
+    },
+    "codeplus-297": {
+      "cheap": 3
+    },
+    "codeplus-299": {
+      "cheap": 3
+    },
+    "codeplus-300": {
+      "cheap": 3
+    },
+    "codeplus-301": {
+      "cheap": 3
+    },
+    "codeplus-306": {
+      "cheap": 3
+    },
+    "codeplus-308": {
+      "cheap": 3
+    },
+    "codeplus-309": {
+      "cheap": 3
+    },
+    "codeplus-310": {
+      "cheap": 3
+    },
+    "codeplus-311": {
+      "cheap": 3
+    },
+    "codeplus-312": {
+      "cheap": 3
+    },
+    "codeplus-388": {
+      "cheap": 3
+    },
+    "codeplus-389": {
+      "cheap": 3
+    },
+    "codeplus-390": {
+      "cheap": 3
+    },
+    "codeplus-391": {
+      "cheap": 3
+    },
+    "codeplus-392": {
+      "cheap": 3
+    },
+    "codeplus-394": {
+      "cheap": 3
+    },
+    "codeplus-395": {
+      "cheap": 3
+    },
+    "codeplus-397": {
+      "cheap": 3
+    },
+    "codeplus-398": {
+      "cheap": 3
+    },
+    "codeplus-404": {
+      "cheap": 3
+    },
+    "codeplus-405": {
+      "cheap": 3
+    },
+    "codeplus-406": {
+      "cheap": 3
+    },
+    "codeplus-409": {
+      "cheap": 3
+    },
+    "codeplus-410": {
+      "cheap": 3
+    },
+    "codeplus-412": {
+      "cheap": 3
+    },
+    "codeplus-413": {
+      "cheap": 3
+    },
+    "codeplus-414": {
+      "cheap": 3
+    },
+    "codeplus-415": {
+      "cheap": 3
+    },
+    "codeplus-418": {
+      "cheap": 3
+    },
+    "codeplus-419": {
+      "cheap": 3
+    },
+    "codeplus-420": {
+      "cheap": 3
+    },
+    "codeplus-421": {
+      "cheap": 3
+    },
+    "codeplus-422": {
+      "cheap": 3
+    },
+    "codeplus-424": {
+      "cheap": 3
+    },
+    "codeplus-425": {
+      "cheap": 3
+    },
+    "codeplus-426": {
+      "cheap": 3
+    },
+    "codeplus-427": {
+      "cheap": 3
+    },
+    "codeplus-428": {
+      "cheap": 3
+    },
+    "codeplus-429": {
+      "cheap": 3
+    },
+    "codeplus-430": {
+      "cheap": 2
+    },
+    "codeplus-432": {
+      "cheap": 3
+    },
+    "codeplus-433": {
+      "cheap": 3
+    },
+    "codeplus-435": {
+      "cheap": 3
+    },
+    "codeplus-436": {
+      "cheap": 3
+    },
+    "codeplus-437": {
+      "cheap": 3
+    },
+    "codeplus-439": {
+      "cheap": 3
+    },
+    "codeplus-440": {
+      "cheap": 3
+    },
+    "codeplus-441": {
+      "cheap": 3
+    },
+    "codeplus-445": {
+      "cheap": 3
+    },
+    "codeplus-446": {
+      "cheap": 3
+    },
+    "codeplus-447": {
+      "cheap": 3
+    },
+    "codeplus-448": {
+      "cheap": 3
+    },
+    "codeplus-450": {
+      "cheap": 3
+    },
+    "codeplus-451": {
+      "cheap": 3
+    },
+    "codeplus-453": {
+      "cheap": 3
+    },
+    "codeplus-454": {
+      "cheap": 3
+    },
+    "codeplus-455": {
+      "cheap": 3
+    },
+    "codeplus-456": {
+      "cheap": 3
+    },
+    "codeplus-457": {
+      "cheap": 3
+    },
+    "codeplus-458": {
+      "cheap": 3
+    },
+    "codeplus-459": {
+      "cheap": 3
+    },
+    "codeplus-460": {
+      "cheap": 3
+    },
+    "codeplus-462": {
+      "cheap": 3
+    },
+    "codeplus-463": {
+      "cheap": 3
+    },
+    "codeplus-465": {
+      "cheap": 3
+    },
+    "codeplus-468": {
+      "cheap": 3
+    },
+    "codeplus-470": {
+      "cheap": 3
+    },
+    "codeplus-471": {
+      "cheap": 3
+    },
+    "codeplus-472": {
+      "cheap": 3
+    },
+    "codeplus-473": {
+      "cheap": 3
+    },
+    "codeplus-474": {
+      "cheap": 3
+    },
+    "codeplus-475": {
+      "cheap": 3
+    },
+    "codeplus-476": {
+      "cheap": 3
+    },
+    "codeplus-477": {
+      "cheap": 3
+    },
+    "codeplus-478": {
+      "cheap": 3
+    },
+    "codeplus-479": {
+      "cheap": 3
+    },
+    "codeplus-554": {
+      "cheap": 3
+    },
+    "codeplus-555": {
+      "cheap": 3
+    },
+    "codeplus-556": {
+      "cheap": 3
+    },
+    "codeplus-557": {
+      "cheap": 3
+    },
+    "codeplus-558": {
+      "cheap": 3
+    },
+    "codeplus-559": {
+      "cheap": 3
+    },
+    "codeplus-560": {
+      "cheap": 3
+    },
+    "codeplus-562": {
+      "cheap": 3
+    },
+    "codeplus-563": {
+      "cheap": 3
+    },
+    "codeplus-564": {
+      "cheap": 3
+    },
+    "codeplus-565": {
+      "cheap": 3
+    },
+    "codeplus-566": {
+      "cheap": 3
+    },
+    "codeplus-567": {
+      "cheap": 3
+    },
+    "codeplus-568": {
+      "cheap": 3
+    },
+    "codeplus-569": {
+      "cheap": 3
+    },
+    "codeplus-572": {
+      "cheap": 3
+    },
+    "codeplus-573": {
+      "cheap": 3
+    },
+    "codeplus-576": {
+      "cheap": 3
+    },
+    "codeplus-577": {
+      "cheap": 3
+    },
+    "codeplus-578": {
+      "cheap": 3
+    },
+    "codeplus-579": {
+      "cheap": 3
+    },
+    "codeplus-580": {
+      "cheap": 3
+    },
+    "codeplus-581": {
+      "cheap": 3
+    },
+    "codeplus-583": {
+      "cheap": 3
+    },
+    "codeplus-585": {
+      "cheap": 3
+    },
+    "codeplus-586": {
+      "cheap": 3
+    },
+    "codeplus-587": {
+      "cheap": 3
+    },
+    "codeplus-588": {
+      "cheap": 3
+    },
+    "codeplus-589": {
+      "cheap": 3
+    },
+    "codeplus-591": {
+      "cheap": 3
+    },
+    "codeplus-592": {
+      "cheap": 3
+    },
+    "codeplus-593": {
+      "cheap": 3
+    },
+    "codeplus-594": {
+      "cheap": 3
+    },
+    "codeplus-596": {
+      "cheap": 3
+    },
+    "codeplus-597": {
+      "cheap": 3
+    },
+    "codeplus-598": {
+      "cheap": 3
+    },
+    "codeplus-599": {
+      "cheap": 3
+    },
+    "codeplus-600": {
+      "cheap": 3
+    },
+    "codeplus-602": {
+      "cheap": 3
+    },
+    "codeplus-603": {
+      "cheap": 3
+    },
+    "codeplus-604": {
+      "cheap": 3
+    },
+    "codeplus-605": {
+      "cheap": 3
+    },
+    "codeplus-606": {
+      "cheap": 3
+    },
+    "codeplus-607": {
+      "cheap": 3
+    },
+    "codeplus-608": {
+      "cheap": 3
+    },
+    "codeplus-610": {
+      "cheap": 3
+    },
+    "codeplus-611": {
+      "cheap": 3
+    },
+    "codeplus-612": {
+      "cheap": 3
+    },
+    "codeplus-614": {
+      "cheap": 3
+    },
+    "codeplus-615": {
+      "cheap": 3
+    },
+    "codeplus-616": {
+      "cheap": 3
+    },
+    "codeplus-618": {
+      "cheap": 3
+    },
+    "codeplus-619": {
+      "cheap": 3
+    },
+    "codeplus-620": {
+      "cheap": 3
+    },
+    "codeplus-622": {
+      "cheap": 3
+    },
+    "codeplus-623": {
+      "cheap": 3
+    },
+    "codeplus-624": {
+      "cheap": 3
+    },
+    "codeplus-626": {
+      "cheap": 3
+    },
+    "codeplus-628": {
+      "cheap": 3
+    },
+    "codeplus-629": {
+      "cheap": 3
+    },
+    "codeplus-631": {
+      "cheap": 3
+    },
+    "codeplus-632": {
+      "cheap": 3
+    },
+    "codeplus-633": {
+      "cheap": 3
+    },
+    "codeplus-635": {
+      "cheap": 3
+    },
+    "codeplus-637": {
+      "cheap": 3
+    },
+    "codeplus-638": {
+      "cheap": 3
+    },
+    "codeplus-639": {
+      "cheap": 3
+    },
+    "codeplus-641": {
+      "cheap": 3
+    },
+    "codeplus-643": {
+      "cheap": 3
+    },
+    "codeplus-644": {
+      "cheap": 3
+    },
+    "codeplus-720": {
+      "cheap": 3
+    },
+    "codeplus-721": {
+      "cheap": 3
+    },
+    "codeplus-722": {
+      "cheap": 3
+    },
+    "codeplus-723": {
+      "cheap": 3
+    },
+    "codeplus-724": {
+      "cheap": 3
+    },
+    "codeplus-725": {
+      "cheap": 3
+    },
+    "codeplus-726": {
+      "cheap": 3
+    },
+    "codeplus-728": {
+      "cheap": 3
+    },
+    "codeplus-730": {
+      "cheap": 3
+    },
+    "codeplus-731": {
+      "cheap": 3
+    },
+    "codeplus-732": {
+      "cheap": 3
+    },
+    "codeplus-733": {
+      "cheap": 3
+    },
+    "codeplus-734": {
+      "cheap": 3
+    },
+    "codeplus-735": {
+      "cheap": 3
+    },
+    "codeplus-736": {
+      "cheap": 3
+    },
+    "codeplus-737": {
+      "cheap": 3
+    },
+    "codeplus-739": {
+      "cheap": 3
+    },
+    "codeplus-740": {
+      "cheap": 3
+    },
+    "codeplus-741": {
+      "cheap": 3
+    },
+    "codeplus-742": {
+      "cheap": 3
+    },
+    "codeplus-743": {
+      "cheap": 3
+    },
+    "codeplus-744": {
+      "cheap": 3
+    },
+    "codeplus-745": {
+      "cheap": 3
+    },
+    "codeplus-748": {
+      "cheap": 3
+    },
+    "codeplus-749": {
+      "cheap": 3
+    },
+    "codeplus-750": {
+      "cheap": 3
+    },
+    "codeplus-751": {
+      "cheap": 3
+    },
+    "codeplus-752": {
+      "cheap": 3
+    },
+    "codeplus-753": {
+      "cheap": 3
+    },
+    "codeplus-754": {
+      "cheap": 3
+    },
+    "codeplus-755": {
+      "cheap": 3
+    },
+    "codeplus-757": {
+      "cheap": 3
+    },
+    "codeplus-758": {
+      "cheap": 3
+    },
+    "codeplus-759": {
+      "cheap": 3
+    },
+    "codeplus-760": {
+      "cheap": 3
+    },
+    "codeplus-762": {
+      "cheap": 3
+    },
+    "codeplus-763": {
+      "cheap": 3
+    },
+    "codeplus-764": {
+      "cheap": 3
+    },
+    "codeplus-765": {
+      "cheap": 3
+    },
+    "codeplus-766": {
+      "cheap": 3
+    },
+    "codeplus-767": {
+      "cheap": 3
+    },
+    "codeplus-769": {
+      "cheap": 3
+    },
+    "codeplus-770": {
+      "cheap": 3
+    },
+    "codeplus-772": {
+      "cheap": 3
+    },
+    "codeplus-773": {
+      "cheap": 3
+    },
+    "codeplus-775": {
+      "cheap": 3
+    },
+    "codeplus-777": {
+      "cheap": 3
+    },
+    "codeplus-778": {
+      "cheap": 3
+    },
+    "codeplus-780": {
+      "cheap": 3
+    },
+    "codeplus-781": {
+      "cheap": 3
+    },
+    "codeplus-782": {
+      "cheap": 3
+    },
+    "codeplus-784": {
+      "cheap": 3
+    },
+    "codeplus-785": {
+      "cheap": 3
+    },
+    "codeplus-786": {
+      "cheap": 3
+    },
+    "codeplus-787": {
+      "cheap": 3
+    },
+    "codeplus-788": {
+      "cheap": 3
+    },
+    "codeplus-790": {
+      "cheap": 3
+    },
+    "codeplus-791": {
+      "cheap": 3
+    },
+    "codeplus-793": {
+      "cheap": 3
+    },
+    "codeplus-794": {
+      "cheap": 3
+    },
+    "codeplus-796": {
+      "cheap": 3
+    },
+    "codeplus-797": {
+      "cheap": 3
+    },
+    "codeplus-798": {
+      "cheap": 3
+    },
+    "codeplus-799": {
+      "cheap": 3
+    },
+    "codeplus-800": {
+      "cheap": 3
+    },
+    "codeplus-801": {
+      "cheap": 3
+    },
+    "codeplus-803": {
+      "cheap": 3
+    },
+    "codeplus-804": {
+      "cheap": 3
+    },
+    "codeplus-805": {
+      "cheap": 3
+    },
+    "codeplus-806": {
+      "cheap": 3
+    },
+    "codeplus-807": {
+      "cheap": 3
+    },
+    "codeplus-808": {
+      "cheap": 3
+    },
+    "codeplus-809": {
+      "cheap": 3
+    }
+  },
+  "truncated_draws_dropped": 1,
+  "pool": "mbppplus",
+  "domain": "code",
+  "min_math_level": 3,
+  "limit": null,
+  "summary": {
+    "n": 365,
+    "cheap": {
+      "n_measured": 365,
+      "mean_p": 0.8082191780821918,
+      "reliably_fails": 69,
+      "reliably_passes": 294,
+      "flaky": 2
+    }
+  }
+}
