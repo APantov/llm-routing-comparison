@@ -937,6 +937,67 @@ def _max_tokens_for(kind: str) -> int:
     return ROUTER_MAX_TOKENS if kind == "route" else MAX_TOKENS
 
 
+def is_truncated(record: dict) -> bool:
+    r"""Was this stored response cut off at the cap?
+
+    ONE definition of the rule, because more than one analysis grades straight
+    off the cache file and each would otherwise have to re-derive it. A response
+    that hit the cap has no `\boxed{}` - it stopped mid-derivation - so every
+    caller that grades a record has to be able to tell "the model was wrong"
+    apart from "the model was interrupted", and they are not the same fact.
+
+    The `truncated` field is the answer when it is there. It is NOT there on
+    records written before the field existed, which includes all three
+    truncations currently on disk, so the fallback is the load-bearing branch
+    rather than a courtesy.
+
+    The fallback is EXACT rather than heuristic: `max_tokens` is part of the
+    cache key, so any record a lookup can reach was recorded under the cap now
+    in force, and `tokens_out == cap` can only mean the cap bound.
+    """
+    flag = record.get("truncated")
+    if flag is not None:
+        return bool(flag)
+    return record.get("tokens_out", 0) >= _max_tokens_for(record.get("kind", "answer"))
+
+
+def is_reachable(record: dict, task: dict) -> bool:
+    """Would the response cache actually serve this stored record today?
+
+    For analyses that read `cache/raw_calls.<ladder>.jsonl` directly instead of
+    going through `response_cache.get`. Those bypass the key, so they see rows
+    the experiment cannot: **orphans recorded under a parameter that has since
+    changed.**
+
+    `max_tokens` is the one that bites, and it is invisible in the record - it
+    is in the key hash and nowhere else. When MAX_TOKENS went 2048 -> 4096 every
+    2048-capped response was stranded: still on disk, still `mode: real`, still
+    gradeable, and permanently unreachable. `math-96` has two cheap greedy draws
+    on disk for that reason, and they disagree - the 2048 one finished with a
+    \\boxed{} at 1614 tokens, the 4096 one ran long and was cut off.
+
+    Rather than guess at a token count, this recomputes the key the cache would
+    build today and compares. Exact by construction, and it stays correct if a
+    different key field changes next.
+    """
+    kind = record.get("kind", "answer")
+    try:
+        key = response_cache.make_key(
+            mode=record["mode"],
+            model=record["model"],
+            prompt=build_prompt(task, kind),
+            temperature=record["temperature"],
+            sample_idx=record["sample_idx"],
+            max_tokens=_max_tokens_for(kind),
+            mock_seed=record.get("mock_seed"),
+        )
+    except (KeyError, TypeError):
+        # A record too old to carry the fields the key needs cannot be shown to
+        # be reachable, so it is not treated as such.
+        return False
+    return key == record.get("key")
+
+
 # How many times the policies asked for a call, how many were served from the
 # cache, and how many actually reached a backend. The last is the number that
 # costs money; the first is the number the cost table is built from. See
@@ -1059,13 +1120,7 @@ def call(
             # disk, and it stays correct if the lookup order ever changes.
             simulated = rec.get("mode") == "mock"
             call_stats["served_mock" if simulated else "served_real"] += 1
-            # Prefer the stored flag; fall back to the token count for records
-            # written before `truncated` existed. The fallback is exact rather
-            # than heuristic: max_tokens is IN the cache key, so any record this
-            # lookup can reach was recorded under the cap now in force.
-            truncated = rec.get("truncated")
-            if truncated is None:
-                truncated = rec.get("tokens_out", 0) >= _max_tokens_for(kind)
+            truncated = is_truncated(rec)
             if truncated:
                 _note_truncation(task, tier, kind, sample_idx, from_cache=True)
             return ModelResponse(

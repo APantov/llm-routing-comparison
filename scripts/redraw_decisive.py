@@ -172,22 +172,45 @@ def redraw(tasks, draws, temperature, tiers=("cheap", "expensive")):
     SpendCapExceeded from wherever it binds, which is why nothing here catches
     it: a partial p_hat must not be written.
     """
-    out = {}
+    out, used = {}, {}
     for i, task in enumerate(tasks, 1):
-        row = {}
+        row, row_n = {}, {}
         for tier in tiers:
-            ok = 0
+            ok = graded = 0
             for s in range(1, draws + 1):
                 # sample_idx starts at 1: index 0 is the probe's original draw,
                 # already on disk. Including it would double-count it.
                 r = models.call(tier, task, temperature=temperature, sample_idx=s)
+                if r.truncated:
+                    # UNMEASURED, not wrong. A response that hit max_tokens
+                    # stopped mid-derivation and never reached its \boxed{}, so
+                    # the grader scores it False for a reason that has nothing
+                    # to do with the model's ability. Counting it as a failure
+                    # puts it in BOTH the numerator and the denominator and
+                    # biases p_hat down; dropping it removes it from both.
+                    #
+                    # This is not hypothetical. math-154 was recorded at
+                    # expensive 0/10 with one of those ten draws truncated, and
+                    # it sits in `both_fail` - one of the two cells this script
+                    # exists to re-estimate.
+                    continue
+                graded += 1
                 ok += bool(grade(task, r.text))
-            row[tier] = ok / draws
+            # None rather than 0.0 when every draw was cut off. A task nobody
+            # measured must not read as a task the rung reliably fails.
+            row[tier] = ok / graded if graded else None
+            row_n[tier] = graded
         out[task["id"]] = row
+        used[task["id"]] = row_n
+        lost = sum(draws - n for n in row_n.values())
         print(f"  [{i}/{len(tasks)}] {task['id']:<16} "
-              + "  ".join(f"{t}={row[t]:.2f}" for t in tiers)
+              + "  ".join(
+                  f"{t}=" + ("  n/a" if row[t] is None else f"{row[t]:.2f}")
+                  + (f"({row_n[t]})" if row_n[t] != draws else "")
+                  for t in tiers)
+              + (f"   !! {lost} truncated draw(s) dropped" if lost else "")
               + f"   spent ${models.backend_spend_usd:.4f}", file=sys.stderr)
-    return out
+    return out, used
 
 
 def reestimate(cells, p_hat, n_total, tau):
@@ -208,8 +231,15 @@ def reestimate(cells, p_hat, n_total, tau):
 
     expected = 0.0
     reproducible = 0.0
+    unmeasured = []
     for task in cells["routable"] + cells["both_fail"]:
         p = p_hat[task["id"]]
+        if p["cheap"] is None or p["expensive"] is None:
+            # Every draw on one rung was truncated, so this task has no p_hat
+            # to contribute. Named rather than silently treated as 0, which
+            # would add it to `expected` as if the cheap rung reliably failed.
+            unmeasured.append(task["id"])
+            continue
         expected += (1.0 - p["cheap"]) * p["expensive"]
         if p["cheap"] <= tau and p["expensive"] >= 1.0 - tau:
             reproducible += 1.0
@@ -224,6 +254,10 @@ def reestimate(cells, p_hat, n_total, tau):
             1.0 - (reproducible / n_total) / (expected / n_total)
             if expected > 0 else float("nan")
         ),
+        # Kept in the output rather than only printed: a reader of the JSON has
+        # to be able to see that a task was dropped from the numerators while
+        # n_total still counts it, which biases both estimates DOWNWARD.
+        "unmeasured": unmeasured,
     }
 
 
@@ -241,21 +275,25 @@ def screen_summary(p_hat, tiers, tau):
     n = len(p_hat)
     out = {"n": n}
     for tier in tiers:
-        ps = [p[tier] for p in p_hat.values()]
+        # None means every draw on that rung was truncated. Excluded rather
+        # than coerced: an unmeasured task is not a task the rung failed.
+        ps = [p[tier] for p in p_hat.values() if p[tier] is not None]
         out[tier] = {
-            "mean_p": sum(ps) / n if n else float("nan"),
+            "n_measured": len(ps),
+            "mean_p": sum(ps) / len(ps) if ps else float("nan"),
             "reliably_fails": sum(1 for p in ps if p <= tau),
             "reliably_passes": sum(1 for p in ps if p >= 1.0 - tau),
             "flaky": sum(1 for p in ps if tau < p < 1.0 - tau),
         }
     if set(tiers) >= {"cheap", "expensive"}:
+        both = [p for p in p_hat.values()
+                if p["cheap"] is not None and p["expensive"] is not None]
+        out["n_measured_both"] = len(both)
         out["routable_reproducible"] = sum(
-            1 for p in p_hat.values()
-            if p["cheap"] <= tau and p["expensive"] >= 1.0 - tau
+            1 for p in both if p["cheap"] <= tau and p["expensive"] >= 1.0 - tau
         )
         out["both_fail_reproducible"] = sum(
-            1 for p in p_hat.values()
-            if p["cheap"] <= tau and p["expensive"] <= tau
+            1 for p in both if p["cheap"] <= tau and p["expensive"] <= tau
         )
     return out
 
@@ -388,11 +426,26 @@ def main():
                  f"{args.draws} times and report perfect reproducibility.")
 
     print(f"\nDrawing...", file=sys.stderr)
-    p_hat = redraw(targets, args.draws, args.temperature, tiers)
+    p_hat, draws_used = redraw(targets, args.draws, args.temperature, tiers)
+
+    # `draws` is what was ASKED for; `draws_used` is what was gradeable, which
+    # is lower wherever a response hit max_tokens. Both are recorded, because
+    # p_hat alone cannot show that a 0.00 rests on nine draws rather than ten.
+    dropped = sum(args.draws - n
+                  for row in draws_used.values() for n in row.values())
+    if dropped:
+        print(f"\n!! {dropped} truncated draw(s) dropped as UNMEASURED rather "
+              f"than counted as failures.", file=sys.stderr)
+        for tid, row in sorted(draws_used.items()):
+            for tier, n in sorted(row.items()):
+                if n != args.draws:
+                    print(f"     {tid:<16} {tier:<10} {n}/{args.draws} draws "
+                          f"gradeable", file=sys.stderr)
 
     common = {"ladder": ladder, "draws": args.draws,
               "temperature": args.temperature, "tau": args.tau,
-              "tiers": list(tiers), "p_hat": p_hat}
+              "tiers": list(tiers), "p_hat": p_hat, "draws_used": draws_used,
+              "truncated_draws_dropped": dropped}
 
     # A screen and a re-estimate answer different questions and are written to
     # different files on purpose. `redraw.<ladder>.json` is a CORRECTION to a
@@ -452,6 +505,13 @@ def main():
           f"expensive reliably succeeds")
     print(f"  noise share   {out['noise_share']:6.1%}   of `expected` that no "
           f"single-commit router can capture")
+    if out["unmeasured"]:
+        print(f"\n  {len(out['unmeasured'])} task(s) contributed NOTHING to "
+              f"`expected` or `reproducible`:\n     "
+              + ", ".join(out["unmeasured"])
+              + "\n  Every draw on one rung was truncated. They are still in "
+                "n_graded, so\n  both estimates are biased DOWNWARD by their "
+                "absence.")
     if args.cells == "decisive":
         print("\n  both_ok and inverted were not redrawn, so hidden routable mass\n"
               "  in those cells is not counted. Treat `reproducible` as a lower\n"

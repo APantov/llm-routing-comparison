@@ -195,16 +195,39 @@ toward the lower end of the existing 95% CI [9.3%, 23.3%].
 > a task the cheap rung solves 10 times out of 10 and simply missed on the
 > probe's single draw — `math-96`, `math-147`, `math-432`, `math-481`.
 >
+> **Amended 9 August 2026 — `math-96` was not a phantom, it was a truncation.**
+> Its cheap draw did not "miss"; it was cut off at `MAX_TOKENS` mid-derivation,
+> so it never reached a `oxed{}` and the grader had nothing to mark. It is now
+> left UNMEASURED rather than graded wrong, which drops the pair from the
+> cross-tab entirely: **n 95 → 94, routable 15 → 14, observed 15.8% → 14.9%**.
+> Three phantoms remain, all maths.
+>
+> `expected` barely moves, 0.1021 → 0.1026, and that is the tell: with
+> p_cheap = 1.0 the task contributed (1 − p_cheap) × p_expensive = 0 anyway.
+> Only the single-draw cross-tab ever thought it was routable mass.
+>
 > The domain split is the finding. All 5 routable code tasks are solid; all 4
 > phantoms and all 5 flaky tasks are maths. **Of 10 routable maths tasks exactly
 > one survives.** The maths half carried the higher headline number and almost
 > none of the signal — which is what arXiv:2607.03436 predicts for MATH-500
 > specifically, tested here on independent data.
 >
-> Two truncations surfaced (`math-422` cheap, `math-154` expensive) and grade as
-> wrong regardless of content, so `both_fail` is overstated too. That is the
-> artefact class in [arXiv:2605.07395](https://arxiv.org/abs/2605.07395), and
-> raising `models.MAX_TOKENS` is the open follow-up.
+> Two truncations surfaced (`math-422` cheap, `math-154` expensive) and graded as
+> wrong regardless of content, so `both_fail` was overstated too. That is the
+> artefact class in [arXiv:2605.07395](https://arxiv.org/abs/2605.07395).
+>
+> **CLOSED 9 August 2026, and not by raising the cap.** `MAX_TOKENS` is in the
+> response-cache key, so raising it strands all 980 committed responses and
+> re-charges $4.2352 — the follow-up as originally written was forbidden by the
+> invariant it was written under. Truncated draws are instead **dropped from
+> p̂'s numerator and denominator**: `math-154` expensive is 0.00 on **9** draws
+> rather than 0.00 on 10, and `math-422` cheap rises 0.50 → 0.56. Both counts
+> are recorded per task in `redraw.wide.json` under `draws_used`, so a reader
+> can see which figures rest on fewer draws.
+>
+> `models.is_truncated` is now the single definition of the rule, applied
+> wherever an analysis grades straight off the cache: `redraw_decisive`,
+> `routable.real_verdicts` and `resample_vs_reroute`.
 >
 > Per-task probabilities are in `redraw.wide.json`. Everything replays for free.
 

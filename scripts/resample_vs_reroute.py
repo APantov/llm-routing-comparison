@@ -42,6 +42,7 @@ REPO = Path(__file__).resolve().parent.parent
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
+import models                                    # noqa: E402
 import routable                                  # noqa: E402
 from graders import extract_answer, grade        # noqa: E402
 
@@ -49,10 +50,18 @@ LADDER = "wide"
 KS = (1, 3, 5, 7, 9)
 
 
-def load_draws(ladder):
-    """{task_id: {tier: {sample_idx: text}}} for greedy real answers."""
+def load_draws(ladder, tasks=None):
+    """{task_id: {tier: {sample_idx: text}}} for greedy real answers.
+
+    Truncated draws are excluded. A response cut off at max_tokens has no
+    \\boxed{} for `extract_answer` to find, so it would enter `majority_of_k`
+    as a null vote and `best_of_k` as a guaranteed miss - in both cases
+    weakening resampling for a reason that is about the token cap rather than
+    about resampling. `models.is_truncated` is the single definition of the rule.
+    """
     path = REPO / "cache" / f"raw_calls.{ladder}.jsonl"
     out, costs = collections.defaultdict(lambda: collections.defaultdict(dict)), collections.defaultdict(list)
+    dropped = orphans = 0
     for line in path.open(encoding="utf-8"):
         if not line.strip():
             continue
@@ -61,8 +70,24 @@ def load_draws(ladder):
             continue
         if d.get("temperature") not in (0, 0.0):
             continue
+        task = (tasks or {}).get(d["task_id"])
+        if task is not None and not models.is_reachable(d, task):
+            # Stranded under a superseded cache-key parameter - see
+            # models.is_reachable. Reading the raw file bypasses the key, so
+            # these have to be excluded explicitly.
+            orphans += 1
+            continue
+        if models.is_truncated(d):
+            dropped += 1
+            continue
         out[d["task_id"]][d["tier"]][d.get("sample_idx") or 0] = d["text"]
         costs[d["tier"]].append(d["cost_usd"])
+    if dropped:
+        print(f"  !! {dropped} truncated draw(s) excluded as unmeasured "
+              f"(not counted as wrong answers).")
+    if orphans:
+        print(f"  {orphans} stranded draw(s) excluded (unreachable by the "
+              f"current cache key).")
     unit = {t: sum(v) / len(v) for t, v in costs.items()}
     return out, unit
 
@@ -89,7 +114,7 @@ def best_of_k(task, texts):
 
 def main():
     tasks = {t["id"]: t for t in routable.load_tasks(REPO / "taskset.jsonl")}
-    draws, unit = load_draws(LADDER)
+    draws, unit = load_draws(LADDER, tasks)
     verdicts = routable.real_verdicts(list(tasks.values()), LADDER)
 
     decisive = [

@@ -790,22 +790,147 @@ class TestRoutableReestimate:
         cell. `expected` is unmoved at 0.102, because the tasks that left
         contributed (1-p_cheap) * p_expensive = 0 to it; they were unpassable,
         so p_expensive was 0.
+
+        Updated again the same day, when truncated responses stopped being
+        graded as failures. `math-96`'s cheap greedy draw was cut off at
+        max_tokens, so the cross-tab had it as cheap-wrong / expensive-right
+        and counted it ROUTABLE. Ten fresh cheap draws solve it 10 times out of
+        10 - it was never a routing opportunity, it was a phantom manufactured
+        by the token cap. It is now unmeasured, so n falls 95 -> 94 and
+        routable 15 -> 14, and `observed` falls with it, 0.158 -> 0.149.
+
+        `expected` barely moves (0.1021 -> 0.1026) because math-96 contributed
+        almost nothing to it anyway: p_cheap = 1.0 makes (1 - p_cheap) * p_exp
+        zero. That is the tell that the 15th task was never real routable mass
+        - only the single-draw cross-tab ever thought so.
         """
         path = REPO_ROOT / "redraw.wide.json"
         if not path.exists():
             pytest.skip("redraw.wide.json not present; run scripts/redraw_decisive.py")
         import json
         d = json.loads(path.read_text(encoding="utf-8"))
-        assert d["n_graded"] == 95
-        assert len(d["p_hat"]) == 16
-        assert d["observed"] == pytest.approx(0.158, abs=0.001)
-        assert d["expected"] == pytest.approx(0.102, abs=0.002)
-        assert d["reproducible"] == pytest.approx(0.095, abs=0.001)
-        # Four phantoms: cheap solves them every time. All four are maths, and
-        # the purge did not touch them.
-        phantoms = [t for t, p in d["p_hat"].items() if p["cheap"] >= 0.9]
-        assert len(phantoms) == 4
+        assert d["n_graded"] == 94
+        assert len(d["p_hat"]) == 15
+        assert d["observed"] == pytest.approx(0.149, abs=0.001)
+        assert d["expected"] == pytest.approx(0.103, abs=0.002)
+        assert d["reproducible"] == pytest.approx(0.096, abs=0.001)
+        # Three phantoms left: cheap solves them every time. All three maths.
+        # The fourth was math-96, which is no longer in a decisive cell at all.
+        phantoms = [t for t, p in d["p_hat"].items()
+                    if p["cheap"] is not None and p["cheap"] >= 0.9]
+        assert len(phantoms) == 3
         assert all(t.startswith("math-") for t in phantoms)
+
+    def test_truncated_draws_left_the_denominator(self):
+        """p_hat must be a share of GRADEABLE draws, not of requested ones.
+
+        Two responses on disk hit max_tokens mid-derivation. Counting them as
+        wrong answers put them in the numerator's complement AND the
+        denominator; dropping them removes both. math-154's expensive rung is
+        the one that matters - it reads 0.00 either way, but on 9 draws rather
+        than 10, and it sits in `both_fail`, one of the two cells this whole
+        script exists to re-estimate.
+        """
+        path = REPO_ROOT / "redraw.wide.json"
+        if not path.exists():
+            pytest.skip("redraw.wide.json not present; run scripts/redraw_decisive.py")
+        import json
+        d = json.loads(path.read_text(encoding="utf-8"))
+        assert d["truncated_draws_dropped"] == 2
+        assert d["draws_used"]["math-154"]["expensive"] == 9
+        assert d["draws_used"]["math-422"]["cheap"] == 9
+        # Everything else got the full ten.
+        full = [n for t, row in d["draws_used"].items() for n in row.values()]
+        assert sorted(full)[2:] == [d["draws"]] * (len(full) - 2)
+
+
+# ---------------------------------------------------------------------------
+# Truncation is a MISSING measurement, not a wrong answer.
+#
+# A response cut off at max_tokens never reaches its \boxed{}, so the grader
+# scores it False for a reason that is nothing to do with the model. The damage
+# is directional rather than random: truncations land on the longest
+# derivations, which are the hardest tasks, which are exactly the ones that
+# decide the routable fraction. A truncated CHEAP answer reads as "the cheap
+# rung failed" and inflates `routable`; a truncated EXPENSIVE one manufactures
+# a `both_fail`.
+#
+# Raising the cap is not the fix - max_tokens is in the cache key, so it would
+# strand all 980 committed responses and re-charge $4.2352.
+# ---------------------------------------------------------------------------
+
+class TestTruncationIsUnmeasured:
+    def test_the_stored_flag_wins_when_present(self):
+        assert models.is_truncated({"truncated": True, "tokens_out": 1}) is True
+        assert models.is_truncated({"truncated": False, "tokens_out": 99999}) is False
+
+    def test_it_falls_back_to_the_token_count(self):
+        """The load-bearing branch, not a courtesy: all three truncations on
+        disk predate the `truncated` field and carry None."""
+        assert models.is_truncated({"tokens_out": models.MAX_TOKENS}) is True
+        assert models.is_truncated({"tokens_out": models.MAX_TOKENS - 1}) is False
+
+    def test_the_fallback_uses_the_right_cap_per_kind(self):
+        """A routing call is capped at 8 tokens, not MAX_TOKENS. Judging it by
+        the answer cap would call every routing response un-truncated."""
+        assert models.is_truncated(
+            {"kind": "route", "tokens_out": models.ROUTER_MAX_TOKENS}) is True
+        assert models.is_truncated(
+            {"kind": "route", "tokens_out": models.ROUTER_MAX_TOKENS - 1}) is False
+
+    def test_a_truncated_greedy_draw_leaves_the_cross_tab(self, wide_verdicts):
+        """routable.real_verdicts must not classify what it could not measure.
+
+        Dropping the tier drops the task, because a cross-tab cell needs both
+        rungs. That is the correct arithmetic - an unmeasured pair is not a
+        cell, it is an absence.
+        """
+        # math-96's cheap greedy draw hit the cap. It must have no cheap
+        # verdict at all, rather than a False one.
+        assert "cheap" not in wide_verdicts.get("math-96", {})
+
+    def test_every_surviving_pair_is_reachable_and_unique(self, wide_verdicts):
+        """One greedy draw per (task, tier), and it is the one the cache serves.
+
+        real_verdicts reads the raw JSONL rather than going through the cache,
+        so before models.is_reachable it also graded 73 rows stranded at the old
+        max_tokens=2048 - and the LAST such row on disk silently won.
+        """
+        complete = [t for t, v in wide_verdicts.items()
+                    if "cheap" in v and "expensive" in v]
+        # 60 maths tasks, minus math-96 whose cheap rung is unmeasured.
+        assert len(complete) == 59
+        assert all(t.startswith("math-") for t in complete)
+
+
+class TestReachability:
+    def test_a_record_under_a_superseded_cap_is_unreachable(self, benchmark_task):
+        """The orphan case, reproduced from the committed cache.
+
+        max_tokens is in the cache key and NOT in the record, so it cannot be
+        read off a row - it has to be inferred by recomputing the key. These
+        rows are real, paid for, gradeable, and permanently unservable.
+        """
+        import json
+        import response_cache
+        task = next(t for t in benchmark_task if t["id"] == "math-96")
+        prompt = models.build_prompt(task, "answer")
+        old = response_cache.make_key(
+            mode="real", model="deepseek-v4-flash", prompt=prompt,
+            temperature=0.0, sample_idx=0, max_tokens=2048, mock_seed=None)
+        now = response_cache.make_key(
+            mode="real", model="deepseek-v4-flash", prompt=prompt,
+            temperature=0.0, sample_idx=0, max_tokens=models.MAX_TOKENS,
+            mock_seed=None)
+        assert old != now
+
+        rec = {"key": old, "mode": "real", "model": "deepseek-v4-flash",
+               "temperature": 0.0, "sample_idx": 0, "kind": "answer"}
+        assert models.is_reachable(rec, task) is False
+        assert models.is_reachable({**rec, "key": now}, task) is True
+
+    def test_a_record_missing_key_fields_is_not_assumed_reachable(self, benchmark_task):
+        assert models.is_reachable({"key": "whatever"}, benchmark_task[0]) is False
 
 
 # ---------------------------------------------------------------------------

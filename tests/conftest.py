@@ -88,6 +88,27 @@ def cfg():
     return _make
 
 
+@pytest.fixture(scope="module")
+def wide_verdicts():
+    """`routable.real_verdicts` over the MATHS half of the committed `wide` cache.
+
+    Maths only, and module-scoped, both for speed. Grading the code half means
+    executing 35 expanded MBPP+ suites, which takes ~39 seconds in a suite that
+    otherwise finishes in two - and buys nothing here, because every question
+    this fixture is used to answer is about truncation. Code answers average 55
+    output tokens against a 4096 cap; not one is within an order of magnitude
+    of it. All three truncations on disk are maths.
+    """
+    import json
+    import routable
+    path = REPO_ROOT / "taskset.jsonl"
+    if not path.exists():
+        pytest.skip("taskset.jsonl not built; run python build_taskset.py")
+    tasks = [json.loads(l) for l in path.open(encoding="utf-8") if l.strip()]
+    return routable.real_verdicts([t for t in tasks if t["domain"] == "math"],
+                                  "wide")
+
+
 @pytest.fixture
 def benchmark_task():
     """A real row from the task set, for replay tests.

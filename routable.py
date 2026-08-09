@@ -164,6 +164,7 @@ def mock_verdicts(tasks, ladder):
 # Real path: grade what the paid run already put on disk. No calls.
 # ---------------------------------------------------------------------------
 def real_verdicts(tasks, ladder):
+    import models
     from graders import grade
 
     path = HERE / "cache" / f"raw_calls.{ladder}.jsonl"
@@ -171,6 +172,8 @@ def real_verdicts(tasks, ladder):
         return {}
     by_id = {t["id"]: t for t in tasks}
     out = defaultdict(dict)
+    truncated = []
+    orphans = 0
     for line in open(path, encoding="utf-8"):
         if not line.strip():
             continue
@@ -185,7 +188,43 @@ def real_verdicts(tasks, ladder):
         task = by_id.get(d["task_id"])
         if task is None:
             continue
+        if not models.is_reachable(d, task):
+            # An orphan from a superseded parameter - see models.is_reachable.
+            # This function reads the raw file rather than going through the
+            # cache, so without this check it grades responses the experiment
+            # itself can never serve, and the LAST such row on disk silently
+            # wins.
+            orphans += 1
+            continue
+        if models.is_truncated(d):
+            # LEFT UNMEASURED rather than graded False. A response cut off at
+            # max_tokens never reached its \boxed{}, so the grader would score
+            # it wrong for a reason that is not about the model - and a wrong
+            # CHEAP verdict here puts the task in `routable`, inflating the
+            # headline this file computes.
+            #
+            # Concretely, before this: math-96's cheap draw was truncated, so
+            # the cross-tab called it routable. Ten fresh cheap draws get it
+            # right 10 times out of 10. It was never a routing opportunity.
+            #
+            # Dropping the tier drops the TASK, because crosstab needs both
+            # rungs. That is the correct arithmetic: an unmeasured pair cannot
+            # be classified into any of the four cells.
+            truncated.append((d["task_id"], d["tier"]))
+            continue
         out[d["task_id"]][d["tier"]] = grade(task, d["text"])
+    if orphans:
+        print(f"  {orphans} stranded response(s) skipped - recorded under a "
+              f"parameter the cache key has since moved past, so the "
+              f"experiment cannot serve them.")
+    if truncated:
+        print(f"  !! {len(truncated)} greedy response(s) hit max_tokens and are "
+              f"UNMEASURED, not failures.")
+        for task_id, tier in sorted(truncated):
+            print(f"     {task_id:<16} {tier:<10} dropped from the cross-tab")
+        print(f"     n falls by that many pairs. Raising models.MAX_TOKENS "
+              f"re-charges every\n     cached response (SHIP_PLAN.md section "
+              f"1), so the task is excluded instead.")
     return out
 
 
