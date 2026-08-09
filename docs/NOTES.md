@@ -6,6 +6,35 @@ much each one would change a conclusion.
 
 ## Blocking
 
+### 0. Five task-set entries are unpassable, and are quarantined for good
+
+**Standing rule, not a one-off correction: a quarantined task is never counted
+again — no rerun, no ladder, no figure, nothing the agent layer serves.**
+
+`codeplus-119`, `codeplus-305`, `codeplus-630`, `codeplus-771` and `codeplus-792`
+score against whatever the MBPP reference implementation returned on inputs their
+prompt never describes. `codeplus-119` is the clearest: it expects
+`[1,2,3,4,5,6] -> 7`, the XOR-fold of the reference, and 7 is not in the array. A
+textbook-correct solution mismatches 64 of its 110 inputs.
+
+This mattered far more than five tasks should, because they were **all** of
+`always_expensive`'s failures on the eval split. Left in, they capped every
+policy in the project: `always_expensive` and `oracle` read 92% rather than 100%,
+and the code half read 80% rather than 100%. **This file's own issue 18 — "the
+routing signal and the usable verifier are in different halves" — was argued
+partly from `both_fail` counts that were this artefact.** Code `both_fail` is now
+zero and its rescue rate is 100%.
+
+The general lesson, and the reason `routable.py` now prints a review queue:
+**"both rungs failed" reads as "hard" and is equally consistent with "broken".**
+The cross-tab cannot tell, nobody looked for four months, and the two need
+different responses. Any task landing in `both_fail` is unmeasured until someone
+runs a textbook solution against its tests.
+
+Evidence per task is in `build_taskset.QUARANTINED`; the rule, the enforcement
+points and what it moved are in SHIP_PLAN.md §0.5. Three tests pin it
+(`TestQuarantine`). **`redraw.wide.json` is stale** and still covers 5 of them.
+
 ### 1. One of the ten policies still has no real accuracy data
 
 > **RESOLVED on the `wide` ladder, 8 August 2026.** This issue was written when

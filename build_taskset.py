@@ -33,6 +33,7 @@ is a change you cannot measure.
 import argparse
 import json
 import random
+import sys
 from collections import Counter
 from pathlib import Path
 
@@ -290,6 +291,98 @@ def stratified_sample(tasks, n, rng):
     return out
 
 
+# ---------------------------------------------------------------------------
+# QUARANTINE: tasks whose expected answers cannot be derived from their prompt.
+#
+# These are not hard tasks. They are tasks where MBPP+'s generated inputs are
+# scored against whatever the MBPP reference implementation happened to return,
+# including on inputs the natural-language prompt says nothing about. No model
+# can pass them, and neither can a textbook-correct solution - which is how each
+# one below was diagnosed, rather than by assuming that "both rungs failed"
+# means "hard".
+#
+# This matters more than five tasks should, because they were ALL of
+# always_expensive's failures on the eval split. Left in, they set the ceiling
+# for every policy: `always_expensive` and `oracle` read 92% instead of 100%,
+# and the code half reads 80% instead of 100%. STATUS.md's "code is now the
+# harder domain in absolute terms" was this artefact. See SHIP_PLAN.md 0.1.
+#
+# Removal happens AFTER sampling and AFTER add_difficulty_pct, deliberately.
+# Filtering the pool first would let stratified_sample draw five replacements,
+# and a replacement task has no cached response, so every policy would be
+# dropped by ReplayMiss and $4.40 of committed data would go unused. Filtering
+# last leaves the survivors byte-identical to their entries in the previous task
+# set, so the existing cache stays valid.
+QUARANTINED = {
+    "codeplus-119":
+        "expects the XOR-fold of the reference: [1,2,3,4,5,6] -> 7, which is not "
+        "in the array. A textbook solution mismatches 64 of 110 inputs.",
+    "codeplus-792":
+        "'count the number of lists in a given number of lists' is ambiguous; all "
+        "three shipped asserts fit both len(x) and 'count sublists', and only the "
+        "hidden inputs disambiguate.",
+    "codeplus-771":
+        "expects '' -> False. An empty expression is balanced. A textbook solution "
+        "mismatches exactly 1 of 106 inputs - that one.",
+    "codeplus-305":
+        "the reference yields mutually inconsistent expectations for "
+        "identically-shaped inputs.",
+    "codeplus-630":
+        "expected coordinate ordering is a reference artefact the prompt does not "
+        "specify.",
+}
+
+
+def drop_quarantined_rows(rows, source, key="task_id", warn=True):
+    """Strip quarantined tasks out of any artefact recorded before the quarantine.
+
+    THE RULE: a quarantined task is never counted, anywhere, ever again - not in
+    a rerun, not in a cross-tab, not in a figure, not in anything the agent layer
+    serves. Removing them from `taskset.jsonl` is only half of that. The other
+    half is the artefacts already on disk that were recorded over the old
+    100-task set and still contain them:
+
+        results.probe.jsonl   200 rows, both arms, all 5 broken tasks present
+        redraw.wide.json      per-task p_hat, 5 of its 21 tasks are broken ones
+        cache/raw_calls.*     their responses, harmless but reachable
+
+    Those files are real and are deliberately kept - nothing measured gets
+    deleted in this repository - so the filtering has to happen at every point
+    of USE instead. This is that filter. Anything that loads one of those files
+    calls it, so the rule is enforced in one place rather than remembered in
+    several.
+
+    Deleting the artefacts instead would be the other option, and it is worse:
+    it destroys evidence for the quarantine itself, and the numbers in
+    SHIP_PLAN.md section 0.1 could no longer be reproduced.
+    """
+    kept = [r for r in rows if r.get(key) not in QUARANTINED]
+    dropped = len(rows) - len(kept)
+    if dropped and warn:
+        print(
+            f"  {source}: dropped {dropped} row(s) on quarantined tasks "
+            f"(recorded before the 8 August 2026 quarantine; see "
+            f"build_taskset.QUARANTINED)",
+            file=sys.stderr,
+        )
+    return kept
+
+
+def drop_quarantined(tasks, keep=False):
+    """Remove known-unpassable tasks, and say which and why."""
+    if keep:
+        print(f"  !! keeping {len(QUARANTINED)} quarantined task(s) - "
+              f"the ceiling this produces is an artefact, not a measurement")
+        return tasks
+    kept = [t for t in tasks if t["id"] not in QUARANTINED]
+    dropped = [t["id"] for t in tasks if t["id"] in QUARANTINED]
+    for task_id in sorted(dropped):
+        print(f"  quarantined {task_id}: {QUARANTINED[task_id]}")
+    if dropped:
+        print(f"  {len(dropped)} unpassable task(s) removed after sampling")
+    return kept
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument(
@@ -305,6 +398,12 @@ def main():
         "--min-math-level", type=int, default=MIN_MATH_LEVEL,
         help="MATH500 difficulty floor. Raise it to make the maths half harder.",
     )
+    ap.add_argument(
+        "--keep-quarantined", action="store_true",
+        help="keep the known-unpassable tasks listed in QUARANTINED. Only for "
+             "reproducing pre-8-August numbers; the ceiling it produces is an "
+             "artefact of broken tests rather than a measurement.",
+    )
     args = ap.parse_args()
 
     rng = random.Random(SEED)
@@ -314,6 +413,9 @@ def main():
     tasks = math_tasks + code_tasks
     add_difficulty_pct(tasks)
     rng.shuffle(tasks)
+    # After the shuffle, so the surviving tasks keep exactly the difficulty_pct
+    # and ordering they had before the quarantine existed.
+    tasks = drop_quarantined(tasks, keep=args.keep_quarantined)
 
     # newline="" so this file is byte-identical on Windows and Linux. Without
     # it, Python translates \n to \r\n on Windows, the same code produces

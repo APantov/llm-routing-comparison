@@ -81,17 +81,33 @@ def _last_boxed(text: str):
 
 
 def _canon_latex(s):
-    r"""Give \frac and \sqrt arguments their braces, so \sqrt5 == \sqrt{5}.
+    r"""Give \frac, \sqrt, ^ and _ arguments their braces, so \sqrt5 == \sqrt{5}
+    and x^2 == x^{2}.
 
     LaTeX lets a single-token argument drop its braces, and models use both
     forms interchangeably within one answer. MATH500's stored answers do too:
-    `\frac{270}7` is in the data as written.
+    `\frac{270}7` is in the data as written, and `8n^2 + 4n + 1` is math-481's
+    shipped answer while `8n^{2}+4n+1` is an equally natural way to write it.
+
+    Canonicalising TOWARDS the braced form is the safe direction. Stripping
+    braces instead would merge `2^{10}` with `2^10`, and those are genuinely
+    different in LaTeX - `2^10` is 2^1 followed by a 0. Adding braces to a
+    single token cannot merge anything that was not already identical, so
+    `2^{10}` and `2^10` correctly stay apart.
+
+    Only bare alphanumerics get braces here. `x^\pi` is left alone: deciding
+    where a backslash command ends needs a parser, and `^\circ` is already
+    stripped by normalize_math_answer before this runs.
+
+    The superscript case was missed by the 6 August grader fix, which caught
+    \sqrt and \frac but not ^ and _. See SHIP_PLAN.md §0.3.
     """
     s = re.sub(r"\\sqrt(?!\{)(\\?[A-Za-z0-9])", r"\\sqrt{\1}", s)
     # Two passes so \frac{270}7 and \frac3{4} are both reached.
     for _ in range(2):
         s = re.sub(r"\\frac(?!\{)(\\?[A-Za-z0-9])", r"\\frac{\1}", s)
         s = re.sub(r"(\\frac\{[^{}]*\})(?!\{)(\\?[A-Za-z0-9])", r"\1{\2}", s)
+    s = re.sub(r"([\^_])(?!\{)([A-Za-z0-9])", r"\1{\2}", s)
     return s
 
 

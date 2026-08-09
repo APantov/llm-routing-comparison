@@ -149,6 +149,64 @@ rung, where draws cost $0.000036–0.000245.
 
 ---
 
+## 0.5 THE STANDING RULE: quarantined tasks are never counted again
+
+**Applies to every rerun, every ladder, every figure, and anything the agent
+layer serves — not just to the run that discovered them.**
+
+The five tasks in §0.1 are not "tasks we happened to fail". Their expected
+answers cannot be derived from their prompts, so no model and no textbook
+solution can pass them. Counting them does not make a result conservative, it
+makes it wrong: they were **all** of `always_expensive`'s failures, so they set
+the ceiling for every policy at 92% instead of 100%.
+
+`build_taskset.QUARANTINED` is the single source of truth. Implemented 8 August
+2026 in two halves, because removing them from the task set is only half the job:
+
+| half | where | what |
+|---|---|---|
+| build time | `build_taskset.drop_quarantined` | removed **after** sampling and `add_difficulty_pct`, so survivors stay byte-identical and the existing cache stays valid |
+| point of use | `build_taskset.drop_quarantined_rows` | filters artefacts recorded *before* the quarantine, which still contain them |
+
+The artefacts that still contain them, deliberately — nothing measured is
+deleted here, because that would destroy the evidence for the quarantine itself:
+
+- `results.probe.jsonl` — all 200 original rows. Filtered by
+  `router_agent.findings.load_probe`, so the MCP `probe` resource and every
+  served figure now report n=95.
+- `redraw.wide.json` — **stale**: its per-task `p_hat` covers 21 tasks, 5 of them
+  broken, and its headline `observed 0.15 / expected 0.102 / reproducible 0.09`
+  are over the old 100. Regenerating needs `scripts/redraw_decisive.py --go`,
+  which refuses to run in replay mode. The decisive set is now 16 tasks, not 21.
+- `cache/raw_calls.*.jsonl` — their responses. Harmless: unreachable once the
+  task set no longer names them.
+
+Three tests enforce it (`TestQuarantine`): a rebuild never reintroduces them, the
+row filter works, and every entry carries written evidence rather than a bare id.
+
+`--keep-quarantined` exists only to reproduce pre-8-August numbers. **Anything it
+produces is an artefact of broken tests, not a measurement.**
+
+### What moved when the rule was applied
+
+| | before | after |
+|---|---|---|
+| tasks / eval split | 100 / 50 | **95 / 47** |
+| `always_expensive`, `oracle` | 92.0% | **100.0%** |
+| `cascade` | 90.0% | **97.9%** |
+| `cascade` on code | 80.0% | **100.0%** at $0.000325/task |
+| `both_fail` (probe, n=95) | 6 | **1** |
+| code `both_fail` / rescue | 5 / 50% | **0 / 100%** |
+| rescue rate (all) | 71.4% | **93.8%** |
+
+Two honest consequences. The pilot gate now reads **14.9%, "leans too easy"**
+(was 22.0%) — five of the cheap rung's failures were broken tasks, not hard
+ones, so the set is genuinely easier than it looked. And **0 of 8 comparisons
+are still significant**: the quarantine fixed the ceiling, not the power. Both
+strengthen the case for §3-B and §3-C.
+
+---
+
 ## 1. Two invariants
 
 **Do not touch `MAX_TOKENS` or the prompt templates.** Both are in the cache key.

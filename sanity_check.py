@@ -40,6 +40,13 @@ EQUIVALENT = [
     (r"\$18.90", r"18.90"),
     (r"3R^2", r"AF^2+BF^2+CF^2 = 3R^2"),
     (r"(3,4]", r"3 < \lambda \le 4"),
+    # Redundant braces on superscripts and subscripts. The 6 August fix caught
+    # \sqrt and \frac but not ^ and _, so this class survived it; found by audit
+    # on 8 August 2026. math-481's shipped answer is literally `8n^2 + 4n + 1`,
+    # and `8n^{2}+4n+1` is an equally natural way for a model to write it.
+    (r"8n^2 + 4n + 1", r"8n^{2}+4n+1"),
+    (r"3R^2", r"3R^{2}"),
+    (r"a_1", r"a_{1}"),
     # Notational cases the normaliser already handled - kept so a rewrite of it
     # cannot silently lose them.
     (r"\frac{1}{2}", r"\dfrac{1}{2}"),
@@ -61,6 +68,12 @@ DISTINCT = [
     (r"(3,4]", r"[3,4]"),                     # wrong endpoint inclusion
     (r"\frac{1}{2}", r"0.5"),                 # algebra is not the grader's job
     (r"(6,31,-1)", r"(-1,6,31)"),             # an ordered tuple is not a set
+    # The brace canonicalisation must not go the other way. `2^10` is 2^1
+    # followed by a 0 in LaTeX, so stripping braces from `2^{10}` would merge
+    # two genuinely different expressions. Canonicalising towards braces cannot.
+    (r"2^{10}", r"2^10"),
+    (r"x^2", r"x^3"),
+    (r"a_1", r"a_2"),
 ]
 
 

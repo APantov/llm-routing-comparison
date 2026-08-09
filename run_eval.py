@@ -31,7 +31,14 @@ HERE = Path(__file__).parent
 RESULTS = HERE / "results.jsonl"
 
 # Hard spend cap, enforced in code rather than by willpower.
-MAX_SPEND_USD = 20.0
+#
+# Lowered from $20 to $3 on 8 August 2026. $20 was set when the whole project was
+# expected to cost about $1, so it was a runaway guard rather than a budget: a bug
+# could have spent the entire remaining budget several times over before it bound.
+# $3 is above the largest single run SHIP_PLAN.md asks for (§3-C, ~$2.22) and below
+# what would hurt. Raise it deliberately, per run, if a run genuinely needs more —
+# a cap that is routinely raised is not a cap.
+MAX_SPEND_USD = 3.0
 
 # ---------------------------------------------------------------------------
 # The pilot gate: the band the cheap-model failure rate has to land in for the
@@ -267,6 +274,10 @@ def run(tasks):
             # other calls were: a cascade that verifies a real cheap answer with
             # five mock samples is reporting the mock's verdict.
             mock_before = models.call_stats["served_mock"]
+            # Same argument as mock_before, for the same reason: a row whose
+            # answer was cut off at max_tokens is a MISSING measurement, not a
+            # wrong one, and downstream analysis has to be able to tell.
+            trunc_before = models.call_stats["truncated"]
             try:
                 res = fn(task)
             except models.ReplayMiss:
@@ -292,6 +303,7 @@ def run(tasks):
                     "latency_s": res.latency_s,
                     "escalated": res.escalated,
                     "calls": res.calls,
+                    "truncated": models.call_stats["truncated"] > trunc_before,
                     **provenance(
                         simulated=models.call_stats["served_mock"] > mock_before
                     ),
@@ -711,12 +723,28 @@ def report(rows):
             )
 
     # Truncation is invisible in the accuracy table, since a cut-off answer just
-    # scores as wrong, so it gets its own line.
-    if models.truncated_calls:
+    # scores as wrong, so it gets its own section. Named, not counted: the point
+    # is to be able to go and look at the task.
+    if models.truncated_ids:
+        rows_hit = sum(1 for r in rows if r.get("truncated"))
         print()
         print(
-            f"!! {models.truncated_calls} call(s) hit max_tokens and were graded as "
-            f"WRONG. Raise models.MAX_TOKENS and re-run; these numbers are not valid."
+            f"!! {len(models.truncated_ids)} response(s) hit max_tokens and grade as "
+            f"WRONG, affecting {rows_hit} of {len(rows)} scored rows "
+            f"(stamped truncated: true)."
+        )
+        for task_id, tier, kind, sample_idx in sorted(models.truncated_ids):
+            print(f"     {task_id:<14} {tier:<10} {kind} sample={sample_idx}")
+        if not rows_hit:
+            print(
+                "   0 scored rows: these were served while fitting on the calibration\n"
+                "   half, so they touch the estimators rather than the reported table."
+            )
+        print(
+            "   These are MISSING measurements, not capability failures. Raising\n"
+            "   models.MAX_TOKENS re-charges every cached response (SHIP_PLAN.md\n"
+            "   section 1), so exclude the task or accept the row as unmeasured -\n"
+            "   do not read it as the model getting the answer wrong."
         )
 
 
@@ -752,6 +780,70 @@ def guard_clobber(force: bool):
             f"  Back them up:   cp {RESULTS.name} results.real.jsonl\n"
             f"  Or override:    python3 run_eval.py --force\n"
         )
+
+
+def guard_regression(rows, force: bool):
+    """Refuse to replace a results file with a strictly poorer one.
+
+    guard_clobber runs before the run and can only see the ARGUMENTS. This runs
+    after and sees what was actually produced, which is the only place the real
+    hazard is visible: policies are dropped mid-run by ReplayMiss, so a command
+    that asks for all nine can legitimately finish with one.
+
+    That is not hypothetical. On 8 August 2026 `ROUTER_LADDER=deepseek python
+    run_eval.py` - with ROUTER_MODE=replay set in .env - found cached data for
+    always_cheap only (the deepseek and wide ladders share a bottom rung, so the
+    cross-ladder cache served it) and dropped the other eight. It overwrote a
+    complete nine-policy wide run with 47 rows of one policy. guard_clobber
+    passed it, correctly by its own terms: both files were real, and it only
+    refuses mock-over-real.
+
+    A results file is not an output to be regenerated at will. Recomputing it
+    needs the cache to still cover every policy, and that is exactly what fails
+    when a ladder changes. So: refuse a write that covers a different ladder, or
+    fewer policies, than the file already on disk.
+    """
+    if force or not rows or not RESULTS.exists():
+        return
+    try:
+        with RESULTS.open(encoding="utf-8") as f:
+            old = [json.loads(l) for l in f if l.strip()]
+    except (json.JSONDecodeError, OSError):
+        return
+    if not old:
+        return
+
+    old_pol, new_pol = {r["policy"] for r in old}, {r["policy"] for r in rows}
+    old_lad = {r.get("ladder") for r in old}
+    new_lad = {r.get("ladder") for r in rows}
+    lost = sorted(old_pol - new_pol)
+    changed_ladder = old_lad != new_lad
+
+    if not lost and not changed_ladder:
+        return
+
+    why = []
+    if changed_ladder:
+        why.append(
+            f"  ladder:   on disk {sorted(x for x in old_lad if x)} "
+            f"-> this run {sorted(x for x in new_lad if x)}"
+        )
+    if lost:
+        why.append(
+            f"  policies: {len(old_pol)} on disk -> {len(new_pol)} here; "
+            f"would lose {', '.join(lost)}"
+        )
+    sys.exit(
+        "\nREFUSING TO WRITE.\n"
+        f"  {RESULTS.name} holds a broader run than this one produced.\n"
+        + "\n".join(why)
+        + "\n\n"
+        "  Most likely this ladder's cache cannot serve every policy, and they\n"
+        "  were dropped mid-run - scroll up for the SKIPPED lines. Regenerating\n"
+        "  the file you are about to destroy needs a cache that still covers it.\n\n"
+        "  Write anyway:   python3 run_eval.py --force\n"
+        "  Keep both:      cp results.jsonl results.<ladder>.jsonl\n"
+    )
 
 
 def main():
@@ -935,6 +1027,7 @@ def main():
         )
 
     rows = run(tasks)
+    guard_regression(rows, args.force)
     write_jsonl(RESULTS, rows)
     report(rows)
     print(f"\nwrote {len(rows)} rows -> {RESULTS}")

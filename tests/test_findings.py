@@ -10,6 +10,8 @@ result.
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from router_agent import findings
@@ -23,29 +25,61 @@ class TestProbe:
         assert probe.n > 0
 
     def test_matches_the_documented_result(self):
-        """The figures STATUS.md and README both quote."""
+        """The figures STATUS.md and README both quote.
+
+        Updated 8 August 2026 for the quarantine. results.probe.jsonl still
+        holds all 200 original rows - nothing measured is deleted here - but
+        load_probe drops the 5 unpassable code tasks, so these are now over
+        n=95. The old values were n=100, routable 15.0%, both_fail 6.
+
+        The interesting move is both_fail 6 -> 1: five of the six tasks that
+        "defeated both rungs" were unpassable rather than hard, which is what
+        pushed the rescue rate from 71.4% to 93.8%.
+        """
         probe = findings.load_probe()
         if probe is None:
             pytest.skip("results.probe.jsonl not present in this checkout")
 
-        assert probe.n == 100
+        assert probe.n == 95
         assert probe.both_ok == 77
         assert probe.routable == 15
-        assert probe.both_fail == 6
+        assert probe.both_fail == 1
         assert probe.inverted == 2
-        assert probe.routable_pct == pytest.approx(15.0)
-        assert probe.ceiling_pct == pytest.approx(17.0)
-        assert probe.rescue_rate == pytest.approx(0.714, abs=0.001)
-        assert probe.cheap_acc == pytest.approx(0.79)
-        assert probe.expensive_acc == pytest.approx(0.92)
+        assert probe.routable_pct == pytest.approx(15.8, abs=0.1)
+        assert probe.ceiling_pct == pytest.approx(17.9, abs=0.1)
+        assert probe.rescue_rate == pytest.approx(0.938, abs=0.001)
+        assert probe.cheap_acc == pytest.approx(0.832, abs=0.001)
+        assert probe.expensive_acc == pytest.approx(0.968, abs=0.001)
+
+    def test_quarantined_tasks_never_reach_a_reported_figure(self):
+        """The quarantine is not only a build-time filter.
+
+        results.probe.jsonl predates it and still contains every broken task,
+        so load_probe has to drop them at the point of use. If this fails, a
+        rerun is counting tasks whose expected answers cannot be derived from
+        their prompt - and since they were ALL of always_expensive's failures,
+        they set the ceiling for every policy in the project.
+        """
+        from build_taskset import QUARANTINED
+
+        raw = [
+            json.loads(line)
+            for line in findings.PROBE_PATH.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        present = {r["task_id"] for r in raw} & set(QUARANTINED)
+        assert present, "probe no longer contains them; this test is now vacuous"
+
+        probe = findings.load_probe()
+        assert probe.n == len({r["task_id"] for r in raw}) - len(present)
 
     def test_confidence_interval_matches_documented(self):
         probe = findings.load_probe()
         if probe is None:
             pytest.skip("results.probe.jsonl not present in this checkout")
         lo, hi = probe.ci95()
-        assert lo == pytest.approx(9.3, abs=0.1)
-        assert hi == pytest.approx(23.3, abs=0.1)
+        assert lo == pytest.approx(9.8, abs=0.1)
+        assert hi == pytest.approx(24.4, abs=0.1)
 
     def test_cells_partition_the_task_set(self):
         probe = findings.load_probe()
@@ -58,11 +92,14 @@ class TestProbe:
         probe = findings.load_probe()
         if probe is None:
             pytest.skip("results.probe.jsonl not present in this checkout")
-        assert probe.by_domain["code"]["routable_pct"] == pytest.approx(12.5)
+        assert probe.by_domain["code"]["routable_pct"] == pytest.approx(14.3, abs=0.1)
         assert probe.by_domain["math"]["routable_pct"] == pytest.approx(16.7, abs=0.1)
-        # Code is the harder domain, which reverses the project's original
-        # assumption and is worth pinning down.
-        assert probe.by_domain["code"]["both_fail"] == 5
+        # RETRACTED 8 August 2026: "code is the harder domain" was an artefact.
+        # All 5 of its both_fail tasks were unpassable, not hard, so the code
+        # half now has ZERO both_fail and a 100% rescue rate - the clean cascade
+        # structure. Pinned here because it is the claim most likely to creep
+        # back into the docs. See SHIP_PLAN.md section 0.1.
+        assert probe.by_domain["code"]["both_fail"] == 0
         assert probe.by_domain["math"]["both_fail"] == 1
 
     def test_never_reports_simulated_rows_as_measured(self, tmp_path):

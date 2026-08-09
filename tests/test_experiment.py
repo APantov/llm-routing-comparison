@@ -382,6 +382,51 @@ class TestSplits:
 # The maths grader. This is the July 2026 bug class, pinned.
 # ---------------------------------------------------------------------------
 
+class TestQuarantine:
+    """A quarantined task must never be counted again, in any rerun.
+
+    Five MBPP+ tasks were found on 8 August 2026 to have expected answers that
+    cannot be derived from their prompt - they score against whatever the MBPP
+    reference happened to return on inputs the prompt never describes. They were
+    ALL of always_expensive's failures on the eval split, so leaving them in caps
+    every policy in the project at 92% instead of 100%.
+
+    The rule has two halves and both are enforced here: they are absent from a
+    freshly built task set, and they are filtered out of the artefacts recorded
+    before the quarantine existed, which still contain them.
+    """
+
+    def test_rebuild_never_reintroduces_them(self):
+        import build_taskset
+
+        tasks = [json.loads(l) for l in
+                 (REPO_ROOT / "taskset.jsonl").read_text(encoding="utf-8").splitlines()
+                 if l.strip()]
+        present = {t["id"] for t in tasks} & set(build_taskset.QUARANTINED)
+        assert not present, (
+            f"taskset.jsonl contains quarantined task(s) {sorted(present)}. "
+            f"Rebuild with `python build_taskset.py` - and if this came from "
+            f"--keep-quarantined, every number downstream is an artefact."
+        )
+
+    def test_row_filter_drops_them_from_older_artefacts(self):
+        import build_taskset
+
+        victim = next(iter(build_taskset.QUARANTINED))
+        rows = [{"task_id": victim}, {"task_id": "math-1"}, {"task_id": "codeplus-800"}]
+        kept = build_taskset.drop_quarantined_rows(rows, "unit test", warn=False)
+        assert [r["task_id"] for r in kept] == ["math-1", "codeplus-800"]
+
+    def test_every_quarantined_task_carries_its_evidence(self):
+        """A bare id is not a justification. Each needs a stated reason, because
+        'both models failed' is exactly the reasoning that got these five
+        mistaken for hard tasks in the first place."""
+        import build_taskset
+
+        for task_id, reason in build_taskset.QUARANTINED.items():
+            assert len(reason) > 40, f"{task_id} has no real evidence recorded"
+
+
 class TestMathAnswerEquivalence:
     @pytest.mark.parametrize("got,want", [
         # The exact pair that was scoring seven correct answers as wrong.

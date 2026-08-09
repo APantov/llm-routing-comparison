@@ -106,6 +106,37 @@ _lock = threading.Lock()
 _conflicts = []        # keys seen twice on disk with different payloads
 
 
+# Real caches belonging to OTHER ladders, read before this ladder's own.
+#
+# The cache key is (mode, model, prompt, temperature, sample_idx, max_tokens,
+# mock_seed) - there is no ladder in it - and the prompt is built from the task
+# alone, not from the tier. Verified on the committed data: all 112 tasks with
+# both rungs cached have identical prompt_sha256 across tiers. So a response is
+# identified by what was actually asked of which model, and the ladder only ever
+# decided which FILE it landed in.
+#
+# That matters for money. `wide` and `claude` share Opus 5 as their top rung, and
+# `wide` and `deepseek` share DeepSeek v4-flash as their bottom rung, so the 1,095
+# responses already bought for `wide` cover a large part of both other ladders.
+# Without this, running the `claude` ladder re-buys every Opus call - about $1.91
+# at the current task set. See SHIP_PLAN.md section 1.
+#
+# Only REAL caches are shared. Mock caches stay per-ladder: a mock response is a
+# function of MOCK_SEED and the model's stipulated skill, so pooling them across
+# ladders would let one ladder's fabricated answer serve another's, which is the
+# precise failure that issue 19 was about.
+_KNOWN_LADDERS = ("wide", "claude", "deepseek")
+
+
+def _sibling_real_paths(ladder: str):
+    """Other ladders' real caches, oldest-priority first."""
+    return [
+        CACHE_DIR / f"raw_calls.{other}.jsonl"
+        for other in _KNOWN_LADDERS
+        if other != ladder and (CACHE_DIR / f"raw_calls.{other}.jsonl").exists()
+    ]
+
+
 def configure(mode: str, ladder: str = ""):
     """Point the cache at the right file(s) for the run mode and ladder."""
     global PATH, READ_PATHS, REAL_PATH, MOCK_PATH, LADDER, _store
@@ -113,6 +144,10 @@ def configure(mode: str, ladder: str = ""):
     suffix = f".{ladder}" if ladder else ""
     REAL_PATH = CACHE_DIR / f"raw_calls{suffix}.jsonl"
     MOCK_PATH = CACHE_DIR / f"raw_calls{suffix}.mock.jsonl"
+    # This ladder's own file goes LAST in every list below, so that on the
+    # (impossible-by-key, but cheap to guarantee) event of a collision, the
+    # ladder actually being run wins.
+    siblings = _sibling_real_paths(ladder) if ladder else []
     if mode == "mock":
         PATH, READ_PATHS = MOCK_PATH, [MOCK_PATH]
     elif mode == "replay":
@@ -121,11 +156,11 @@ def configure(mode: str, ladder: str = ""):
         # models imports this module and the dependency must not run both ways.
         if os.environ.get("ROUTER_REPLAY_FALLBACK", "0") in ("1", "true", "yes"):
             # Mock first so that a real response always wins over a simulated one.
-            PATH, READ_PATHS = REAL_PATH, [MOCK_PATH, REAL_PATH]
+            PATH, READ_PATHS = REAL_PATH, [MOCK_PATH, *siblings, REAL_PATH]
         else:
-            PATH, READ_PATHS = REAL_PATH, [REAL_PATH]
+            PATH, READ_PATHS = REAL_PATH, [*siblings, REAL_PATH]
     else:
-        PATH, READ_PATHS = REAL_PATH, [REAL_PATH]
+        PATH, READ_PATHS = REAL_PATH, [*siblings, REAL_PATH]
     _store = None  # force a reload against the new paths
 
 
@@ -180,13 +215,27 @@ def _load():
                     # different model behaviour. Either way it silently
                     # invalidates every paired comparison, so say so rather than
                     # quietly picking one.
-                    _conflicts.append(key)
+                    _conflicts.append((key, prev.get("task_id"), rec.get("task_id")))
                 _store[key] = rec
     if _conflicts:
+        # Name the tasks. A conflict only invalidates a comparison if the task is
+        # still IN the task set - a duplicate on a task that no longer exists is
+        # dead weight, not a threat - and the caller is the only one who can tell,
+        # because this module deliberately knows nothing about the task set.
+        #
+        # The known instance, as of 8 August 2026: math-92 was recorded by the
+        # 30 July plumbing run into both raw_calls.wide.jsonl and
+        # raw_calls.deepseek.jsonl, and the two texts differ (327 vs 268 output
+        # tokens) because DeepSeek is not deterministic at temperature 0. It is a
+        # stranded id, absent from the current task set, so it affects nothing.
+        ids = sorted({t for _, t, _ in _conflicts if t} | {t for _, _, t in _conflicts if t})
         print(
             f"  !! response_cache: {len(_conflicts)} key(s) have conflicting "
-            f"responses across {', '.join(p.name for p in READ_PATHS)}. Paired "
-            f"statistics are NOT valid until this is resolved. Later entries won."
+            f"responses across {', '.join(p.name for p in READ_PATHS)}. "
+            f"Later entries won.\n"
+            f"     affected task(s): {', '.join(ids) if ids else 'unknown'}\n"
+            f"     If any of those is in the current task set, its paired "
+            f"comparisons are NOT valid until resolved."
         )
     return _store
 

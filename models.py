@@ -462,6 +462,15 @@ class ModelResponse:
     # difference. Whoever consumes a run aggregates this rather than re-deriving
     # it - see run_eval.run.
     simulated: bool = False
+    # Did this response hit max_tokens mid-answer?
+    #
+    # Carried for the same reason as `simulated`, and found the same way: the
+    # detection lived in _real_call only, so REPLAY - the mode everyone else
+    # reproduces the numbers in - could not see it, and three truncated
+    # responses in the committed cache were being graded as capability failures.
+    # A truncated answer is not a wrong answer, it is a missing measurement, and
+    # the two must not be indistinguishable downstream. See SHIP_PLAN.md §0.3.
+    truncated: bool = False
 
 
 def _price(tier: str, tokens_in: int, tokens_out: int) -> float:
@@ -715,6 +724,38 @@ _CLIENTS = {}
 truncated_calls = 0
 
 
+def _note_truncation(task, tier, kind, sample_idx, *, from_cache):
+    """Record a response that hit the cap, once per distinct response.
+
+    Warns on first sight only. Replay serves the same truncated response to
+    every policy that asks for it, and a warning per policy would suggest the
+    problem is nine times bigger than it is.
+    """
+    # Counted on EVERY serve, so a caller can detect "did this row consume a
+    # truncated response" by watching the counter across one policy call. The
+    # set below is deduped and is what gets reported; the two answer different
+    # questions and conflating them would mark only the first policy to ask.
+    call_stats["truncated"] += 1
+    ident = (task["id"], tier, kind, sample_idx)
+    if ident in truncated_ids:
+        return
+    truncated_ids.add(ident)
+    cap = "ROUTER_MAX_TOKENS" if kind == "route" else "MAX_TOKENS"
+    consequence = (
+        "the routing decision falls back to EASY"
+        if kind == "route"
+        else "this grades as WRONG and is not a capability result"
+    )
+    where = "in the cache" if from_cache else "at max_tokens"
+    print(
+        f"  !! TRUNCATED {where}: {task['id']} on {tier} ({kind}, sample "
+        f"{sample_idx}). {consequence}.\n"
+        f"     Raising models.{cap} re-charges every cached response - see "
+        f"SHIP_PLAN.md section 1. Exclude the task instead.",
+        file=sys.stderr,
+    )
+
+
 def _client(provider: str):
     """One client per provider, reused for the whole run.
 
@@ -802,23 +843,15 @@ def _real_call(
     # A truncated reply is the dangerous failure: it grades as WRONG rather than
     # as an error, so it silently deflates the accuracy of whichever tier hit the
     # cap. Count it loudly instead of letting it pass as a result.
-    if msg.stop_reason == "max_tokens":
+    truncated = msg.stop_reason == "max_tokens"
+    if truncated:
         truncated_calls += 1
-        cap = "ROUTER_MAX_TOKENS" if kind == "route" else "MAX_TOKENS"
-        consequence = (
-            "the routing decision falls back to EASY"
-            if kind == "route"
-            else "this will grade as wrong"
-        )
-        print(
-            f"  !! TRUNCATED at max_tokens: {task['id']} on {tier} ({kind}). "
-            f"{consequence}. Raise models.{cap}.",
-            file=sys.stderr,
-        )
+        _note_truncation(task, tier, kind, sample_idx, from_cache=False)
 
     text = "".join(b.text for b in msg.content if b.type == "text")
     return ModelResponse(
         text=text,
+        truncated=truncated,
         tier=tier,
         # Real token counts, so no tokenizer_factor here - the API has already
         # applied whichever tokenizer the model uses.
@@ -917,12 +950,19 @@ def _max_tokens_for(kind: str) -> int:
 # in real mode served_real is; the split only carries information in replay,
 # which is exactly the mode where it is needed.
 call_stats = {"requested": 0, "from_cache": 0, "backend": 0,
-              "served_real": 0, "served_mock": 0}
+              "served_real": 0, "served_mock": 0, "truncated": 0}
+
+# Which responses hit the cap, as (task_id, tier, kind, sample_idx). A set rather
+# than a count because replay serves the same truncated response to every policy
+# that asks for it, so the count inflates with the number of policies while the
+# number of damaged MEASUREMENTS does not. The set is what to report.
+truncated_ids = set()
 
 
 def reset_call_stats():
     for k in call_stats:
         call_stats[k] = 0
+    truncated_ids.clear()
 
 
 def call(
@@ -975,10 +1015,20 @@ def call(
             # disk, and it stays correct if the lookup order ever changes.
             simulated = rec.get("mode") == "mock"
             call_stats["served_mock" if simulated else "served_real"] += 1
+            # Prefer the stored flag; fall back to the token count for records
+            # written before `truncated` existed. The fallback is exact rather
+            # than heuristic: max_tokens is IN the cache key, so any record this
+            # lookup can reach was recorded under the cap now in force.
+            truncated = rec.get("truncated")
+            if truncated is None:
+                truncated = rec.get("tokens_out", 0) >= _max_tokens_for(kind)
+            if truncated:
+                _note_truncation(task, tier, kind, sample_idx, from_cache=True)
             return ModelResponse(
                 text=rec["text"], tier=rec["tier"], tokens_in=rec["tokens_in"],
                 tokens_out=rec["tokens_out"], latency_s=rec["latency_s"],
                 cost_usd=rec["cost_usd"], simulated=simulated,
+                truncated=bool(truncated),
             )
 
     if MODE == "replay":

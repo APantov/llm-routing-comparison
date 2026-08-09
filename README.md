@@ -17,10 +17,27 @@ between your models, and this repository measures where the crossover is.
 | **Measured, not simulated** | **Every policy the `wide` ladder defines — 9 of 10**, on real models, on the held-out half. `cascade` reaches **90.0% against always-expensive's 92.0% at 23% of the cost**, and the cost gap is significant while the accuracy gap is not. See [§ Status](#status-every-policy-on-this-ladder-now-has-real-numbers). |
 | **Not yet measured** | `always_mid` only, because it exists only on the three-rung `claude` ladder. Any policy a replay cannot serve is **dropped by name**, never scored on a subset. |
 
-> **⚠ [SHIP_PLAN.md](SHIP_PLAN.md) — 8 August 2026.** An independent audit found
-> that the four `both_fail` code tasks are *broken, not hard* (corrected,
-> `always_expensive` and `oracle` score 100%, not 92%). **Read it before quoting
-> any accuracy figure from this page.**
+> **⚠ THE ACCURACY FIGURES ON THIS PAGE ARE SUPERSEDED — 8 August 2026.**
+> They are rewritten in [SHIP_PLAN.md](SHIP_PLAN.md) Phase 3. An audit found five
+> MBPP+ tasks whose expected answers cannot be derived from their prompt —
+> unpassable, not hard — and they were **all** of `always_expensive`'s failures,
+> so they capped every policy in the project.
+>
+> **They are now quarantined, and the rule is standing: a quarantined task is
+> never counted again, in any rerun, ladder or figure.** The list and the
+> per-task evidence are in `build_taskset.QUARANTINED`; the rule and its
+> enforcement points are [SHIP_PLAN.md §0.5](SHIP_PLAN.md).
+>
+> | | this page says | corrected (n=95) |
+> |---|---|---|
+> | `always_expensive`, `oracle` | 92.0% | **100.0%** |
+> | `cascade` | 90.0% | **97.9%** |
+> | `cascade` on code | 80.0% | **100.0%**, at 3.5% of always-expensive's cost |
+> | code `both_fail` / rescue | 5 / 50% | **0 / 100%** |
+>
+> "Code is now the harder domain" is **retracted** — it was this artefact. What
+> holds: cost differences are significant, accuracy differences are not (0 of 8
+> at n=47).
 >
 > Its second finding has been acted on. The `predictive` policy routed on a
 > difficulty label that `MIN_MATH_LEVEL = 5` made constant, so it was

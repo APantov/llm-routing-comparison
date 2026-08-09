@@ -463,10 +463,25 @@ In order. Steps 1–3 are free and take about five minutes total.
 python3 build_taskset.py && python3 sanity_check.py
 ```
 
-Expect `code source: mbppplus   math levels: >= 5`, then `40/40` and `60/60`, then
-`both graders score every reference answer correctly`. If either count is short,
-**stop** — every number downstream is invalid until it is fixed, and
-`sanity_check.py` exits non-zero to make that hard to miss.
+Expect `code source: mbppplus   math levels: >= 5`, five `quarantined ...` lines
+and `wrote 95 tasks`, then `35/35` and `60/60`, then `both graders score every
+reference answer correctly`. If either count is short, **stop** — every number
+downstream is invalid until it is fixed, and `sanity_check.py` exits non-zero to
+make that hard to miss.
+
+> **The five quarantined tasks stay out. Every rerun, every ladder, every
+> figure.** Their expected answers cannot be derived from their prompts, so they
+> are unpassable rather than hard — and they were *all* of `always_expensive`'s
+> failures, which capped every policy at 92% instead of 100%. The list and the
+> evidence live in `build_taskset.QUARANTINED`; the rule and what it moved are in
+> [SHIP_PLAN.md §0.5](SHIP_PLAN.md). `--keep-quarantined` reproduces the old
+> numbers and produces an artefact, not a measurement.
+>
+> Artefacts recorded before the quarantine still contain them and are filtered at
+> the point of use, not deleted — `results.probe.jsonl` via
+> `router_agent.findings.load_probe`. **`redraw.wide.json` is stale**: it covers
+> 21 tasks, 5 of them broken, and needs regenerating with
+> `scripts/redraw_decisive.py --go` (the decisive set is now 16).
 
 The code half needs **numpy** to grade, because every MBPP+ test program compares
 floats with `np.allclose`. The easier originals are still one flag away:

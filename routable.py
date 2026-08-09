@@ -210,7 +210,43 @@ def report(verdicts, tasks, header, lo_tier="cheap", hi_tier="expensive"):
         if s:
             out[key] = s
             print(f"  {key:<16} {fmt(s)}")
+
+    review_queue(verdicts, by_id, lo_tier, hi_tier)
     return out
+
+
+def review_queue(verdicts, by_id, lo_tier="cheap", hi_tier="expensive"):
+    r"""Name the both_fail tasks so a human looks at them.
+
+    Every both_fail task is one of two things, and the cross-tab cannot tell
+    them apart: a genuinely hard task, or a task whose expected answer is not
+    derivable from its prompt. On 8 August 2026 all four both_fail code tasks
+    turned out to be the second kind, and because they were also ALL of
+    always_expensive's failures they were setting the ceiling for every policy
+    in the project. Nobody looked, because "both models failed" reads as
+    "hard".
+
+    So this is not a diagnostic - it is a queue. A task that lands here is
+    unmeasured until somebody runs a textbook-correct solution against its
+    tests and decides which kind it is. If unpassable, add it to
+    build_taskset.QUARANTINED with the evidence.
+    """
+    failures = sorted(
+        tid for tid, row in verdicts.items()
+        if lo_tier in row and hi_tier in row
+        and not row[lo_tier] and not row[hi_tier]
+    )
+    if not failures:
+        print("\n  both_fail review queue: empty - no task defeated both rungs.")
+        return []
+    print(f"\n  !! both_fail review queue: {len(failures)} task(s) defeated BOTH rungs.")
+    print("     Each is either genuinely hard or unpassable-by-spec. The cross-tab")
+    print("     cannot tell, and an unpassable task silently caps every policy.")
+    for tid in failures:
+        print(f"       {tid:<16} {by_id[tid]['domain']}")
+    print("     Check each against a textbook-correct solution; if unpassable, add")
+    print("     it to build_taskset.QUARANTINED with the evidence.")
+    return failures
 
 
 def verdict_line(s):
