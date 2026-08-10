@@ -1161,7 +1161,8 @@ class TestScorecard:
 
       the oracle rescued two `routable` tasks with `calls = ['cheap'] * 5` -
       cheap self-consistency, a third action that a binary escalated/not reading
-      files as a missed rescue while the row says `correct: true`;
+      files as a missed rescue while the row says `correct: true`, and which a
+      three-rung ladder reaches a second way, through its middle rung;
 
       `wasted_escalation` tasks are CORRECT - on a both_ok task both rungs get
       it right, so the waste is the money, not the answer.
@@ -1192,12 +1193,19 @@ class TestScorecard:
         assert "missed_rescue" not in scorecard.CORRECT_OUTCOMES
         assert "harmful_escalation" not in scorecard.CORRECT_OUTCOMES
 
-    def test_resampling_a_routable_task_right_is_not_a_missed_rescue(self):
-        """The oracle case, as a unit test."""
+    def test_getting_a_routable_task_right_without_the_top_rung(self):
+        """Two mechanisms reach this bucket and neither is an escalation.
+
+        The oracle recovers math-422 and math-432 with calls = ['cheap'] * 5,
+        which is cheap-rung self-consistency. On the three-rung claude ladder
+        always_mid solves 12 routable tasks and neither escalates nor resamples -
+        the MIDDLE rung does it. The bucket is named for what did not happen,
+        because naming it for one of the two mechanisms was wrong the first time.
+        """
         import scorecard
 
         name, mistake = scorecard.outcome_of("routable", False, correct=True)
-        assert name == "rescued_by_resampling" and not mistake
+        assert name == "rescued_without_top_rung" and not mistake
         name, mistake = scorecard.outcome_of("routable", False, correct=False)
         assert name == "missed_rescue" and mistake
 

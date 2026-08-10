@@ -40,7 +40,7 @@ entries — and the filters went with them. Committed spend is now **982 respons
 $4.2372**. No result moved: the task set had already excluded them.
 
 Evidence per task is in `build_taskset.QUARANTINED`, which is the only place the
-rule now appears in code; the full account is SHIP_PLAN.md §0.5. `TestQuarantine`
+rule now appears in code; the full account is STATUS.md §6 (the quarantine rule). `TestQuarantine`
 is a tripwire, not a filter — it fails if a quarantined id turns up in any
 artefact, because nothing downstream would catch it any more. Commit `24302ba`
 is the last one holding the purged rows.
@@ -54,7 +54,7 @@ is the last one holding the purged rows.
 > table is in STATUS.md §1.
 >
 > Nine is now *all of them* on this ladder. The count fell from eleven to ten
-> when the degenerate `predictive` policy was deleted (SHIP_PLAN §0.2), and the
+> when the degenerate `predictive` policy was deleted (STATUS.md §2.3), and the
 > last outstanding row was filled when RouteLLM's scores were regenerated for the
 > rebuilt task set — free, local, and overdue. `always_mid` is the remaining
 > unmeasured policy and it exists only on the three-rung `claude` ladder, which
@@ -370,7 +370,7 @@ and `#8b`.
 was set to 5 while `MIN_MATH_LEVEL` was 3, and stayed at 5 when the task set was
 rebuilt at level 5 — at which point it selected everything and the policy stopped
 routing. A free parameter that is never re-derived does not merely go stale; it
-can silently become a constant. The policy was deleted (SHIP_PLAN §0.2).
+can silently become a constant. The policy was deleted (STATUS.md §2.3).
 
 `splits.py` now holds out half the task set, `run_eval.py --split eval` reports on
 the held-out half by default, and `cascade_routing`'s quality estimators are fitted
@@ -395,7 +395,7 @@ unavailable to any production router.
 
 **It was not flattering, it was absent.** Under `MIN_MATH_LEVEL = 5` the level is
 constant across the maths half, so the predicate selected every task and the
-policy was `always_expensive` there. It has been deleted (SHIP_PLAN §0.2).
+policy was `always_expensive` there. It has been deleted (STATUS.md §2.3).
 
 What is left is a genuine gap rather than a broken implementation, and it is
 worth stating as one. Dekoninck et al. identify a good **ex-ante** quality

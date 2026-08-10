@@ -469,7 +469,7 @@ class ModelResponse:
     # reproduces the numbers in - could not see it, and three truncated
     # responses in the committed cache were being graded as capability failures.
     # A truncated answer is not a wrong answer, it is a missing measurement, and
-    # the two must not be indistinguishable downstream. See SHIP_PLAN.md §0.3.
+    # the two must not be indistinguishable downstream. See STATUS.md §5.
     truncated: bool = False
 
 
@@ -750,7 +750,7 @@ def _note_truncation(task, tier, kind, sample_idx, *, from_cache):
         f"  !! TRUNCATED {where}: {task['id']} on {tier} ({kind}, sample "
         f"{sample_idx}). {consequence}.\n"
         f"     Raising models.{cap} re-charges every cached response - see "
-        f"SHIP_PLAN.md section 1. Exclude the task instead.",
+        f"STATUS.md section 7 (standing invariants). Exclude the task instead.",
         file=sys.stderr,
     )
 

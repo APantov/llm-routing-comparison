@@ -1,919 +1,306 @@
 # STATUS — read this first
 
-Written 30 July 2026, **updated 6 August 2026 after the two-arm probe and the
-agent layer**. This is the "you just woke up and forgot everything" file. It
-answers four questions in order: where the project is, what to do next, what it
-will cost, and what to expect when you do it.
+**Rewritten 10 August 2026, after the three-ladder run.** This file is true on
+its own. It carries no banner telling you the text below it is wrong, because
+the text below it has been corrected rather than annotated.
 
-> # ⚠ READ [SHIP_PLAN.md](SHIP_PLAN.md) FIRST — 8 August 2026
->
-> An independent audit on 8 August found three defects that make some headline
-> numbers below mean something other than what they say. All three are free to
-> fix, and fixing them changes what is worth buying.
->
-> - **The four `both_fail` code tasks are broken, not hard.** All four
->   `always_expensive` failures on the eval split are unpassable from their
->   prompt. Corrected, `always_expensive` and `oracle` score **100%**, not 92%.
->   §1's "code is now the harder domain" is **retracted**.
-> - **The one-shot router comparison was degenerate — ACTED ON 8 August 2026.**
->   `MIN_MATH_LEVEL = 5` makes `predict_features.level` constant, so the
->   `predictive` policy was `always_expensive` on 60% of the task set. It has
->   been **deleted**; predictive routing is now measured with `llm_router` and
->   `routellm`, and RouteLLM's scores were regenerated so it produces a row for
->   the first time. "LLMRouterBench reproduced on real data" is **re-established
->   on the learned router**: `routellm` scores AUC 85.4%, −0.9% against a
->   cost-matched coin flip, contributing no frontier point above the floor.
->   `llm_router` still routes 30/30 maths tasks expensive, but empirically now
->   rather than by construction.
-> - **The maths half bought one task.** 89.3% of all spend, one reproducibly
->   routable task. The code half produced five, at $0.079 each against $3.93.
->
-> **[§2 Do this next](#2-do-this-next) is superseded.** It sends you to step 5,
-> a full paid run at n=100. Do not do that. SHIP_PLAN.md §3 costs about **$6**
-> and buys a materially better experiment.
-
-If you only read one section, read [SHIP_PLAN.md](SHIP_PLAN.md).
-
-> ## 0. The repository now has two halves
->
-> Everything below §1 is about **the experiment**, and none of it has changed.
->
-> There is now also **a product**: `router_agent/`, a LangGraph cascade and an
-> MCP server that implement what the experiment found. It is documented in
-> [ARCHITECTURE.md](ARCHITECTURE.md); the short version:
->
-> - It calls `models.call` rather than opening its own connections, so it
->   shares the price table, the response cache and replay. A dollar figure it
->   reports means the same thing as a dollar figure in the tables below.
-> - It required **one** edit to the research core: a `general` domain prompt, a
->   `code_untested` prompt, and a live-query branch in `_mock_call`. None of it
->   is reachable from `build_taskset.py` output, and
->   `scripts/check_core_unchanged.py` proves that by fingerprinting every mock
->   response the task set can produce (100 tasks × 3 ladders × 4 samples × 2
->   temperatures, byte-identical). It runs in CI.
-> - `python scripts/demo.py` replays three real routing traces for **$0.00** —
->   a cascade verifying at the cheap rung, a cascade escalating, and a cascade
->   using caller-supplied tests as an exact verifier. **$0.0276 of live API
->   calls** were spent to record them, and they are committed.
->
-> ### The replay was reading the mock cache — found and fixed 7 August 2026
->
-> `models.call` in replay mode looked up the real cache, and on a miss **fell
-> back to the mock cache silently**. `run_eval` then stamped every row
-> `simulated: false`, because it derived that flag from the run *mode* rather
-> than from what was actually served.
->
-> It had taken the fallback. All **240** self-consistency samples the maths
-> cascade needs were fabricated — the real temperature-0.8 responses on disk are
-> orphaned at the old `MAX_TOKENS=2048`, so they never matched. A 370-row
-> `results.jsonl` claiming to be real reported the maths cascade at 100%
-> accuracy, which is [NOTES.md](docs/NOTES.md) issue 4 ("mock mode makes majority
-> voting far too strong") arriving through the front door wearing a
-> `simulated: false` badge.
->
-> Three changes, in [NOTES.md](docs/NOTES.md) issue 19:
->
-> - `ModelResponse.simulated` carries per-response provenance, taken from the
->   cache record's own stored `mode`.
-> - `run_eval` measures the flag per row instead of guessing from the run mode.
->   One fabricated call anywhere in a row makes the row simulated.
-> - the fallback is off unless `ROUTER_REPLAY_FALLBACK=1`, so a missing response
->   is a `ReplayMiss` and the policy gets dropped by name.
->
-> **The `ReplayMiss` machinery could never fire while the fallback existed** —
-> the mock cache satisfied every lookup. That is the general lesson: a guard
-> downstream of a silent fallback is dead code.
->
-> The re-run was clean: 337 real responses, 0 fabricated, 220 rows — and five
-> policies dropped for want of data. `scripts/record_missing.py` then bought that
-> data for **$0.0503** (see §1), and the current `results.jsonl` is **420 rows,
-> nine policies, every row `simulated: false`**, replayed from the **982 real
-> responses** in `cache/`.
->
-> **The product surfaced one thing the experiment had not stated, and it turned
-> out to be worse than stated.** `policies.predict_is_hard` routed maths on
-> MATH500's shipped `level` field — a difficulty label written by someone who had
-> already solved the problem, and one that no user query carries. That was
-> written up as an *upper bound* on what a deployable predictive router could
-> score. Under `MIN_MATH_LEVEL = 5` the field is constant, so it was not an upper
-> bound at all: the policy sent every maths task to the expensive rung. It was
-> deleted on 8 August 2026 (`policies.py` DECISION #4).
->
-> The structural point it was meant to illustrate is unaffected, and is the
-> reason the deletion costs the argument nothing: **a cascade needs no difficulty
-> label because it finds out by trying.** See `router_agent/live.py`, whose
-> serving heuristic reads query text only — unconditionally, since the branch
-> that consulted the benchmark predicate went with it.
->
-> Spend to date is now **$4.24** across 982 committed responses: $1.36 on the
-> experiment through 6 August, $0.0276 on the three recorded demo traces, $2.96
-> on the 7 August redraw of the 21 decisive tasks, and $0.0503 recording the
-> self-consistency samples every cascade needs.
+It replaces three documents. `SHIP_PLAN.md` (the 8 August audit) and
+`next_step.md` (the execution sequence) were scaffolding for a transition that
+is now finished, and both have been deleted; what they decided is recorded
+below. The corrections they demanded have been applied to the bodies of the
+documents that made the claims.
 
 ---
 
-## 1. Where the project is
+## 1. What this project measures
 
-**The machine is finished. The task set has been hardened. The two-arm probe has
-been run against real models, and it says the task set now discriminates — but
-only just, and n=100 cannot close the question.**
+A cost-aware LLM routing benchmark, plus the serving layer whose policy it
+decides. The thesis under test: **answer at the cheapest model that can be
+verified correct, and escalate only when verification fails.**
 
-Everything works end to end: 100 tasks, 10 policies, three model ladders, a
-calibration split, a cost-quality frontier, paired significance tests, a
-degradation sweep, and figures. All of it reproduces byte-for-byte on a bare
-Python install with no API key and no network.
+Ten policies are compared over 417 tasks on three model ladders. Every response
+is a real API call, committed to `cache/`, and the entire analysis regenerates
+offline for $0.00 with no API key.
 
-### The probe result, 6 August 2026 — the first real accuracy data in this repo
+| | |
+|---|---|
+| tasks | **417** — 357 MBPP+ code, 60 MATH-500 level 5 |
+| ladders | **3** — `wide` (flash→opus), `claude` (haiku→sonnet→opus), `deepseek` (flash→pro) |
+| policies | **10**, including an oracle bound and a cost-matched random null |
+| real responses | **5,075** |
+| total spend | **$8.5145** |
+| tests | **205 passing**, 1 slow test opt-in via `pytest -m slow` |
 
-`python run_eval.py --policy always_cheap --policy always_expensive --split all`
-on the `wide` ladder (DeepSeek v4-flash → Opus 5), all 100 tasks, both arms.
-200 real calls, **$0.9234**, written to `results.probe.jsonl` and cached in
-`cache/raw_calls.wide.jsonl`.
+---
 
-| cell | n=100 | code (40) | math (60) | meaning |
-|---|---|---|---|---|
-| `both_ok` | 77 | 29 | 48 | tie — nothing to route |
-| **`routable`** | **15** | **5** | **10** | **cheap wrong, expensive right — the only cell where escalating pays** |
-| `both_fail` | 6 | 5 | 1 | tie |
-| `inverted` | 2 | 1 | 1 | escalating *loses* |
+## 2. What the data says
 
-- **routable = 15.0%**, 95% CI [9.3%, 23.3%]. Ceiling (the most any router can add
-  over `always_cheap`) = **17.0%**. McNemar **p = 0.002**.
-- `always_cheap` **79.0%**, `always_expensive` **92.0%**.
-- **Rescue rate 71.4%** — of the cheap rung's failures, 71% are ones escalating
-  actually fixes. That is the number a cascade lives on.
-- Per domain: code 12.5% routable, maths 16.7%.
+### 2.1 The cascade beats always-paying-for-the-best on two ladders of three
 
-> These are the figures **after the grader fix of 6 August**. The probe as first
-> reported read routable 13.0%, cheap 77.0%, expensive 87.0%, p=0.021 — seven of
-> its twenty wrong maths answers turned out to be correct answers the normaliser
-> could not match. See "the grader was lying" below.
+Pre-registered comparison, exact McNemar over paired outcomes, n=209 held-out
+tasks per ladder.
 
-> ### And then a third of the 15 turned out to be noise — 7 August 2026
->
-> Every cell above rests on **one draw per task per rung**.
-> `scripts/redraw_decisive.py --draws 10 --go` redrew both rungs ten more times
-> on the 21 tasks that decide the number (420 calls, **$2.9637**, committed):
->
-> | | observed (1 draw) | expected (10 draws) | reproducible |
-> |---|---|---|---|
-> | code (40) | 12.5% | 13.8% | 12.5% |
-> | math (60) | 16.7% | 7.8% | 6.7% |
-> | **total** | **15.0%** | **10.2%** | **9.0%** |
->
-> Of the 15 routable tasks: **6 solid, 5 flaky, 4 phantom** — a phantom being one
-> the cheap rung solves 10/10 on redraw and merely missed once. All 5 code tasks
-> are solid; all 4 phantoms and all 5 flaky tasks are maths.
->
-> **So the per-domain line above inverts.** Code is not the weaker half at 12.5%
-> against maths' 16.7%; it is the only half with a reproducible signal. Of 10
-> routable maths tasks, one survives. Read `routable = 15%` as **≈10%, of which
-> ≈9% is capturable, and nearly all of it in code**.
->
-> This is the failure mode [arXiv:2607.03436](https://arxiv.org/abs/2607.03436)
-> describes, and it predicts MATH-500 as the worst case — which is what the maths
-> half is. See [NOTES.md](docs/NOTES.md) issue 3. Per-task probabilities are in
-> `redraw.wide.json`.
-
-**This is a real change and it is the point of the 31 July / 6 August work.** On
-30 July the cross-tab over the ten tasks that had both arms cached was
-`both_ok=10, routable=0`: nothing to route, at p≈0.02. Hardening both halves —
-MBPP+ on code, MATH500 level 5 on maths — moved the routable fraction to 15%.
-
-**Both hardenings worked, and they worked independently**, because they apply to
-disjoint task subsets. But they did not work *equally*, and the difference is the
-most useful thing in this table:
-
-| | cheap | expensive | both_fail | routable | rescue |
+| ladder | cascade | always_expensive | Δ acc | p | Δ cost/task |
 |---|---|---|---|---|---|
-| code (MBPP+) | 75.0% | 85.0% | **5 of 40** | 12.5% | 50% |
-| maths (level 5) | 81.7% | **96.7%** | **1 of 60** | 16.7% | 91% |
+| `wide` | **95.7%** | 92.3% | +3.3% | **0.039** | **−$0.00307** |
+| `claude` | **96.7%** | 92.3% | +4.3% | **0.012** | +$0.00097 |
+| `deepseek` | 86.6% | 83.7% | +2.9% | 0.070 | −$0.00000 |
 
-**Opus solves 58 of 60 MATH500 level-5 problems.** The maths half is close to
-saturated at the top rung, so its routing signal is almost entirely "DeepSeek
-fails on something Opus finds easy" — a clean cascade signal, 91% rescue.
+On `wide` the cascade is **more accurate and four times cheaper**. On `claude`
+it buys accuracy at a **premium** — verification is not free when the cheap rung
+is haiku and the maths half draws five samples from it.
 
-**Code is now the harder domain in absolute terms**, which reverses this file's
-long-standing assumption. MBPP+ produced genuine `both_fail` content: 5 of 40
-tasks neither rung can solve, against 1 of 60 on maths. Half of the cheap rung's
-code failures are unfixable by escalating.
+**Do not quote "the cascade is cheaper and better" without naming the ladder.**
+That is a `wide` result, and `claude` is the counter-example.
 
-### But read the verdict carefully
+### 2.2 Accuracy differences are now detectable
 
-`routable.py` still returns **UNRESOLVED**: the CI [9.3%, 23.3%] straddles the
-15% floor of its [15%, 45%] band. The point estimate now sits exactly *on* the
-floor rather than below it, so this is "plausibly adequate, not demonstrated"
-rather than "probably too easy".
+This repository previously reported **0 of 8** pre-registered comparisons as
+significant and summarised itself as *"cost differences between routing
+architectures are measurable at n=100. Accuracy differences are not."*
 
-The gate `run_eval.py` prints is friendlier — cheap-model failure rate 21.0%
-[13%, 29%] against a 20–55% target. **Prefer the routable figure.** `P(cheap
-fails)` is `routable + both_fail`, and 6 of those 21 failures are tasks the
-expensive rung cannot fix either. That is the exact confusion
-`ROUTABLE_2026-07-30.md` (deleted 9 Aug; in git history) was written to warn about,
-though the gap is much smaller now that the grader is not manufacturing failures.
+At n=209 that is **4 of 8** on `wide` and on `claude`, and 1 of 8 on `deepseek`.
 
-So the honest reading: **there is a real routing signal, it is comfortably
-significant at n=100 (p=0.002), and it is thin.** A perfect oracle beats
-`always_cheap` by 17 points and `always_expensive` beats it by 13. Every policy in
-the repo is competing over that 17-point band.
+**The old summary is retracted.** It was a statement about a sample of 47 eval
+tasks, not about routing. What bought the change was the code half going from 35
+tasks to 357: the number of tasks that can distinguish two routers at all rose
+from 7 to 73.
 
-### The grader was lying, and the regression gate could not see it
+### 2.3 Predictive routing does not beat a coin flip — six of six
 
-Seven of the twenty wrong maths answers in the probe were **correct answers the
-normaliser rejected** — five of them on Opus, which is why its accuracy moved
-87% → 92%. The classes, each now covered by a test:
+`random_matched` flips a coin at `llm_router`'s own escalation rate, so the
+comparison holds spend roughly fixed and isolates skill.
 
-| the model wrote | the truth said | the bug |
-|---|---|---|
-| `1+\sqrt{19}, 1-\sqrt{19}` | `1 \pm \sqrt{19}` | no `\pm` handling at all |
-| `\{-2, 1+\sqrt5, 1-\sqrt5\}` | `\{1\pm\sqrt{5},-2\}` | set ordering, and `\sqrt5` vs `\sqrt{5}` |
-| `\frac{270}{7}` | `\frac{270}7\text{ degrees}` | trailing unit, and `\frac{270}7` unbraced |
-| `18.90` | `\$18.90` | `.replace("$","")` left the escaping backslash |
-| `3<\lambda\le4` | `(3,4]` | interval vs inequality |
-| `AF^2+BF^2+CF^2 = 3R^2` | `3R^2` | answer restated with its left-hand side |
-
-**`sanity_check.py` printed 60/60 throughout.** It feeds the ground-truth string
-back into `\boxed{}`, so it only ever tested `grade(GT, GT)` — which passes by
-construction however broken the normaliser is. It now also checks a table of
-known-equivalent pairs *and* a table of near-miss wrong answers, because a grader
-that accepts everything would pass the first table perfectly.
-
-### The models are not deterministic, and it is measured
-
-Abandoning the 2048-cap run and re-running at 4096 left **73 pairs of independent
-draws** — same model, same prompt, same temperature, two separate calls, both on
-disk because `max_tokens` is in the cache key. Grading both:
-
-| domain | verdict flips |
-|---|---|
-| code | 0 of 27 (**0%**) |
-| maths | 4 of 46 (**8.7%**) |
-
-`math-94` is the clean example: `\boxed{80}` on one draw, `\boxed{130}` on the
-other. **8.7% per-task noise against a 15% routable signal.** The response cache
-guarantees every *policy* sees the same draw, which is what the paired statistics
-need — but a full re-run of the experiment would move individual cells around,
-and the routable fraction carries this on top of its sampling CI. Treat one draw
-per task as the floor of what the design needs, not a comfortable margin.
-
-### The full policy comparison, on real models — 7 August 2026
-
-**This is the run §2 step 5 was waiting for, and it cost $0.05 rather than $20.**
-
-The probe paid for two policies, but a cache is only as complete as the runs
-that filled it. Every cascade verifies maths by drawing `SELF_CONSISTENCY_K - 1`
-extra samples at temperature 0.8, and `llm_router` makes an 8-token
-classification call; neither the probe nor the redraw had any reason to record
-those. `scripts/record_missing.py` enumerated the gap from the code's own
-constants — 240 samples plus 104 routing calls — and bought it for **$0.0503**.
-
-Everything below replays from that, free, forever. Held-out half, n=50:
-
-**Updated 8 August 2026** after the `predictive` deletion and the RouteLLM
-rescore. Every policy the `wide` ladder defines now has a row.
-
-| policy | family | acc | cost/task | vs `always_expensive` |
-|---|---|---|---|---|
-| `always_cheap` | fixed | 78.0% | $0.000130 | −14 pts at 1.5% of cost |
-| `random_matched` | null | 86.0% | $0.008008 | −6 pts at 92% of cost |
-| `routellm` | predictive | 82.0% | $0.004232 | −10 pts at 49% of cost |
-| `llm_router` | predictive | 88.0% | $0.008115 | −4 pts at 93% of cost |
-| `cascade_routing` | cascading | 88.0% | $0.000915 | −4 pts at **10%** of cost |
-| **`cascade`** | cascading | **90.0%** | **$0.002035** | **−2 pts at 23% of cost** |
-| `oracle` | bound | 92.0% | $0.001053 | match at 12%, **not deployable** |
-| `always_expensive` | fixed | 92.0% | $0.008719 | — |
-
-Four things worth reading carefully:
-
-1. **The cascade is within one task of always-expensive at 23% of the cost**, and
-   `stats.py` says the cost difference is significant (−$0.006684/task, 95% CI
-   [−0.008563, −0.004954]) while the accuracy difference is not. That is the
-   project's thesis, confirmed on real models.
-2. **Neither predictive router captures any headroom at its own price.** Against
-   a null computed at each policy's own spend, `routellm` scores −36.7% and
-   `llm_router` is unmeasurable because it spends so close to `always_expensive`
-   that the oracle is less than one task above its null. Both cascades capture
-   69–82%. A cascade needs no difficulty label — it finds out by trying — and
-   that structural difference is worth more here than any router's features.
-3. **`routellm` contributes no point to the cost-quality frontier above the
-   floor**, AUC 85.4%, −0.9% against a cost-matched coin flip. LLMRouterBench
-   ([arXiv:2601.07206](https://arxiv.org/abs/2601.07206)) reproduced on real data
-   — with an actual published learned router this time. The earlier version of
-   this claim rested on the degenerate `predictive` heuristic and was retracted.
-   `cascade` scores +4.9% AUC and owns every budget above $0.000915.
-4. **On maths, two thirds of the cascade's gain is majority voting, not
-   escalation.** It fixes 3 of `always_cheap`'s 4 maths failures while escalating
-   on only 2 of 30 tasks: 2 fixes come from the plurality answer, 1 from
-   escalating. `verify_math` bundles both mechanisms by design; this is the first
-   measurement of the split, and it means "the maths cascade works" is mostly a
-   statement about self-consistency.
-
-Per domain, where the two halves behave quite differently:
-
-| | `always_cheap` | `cascade` | `always_expensive` | escalated |
-|---|---|---|---|---|
-| code (20) | 65.0% · $0.000027 | **80.0% · $0.000844** | 80.0% · $0.002243 | 35.0% |
-| math (30) | 86.7% · $0.000198 | **96.7% · $0.002829** | 100% · $0.013036 | 6.7% |
-
-**On code the cascade equals always-expensive exactly, at 38% of the cost** — the
-verifier there is free and perfect, so it escalates precisely when it should.
-That is also the half the redraw showed carries the reproducible routing signal.
-
-The `oracle` bound check passes on `all`, `math` and `code`.
-
-**Still unmeasured:** `routellm` (its cached scores no longer cover the rebuilt
-task set — regenerating is free but needs torch) and `always_mid` (needs the
-three-rung `claude` ladder, which has never been run for real). One of ten, and
-on the `wide` ladder none: every policy that exists there now has a row.
-
-What is *already* real, even in mock mode:
-
-- the price tables, verified against provider docs on 2026-07-30
-- all the cost arithmetic built on them
-- the graders, the caching, the escalation logic, the statistics
-
-So the cost conclusions below are trustworthy. The accuracy conclusions are not,
-except for the two arms in the table above, and everything is labelled.
-
-### What the probe cost, and why it was 2x the estimate
-
-`ROUTABLE_2026-07-30.md` priced this probe at **$0.44**. It came in at **$0.9234**,
-and the reason is worth carrying forward because it repriced the whole project:
-
-| domain | mean output tokens | cost per call |
-|---|---|---|
-| code | 55 | $0.0012 |
-| maths (level 5) | 650 | $0.0078 |
-
-**Maths costs 6.5x what code costs**, because level-5 problems produce long
-derivations and Opus 5 charges $25/MTok on output. The $0.44 estimate was built
-from the old, easier task set, where the modelled reply was 80–120 tokens. The
-prediction in §5 that real runs would come in "2–3x higher" is confirmed — and
-every cost figure in §3 that was extrapolated from the mock is low for the same
-reason.
-
-**`MAX_TOKENS` was raised from 2048 to 4096 on 6 August 2026**, and this is the
-second thing the probe paid to discover. At 2048, two of the first 118 real
-responses truncated — both coherent level-5 derivations that simply ran long, one
-of them a few hundred tokens short of its `\boxed{}`. 1.7% sounds ignorable and is
-not: truncations land on the hardest tasks, which are exactly the ones that decide
-the routable fraction, and a truncated cheap answer reads as "the cheap rung
-failed" and inflates it. Note the consequence before you touch that constant
-again — `max_tokens` is in the response-cache key, so changing it **invalidates
-every cached response and re-charges the whole run**. That is what the first
-$0.39 of the 6 August spend bought.
-
-One call still truncated at 4096 (`math-96`, cheap rung). It was inspected rather
-than assumed: DeepSeek was doing hand bisection on a cubic at "Step 15" and not
-converging. That is a genuine capability failure, correctly graded wrong, and it
-sits in `both_fail` — so it does not touch the routable count either way.
-
-### The finding that made the ladder work worth doing
-
-The repo can now switch model ladders with an environment variable, and doing so
-**flips the project's headline conclusion**. Matched on accuracy, against simply
-always paying for the best model:
-
-| ladder | rungs | price ratio | 30 July set | current set |
-|---|---|---|---|---|
-| `deepseek` | v4-flash → v4-pro | 3.11x | **+33%** | **+10%** |
-| `claude` | Haiku 4.5 → Sonnet 5 → Opus 5 | 5x list, 6.5x effective | −12% | −46% |
-| `wide` | DeepSeek v4-flash → Opus 5 | 35.7x list, 46.4x effective | −74% | −66% |
-
-Positive means the cascade costs MORE at matched accuracy. Both columns are
-mock. **Read the sign, not the magnitude** — the 6 August rebuild moved every
-one of these numbers while flipping none of their signs, which is the finding
-holding and its calibration not. `router_agent/findings.py` derives the current
-column from `frontier.jsonl` when a run for the ladder is on disk, and falls
-back to the 30 July column *labelled with its date* when it is not.
-
-That is the answer to "when is each architecture worth it", and it is a sharper
-answer than a single ladder could ever have given:
-
-> **Cascading pays in proportion to the price gap it is exploiting.** Below roughly
-> a 3x ratio the wasted cheap call and its verification cost more than they save,
-> and you should just route. The wider the gap, the more cascading wins.
-
-The mechanism is not subtle once stated: a cascade always pays for the cheap call,
-and pays for verification on top. Those are fixed costs. What it buys is the chance
-to skip an expensive call. When "expensive" is only 3x "cheap", the fixed costs
-swamp the saving.
-
-Averaged across the whole budget range (the AUC column in `frontier.py`), the
-cascade beats a cost-matched coin flip on **every** ladder: +4.8% claude, +7.2%
-deepseek, +8.8% wide. So cascading is always a better *router* than chance — it
-just is not always cheaper than not routing at all. Those are two different
-questions and the repo now reports both.
-
-A second, more uncomfortable finding: **RouteLLM's pretrained router scores below a
-coin flip on all three ladders** (−2.8%, −1.9%, −2.3% AUC). It was trained on human
-preference between chat models; this asks it about objectively-graded maths and
-code. Out of distribution, and it shows.
-
-### The thing that will bite you
-
-`python3 stats.py` runs exact McNemar tests over the held-out half. **Zero of eight
-comparisons reach significance.** The six-point gaps in the table have confidence
-intervals spanning zero. Cost differences *are* significant; accuracy differences
-are not.
-
-So the current honest summary is: *cost differences are measurable at n=100,
-accuracy differences are not.* Do not quote an accuracy gap as a finding until
-§2 step 5 is done.
-
-The probe is the one exception, and it is instructive: the cheap-vs-expensive gap
-**is** significant at n=100 (McNemar p=0.002) because it is the largest gap in the
-project. Every policy comparison is a contest over the 17-point band inside it,
-and those are the ones n=100 cannot resolve.
-
----
-
-## 2. Do this next
-
-> **SUPERSEDED 8 August 2026 by [SHIP_PLAN.md](SHIP_PLAN.md).** Steps 1–3 below
-> are still the right free sanity checks. **Step 5 is not** — a full paid run at
-> n=100 would measure nine policies inside a ceiling set by four defective tasks.
-> Do SHIP_PLAN.md Phase 0 first; it is free and it changes what is worth buying.
-
-In order. Steps 1–3 are free and take about five minutes total.
-
-> **Where you actually are, 6 August 2026.** Steps 1–4b are done. The task set has
-> been hardened (MBPP+ code half, MATH500 level 5 maths half — both now the
-> defaults in `build_taskset.py`) and the two-arm probe has been run and read.
-> **Go to step 5**, but read [§4](#4-do-you-need-more-tasks) first: at
-> routable=15% the case for enlarging the task set before paying for a full run is
-> stronger than it was, not weaker.
-
-> **Shell note.** `ROUTER_LADDER=x python3 ...` is bash syntax and does nothing on
-> Windows PowerShell. Rather than remember three shells' worth of syntax, put the
-> setting in `.env` and drop the prefix entirely — the repo loads it, and a real
-> environment variable still overrides it:
->
-> ```
-> ROUTER_LADDER=deepseek
-> ROUTER_MODE=real
-> ```
->
-> Every command below then works unchanged in bash, PowerShell and cmd.
-
-
-### Step 1 — confirm nothing rotted (2 min, free)
-
-```bash
-python3 build_taskset.py && python3 sanity_check.py
-```
-
-Expect `code source: mbppplus   math levels: >= 5`, five `quarantined ...` lines
-and `wrote 95 tasks`, then `35/35` and `60/60`, then `both graders score every
-reference answer correctly`. If either count is short, **stop** — every number
-downstream is invalid until it is fixed, and `sanity_check.py` exits non-zero to
-make that hard to miss.
-
-> **The five quarantined tasks stay out. Every rerun, every ladder, every
-> figure.** Their expected answers cannot be derived from their prompts, so they
-> are unpassable rather than hard — and they were *all* of `always_expensive`'s
-> failures, which capped every policy at 92% instead of 100%. The list and the
-> per-task evidence live in `build_taskset.QUARANTINED`; the full account is
-> [SHIP_PLAN.md §0.5](SHIP_PLAN.md).
->
-> **Every trace of them was deleted on 9 August 2026**, not filtered —
-> `scripts/purge_quarantined.py` took 115 cache rows, 10 probe rows, 5 RouteLLM
-> scores and 5 `redraw.wide.json` entries, discarding $0.1667 of responses that
-> nothing could ever use. Committed spend is now **982 responses, $4.2372**. No
-> result moved. Nothing screens them out downstream any more, so `TestQuarantine`
-> is a tripwire: it fails if a quarantined id reappears in any artefact.
-
-The code half needs **numpy** to grade, because every MBPP+ test program compares
-floats with `np.allclose`. The easier maths floor is still one flag away:
-`python3 build_taskset.py --min-math-level 3`. The easier *code* source is not —
-plain sanitized MBPP and its `--code` flag were deleted on 9 August 2026, since
-the only thing still reading them was a thin-asserts marking nothing reports.
-
-### Step 2 — look at the three ladders (2 min, free)
-
-```bash
-ROUTER_LADDER=claude   python3 run_eval.py
-ROUTER_LADDER=deepseek python3 run_eval.py
-ROUTER_LADDER=wide     python3 run_eval.py
-```
-
-Expect the table from §1. The `oracle bound check` must say `ok` on all three rows
-of each run; if it ever says `VIOLATED`, a policy has gained an action the oracle
-cannot reach and every routing-skill figure is void until fixed.
-
-### Step 3 — see the curves and the tests (1 min, free)
-
-```bash
-python3 frontier.py && python3 stats.py && python3 plot.py
-```
-
-`figures/frontier.svg` and `figures/degradation.svg` are written. Open them.
-
-### Step 4a — plumbing check (2 minutes, about $0.02) — **DONE, 30 July 2026**
-
-Ten tasks, everything wired up, just to prove the keys work and nothing errors.
-This has been run on the `wide` ladder: it cost **$0.0481**, wrote 47 real
-responses to `cache/raw_calls.{wide,claude,deepseek}.jsonl` and 47 `simulated:
-false` rows to `results.jsonl`, and passed on every check below (no truncation,
-graders ran, cache replays field-for-field). Every policy scored 100% on all five
-reported tasks, which is exactly the non-result a plumbing check is allowed to
-produce. Re-run it only if the ladder or the prompts change.
-
-```bash
-pip install -e ".[real]"
-cp .env.example .env        # Windows: copy .env.example .env
-# open .env, paste ANTHROPIC_API_KEY and DEEPSEEK_API_KEY, save
-
-ROUTER_LADDER=wide ROUTER_MODE=real python3 run_eval.py --limit 10
-```
-
-`.env` is gitignored so a key cannot be committed by accident, and a real
-environment variable beats the file if you want a one-off override. Note that a
-Claude Pro/Max subscription does **not** include API access — separate products,
-separate billing; the key comes from the Claude Console.
-
-What this is for: API keys resolve, prompts send, responses parse, the graders
-run, the cache writes. Check for `!! TRUNCATED at max_tokens` — any at all means
-raise `models.MAX_TOKENS` and re-run, because a truncated answer grades as *wrong*
-and would read as a capability result.
-
-**Do NOT read the pilot gate off this run.** At n=10 the failure rate has a 95%
-confidence interval of roughly ±28 points, so it cannot distinguish "too easy"
-from "too hard" from "fine". It spans the entire band. That is what step 4b is for.
-
-### Step 4b — the two-arm probe (5 minutes, $0.92) — **DONE, 6 August 2026**
-
-**This was the actual decision point**, and the numbers are in §1. Summary:
-routable **15.0%** [9.3%, 23.3%], ceiling 17.0%, McNemar p=0.002, cheap 79.0% /
-expensive 92.0%, code 12.5% and maths 16.7%.
-
-Re-run it only if the ladder, the prompts, the task set or `MAX_TOKENS` change —
-each of those invalidates the cached responses and re-charges the run.
-
-```bash
-# both arms, all 100 tasks, writes results.probe.jsonl (never results.jsonl)
-ROUTER_LADDER=wide ROUTER_MODE=real python3 run_eval.py \
-    --policy always_cheap --policy always_expensive --split all
-
-# then the cross-tab, free, off the cache
-ROUTER_MODE=replay python3 routable.py --real --ladders wide
-```
-
-> **Do not use the one-arm version, and do not read the gate `run_eval.py`
-> prints.** See `ROUTABLE_2026-07-30.md` (deleted 9 Aug; in git history). `P(cheap fails)`
-> is `routable + both_fail`, and the one-arm gate cannot see the split. This run
-> is the concrete demonstration: it reports a 21.0% cheap failure rate against a
-> 20–55% target, while the quantity that actually matters is 15.0% and sits on
-> the floor of its band. Six of those 21 failures are tasks the expensive rung
-> cannot fix either — and on the code half it is 5 of 10.
-
-How to read the routable fraction, against `routable.py`'s [15%, 45%] band:
-
-- **inside the band** → the task set discriminates. Go to step 5.
-- **below 15%** → too easy. Not "no experiment", but a thin one: every policy is
-  competing over a narrow ceiling and n must rise to see anything. **This is
-  effectively where we are: the point estimate sits exactly on the floor at
-  15.0% with the CI straddling it, and the 7 August redraw put the reproducible
-  fraction at ~9%.**
-- **above 45%** → too hard; everything escalates and every policy collapses onto
-  `always_expensive`.
-
-Run the probe on **each ladder you care about**, because the answer is a property
-of the cheap rung, not of the task set alone: DeepSeek v4-flash and Haiku 4.5 will
-not fail on the same fraction. Only `wide` has been probed.
-
-### Step 5 — the full paid run
-
-**Do [§4](#4-do-you-need-more-tasks) first.** At routable=15% with a 17-point
-ceiling, a full run at n=100 would be measuring nine policies against each other
-inside a band that n=100 already cannot resolve. Enlarging the task set costs the
-same order of magnitude and is the difference between a result and another
-"nothing is significant".
-
-Before any full run, note two things the probe changed:
-
-- **RouteLLM's cached scores no longer cover the task set.** The rebuild changed
-  every code id to `codeplus-*` and resampled the maths half, so `routellm` now
-  sits out with `SKIPPED - no cached scores`. Regenerate them first — it is free,
-  local, and needs no API key: `python3 routellm_router.py --score`.
-- **Budget from the measured per-call costs in §1, not from the table in §3.**
-  Maths is $0.0078/call and code $0.0012/call on `wide`. Self-consistency
-  verification samples the cheap rung k times per task, so the cascade policies
-  multiply the maths figure.
-
-```bash
-ROUTER_LADDER=wide ROUTER_MODE=real python3 run_eval.py
-git add -f cache/raw_calls.wide.jsonl results.jsonl
-git commit -m "raw responses, wide ladder"
-```
-
-Committing the cache is the important half. After that, **everything is free
-forever** and reproducible by anyone with no key at all:
-
-```bash
-ROUTER_MODE=replay ROUTER_LADDER=wide python3 run_eval.py
-ROUTER_MODE=replay ROUTER_LADDER=wide python3 frontier.py
-ROUTER_MODE=replay ROUTER_LADDER=wide python3 sweep_degraded.py
-ROUTER_MODE=replay ROUTER_LADDER=wide python3 stats.py
-```
-
-Then repeat step 5 for `claude` and `deepseek`. Each writes its own cache file, so
-they do not interfere.
-
-### Step 6 — decide about more tasks
-
-See [§4](#4-do-you-need-more-tasks). Short answer: yes, and you will know exactly
-how many once step 5 gives you real discordance counts.
-
----
-
-## 3. What the runs cost
-
-> **These are MODELLED figures and the 6 August probe showed them to be low by
-> roughly 2.5x on the hardened task set.** The measured numbers are in §1: maths
-> **$0.0078/call**, code **$0.0012/call** on `wide`, against a modelled reply
-> length of 80–120 tokens that turned out to be 650 for level-5 maths. The
-> two-arm probe was priced here at $0.008 and cost **$0.9234**. Scale everything
-> below accordingly, and prefer a measured number wherever one exists.
-
-Modelled from the verified price tables, for all 100 tasks and every policy. The
-response cache deduplicates identical calls, so the number that costs money is
-*distinct* calls, not policy-attributed calls.
-
-| ladder | probe (cheap rung, 100 calls) | full run (all policies) |
-|---|---|---|
-| `deepseek` | 100 calls, **$0.004** | 772 calls, **$0.06** |
-| `wide` | 100 calls, **$0.004** | 540 calls, **$0.37** |
-| `claude` | 100 calls, **$0.049** | 640 calls, **$0.72** |
-
-**Actually spent to date: $4.2372**, essentially all on `wide`. $0.0481 on the
-30 July plumbing run, $0.39 on a two-arm probe at `MAX_TOKENS=2048` that was
-abandoned when it truncated, $0.9234 on the probe that replaced it, $0.0276 on
-the three recorded demo traces, $2.9637 on the 7 August redraw of the 21
-decisive tasks, and $0.0503 on `scripts/record_missing.py` recording the
-self-consistency samples and routing calls every cascade needs.
-
-Note the shape of that: **97.3% of every dollar went to the expensive rung.**
-739 cheap calls cost $0.12 in total; 358 expensive calls cost $4.28. On this
-ladder the cheap rung is close to free, which is why the cascade's "fixed costs"
-argument — true and load-bearing on the `deepseek` ladder — barely applies here.
-
-The `wide` probe and the `deepseek` probe hit the SAME cheap rung
-(deepseek-v4-flash), so running both is redundant. There are only two distinct
-bottom rungs across the three ladders, and therefore only two probes worth paying
-for: one on DeepSeek v4-flash, one on Haiku 4.5.
-
-These are BACKEND costs - what actually leaves your account, after the response
-cache deduplicates identical calls across policies. The larger "total attributed
-cost" the report also prints is the sum over policies of what each would pay to
-serve alone, which is the right number for a production comparison and the wrong
-one for your invoice.
-
-All three ladders, full runs, come to about **$1.15 total.** The spend cap is
-**$5 per run**, enforced in `models.call` itself — immediately before the one
-line in the program that can charge a card, so no entry point can reach a
-backend without passing it. It counts what actually reached a backend, not what
-the policies are attributed, and it applies in real mode only: mock and replay
-charge nothing. Raise it for one run with `ROUTER_MAX_SPEND_USD=8`.
-
-It **raises** rather than stopping early. Until 9 August 2026 it printed
-"stopping early" and carried on, which would have written a half-measured task
-set to `results.jsonl` where nothing downstream could tell it from a complete
-one.
-
-Two caveats, both in your favour:
-
-- These are *modelled* output lengths (80–120 tokens). Real replies with thinking
-  disabled are usually longer, so budget maybe 2–3x. Still under $10 for everything.
-- The sweeps and the frontier cost **nothing extra** after the first run. That is
-  the entire reason the response cache was built before any money was spent.
-
----
-
-## 4. Do you need more tasks?
-
-**Yes.** This is the clearest actionable finding in the repo.
-
-n=100, halved by the calibration split, leaves 51 tasks to report on. One task is
-two accuracy points. The gaps you care about are five or six points, which means
-they hinge on three or four tasks going one way rather than the other. `stats.py`
-confirms it: **nothing is significant.**
-
-### How many more — now answerable from real discordance counts
-
-The 6 August probe supplies what step 5 was supposed to: **17 discordant pairs per
-100 tasks** on the widest comparison in the project (15 routable + 2 inverted).
-
-That comparison is comfortably significant (p=0.002). The ones that are not are
-the policy-vs-policy contests *inside* the 17-point ceiling, and they are strictly
-harder — a cascade and a one-shot router disagree on far fewer than 17 tasks per
-100, because both spend most of the set agreeing with `always_cheap` on the 77
-`both_ok` tasks.
-
-Concretely, on the routable fraction itself (p̂ = 15.0%):
-
-| n | 95% CI on routable | resolves the [15%, 45%] band? |
-|---|---|---|
-| 100 | [9.3%, 23.3%] | no — sits on the floor |
-| 504 (the whole pool) | ≈ [12.0%, 18.5%] | no, but much tighter |
-| ~1900 | ≈ [13.4%, 16.7%] | still not, because the estimate *is* the boundary |
-
-An estimate sitting exactly on a band edge cannot be resolved by more tasks — the
-CI shrinks around 15% and never clears it. So the honest framing is that the task
-set is **marginal by this criterion and no amount of n will change that verdict**;
-what n buys is power for the policy comparisons, which is the thing actually
-short. Do not read "UNRESOLVED" as "one more probe will settle it".
-
-Note also the noise floor: 8.7% of maths verdicts flip between independent draws
-of the same prompt. Part of the width above is decoding noise, not task sampling,
-and adding tasks does not reduce it — sampling each task more than once would.
-
-**The pool is smaller than it used to be, because level 5 costs maths tasks.**
-Verified on 6 August rather than quoted:
-
-| source | available | currently used |
-|---|---|---|
-| MATH500 level ≥ 5 | **134** | 60 |
-| MATH500 level ≥ 4 | 262 | — |
-| MATH500 level ≥ 3 | 367 | — |
-| MBPP+ | **370** | 40 |
-
-Taking everything at the current settings gives **504 tasks**, not the 787 this
-file previously promised — `MIN_MATH_LEVEL = 5` cut the maths pool from 367 to
-134. Dropping to level 4 would buy back 128 maths tasks and restore the
-level variance the deleted predictive heuristic needed (see the comment on
-`MIN_MATH_LEVEL`), at
-the cost of an easier maths half.
-
-### Why this is cheap to fix
-
-Cost scales linearly with tasks. From the **measured** per-call figures in §1, a
-two-arm probe over all 504 costs about **$3.60**; a full ten-policy run is the
-number to be careful with, because self-consistency verification samples the
-cheap rung k times per task and maths is the expensive domain. Budget in the
-$15–25 range for `wide` at n=504 rather than the $0.37 in §3, and re-read the
-spend cap (currently **$5 per run**, `models.MAX_SPEND_USD`) before starting —
-**it will bind**, and it now aborts the run rather than truncating it.
-
-Every analysis afterwards is free via replay. This is still the highest-value
-spend available to the project.
-
-### The risk that the code half was too easy — resolved, and the answer is no
-
-This file used to warn that MBPP is saturated and the code cascade might have
-nothing to route. **The probe settled it: code routable = 12.5%, maths = 16.7%.**
-Both halves discriminate, and the verifier-quality experiment — which lives on the
-code half because that is the half with the perfect verifier — has material to
-work with.
-
-The surprise is the direction. **Code is now the harder half**: 5 of its 40 tasks
-defeat both rungs, against 1 of 60 on maths, and Opus scores 85% on code against
-96.7% on maths. MBPP+ did not merely restore the code signal, it overshot maths.
-
-Credit where due: that took the MBPP+ swap. Plain MBPP's thin asserts are what
-made the code half look saturated, and the expanded evalplus suites recovered the
-signal without changing a single problem — the swap moves exactly one variable,
-how thorough the marking is. See [DATASETS.md](docs/DATASETS.md).
-
-The remaining escalation path, if 12.5% is judged too thin:
-
-1. **Drop `MIN_MATH_LEVEL` to 4** and rebalance toward maths — buys 128 maths
-   tasks and restores level variance to the maths half, at the cost of an
-   easier maths half.
-2. **BigCodeBench** for the code half. 1140 tasks, genuinely hard, but the `test`
-   field is a `unittest` class rather than an assert list so `graders.py` needs
-   adapting, and its tasks import real third-party libraries.
-3. **Omni-MATH filtered to `difficulty >= 7`** for the maths half. 4,428 olympiad
-   problems with a shipped difficulty float, but some answers are symbolic
-   expressions that exact match handles badly — `sanity_check.py` is the tool for
-   finding out how many.
-
-### Where to get more tasks
-
-Change `N_MATH` and `N_CODE` in `build_taskset.py` and rebuild. No new data, no
-new code. Verify the pool sizes yourself rather than trusting this file:
-
-```bash
-python3 -c "import build_taskset as b; print(len(b.load_math500(5)), len(b.load_mbppplus()))"
-```
-
-> **Recommendation: set `N_MATH = 134` and `N_CODE = 370`** for the full 504 at
-> the current difficulty settings, then re-probe before committing to a full run.
-> The probe over 504 costs about $3.60 from the measured per-call figures.
->
-> Two knock-on effects to expect. `stratified_sample` samples across four
-> difficulty buckets and taking the whole pool makes it a no-op — fine, but the
-> maths/code balance inverts from 60/40 to **27/73**, so the code half would
-> dominate every aggregate. Report per-domain figures, as the tables already do,
-> or cap `N_CODE` to hold the ratio. Second, the maths half is already at its
-> difficulty ceiling for this dataset: 134 is *all* of MATH500 level 5, so maths
-> cannot grow further without a new source.
-
-### What NOT to do
-
-Do not add a third domain yet. The two-domain design is load-bearing: it is what
-creates the perfect-verifier / proxy-verifier contrast the whole experiment rests
-on. A third domain adds tasks but also adds a confound, and you already have a
-cheaper way to add tasks.
-
----
-
-## 5. What to expect to change when the numbers become real
-
-Written down in advance so the predictions could be scored later. Two of them now
-can be.
-
-| what | mock says | expect on a real run | outcome |
+| comparison | `wide` | `claude` | `deepseek` |
 |---|---|---|---|
-| **cost per task** | modelled | **2–3x higher** | ✅ **CORRECT, and if anything understated.** Measured 6 August: level-5 maths runs 650 output tokens against a modelled 80–120, and the two-arm probe cost $0.92 against a $0.44 estimate. |
-| **routable fraction** | 29%, "comfortably in band" | §4 expects it low | ✅ **CORRECT.** Real answer 15.0%. The mock's 29% was a restatement of `MOCK_SKILL` — `difficulty_pct` is a rank within the sampled set, so the mock is structurally blind to absolute difficulty. |
-| **grader correctness** | assumed | not predicted at all | ❌ **MISSED.** Nobody wrote down that the grader itself might be wrong. It was, on 7 of 20 wrong maths answers, and `sanity_check.py` could not see it. Worth remembering next time a measurement looks like a capability result. |
-| maths cascade accuracy | very high | **notably lower** | untested — needs the cascade policies run for real |
-| `llm_router` accuracy | competitive | **unknown, probably worse** | untested |
-| the ratio finding | sign flips across ladders | **should hold** | untested; only `wide` has real data |
-| RouteLLM below random | −2 to −3% AUC | **direction should hold** | untested, and currently unrunnable — the cached scores no longer cover the rebuilt task set |
-| three-rung ladder | middle rung barely used | **genuinely unknown** | untested; needs the `claude` ladder |
+| `llm_router` vs `random_matched` | p=0.167 | p=0.549 | p=1.000 |
+| `routellm` vs `random_matched` | p=0.454 | p=1.000 | p=0.727 |
+| `cascade` vs `llm_router` | **p=0.003** | **p=0.006** | **p=0.012** |
 
-The two that resolved both resolved *against* the mock, in the direction of "the
-mock flatters the project". Weight the remaining five accordingly.
+Neither a learned router (RouteLLM's pretrained BERT) nor an LLM-as-router beats
+a cost-matched coin flip on any ladder, while the cascade beats both on every
+ladder. RouteLLM's frontier AUC sits at or *below* the null everywhere:
+−0.0018, −0.0001, −0.0129.
+
+The distinction is **when the decision is made**. A predictive router commits
+before seeing an attempt; a cascade decides after verifying one.
+
+### 2.4 The third ladder has almost nothing to route
+
+| ladder | cheap rung | top rung | gap | routable | both_fail | McNemar |
+|---|---|---|---|---|---|---|
+| `wide` | 82.9% | 92.3% | **+9.4** | 56 | 15 | **0.000** |
+| `claude` | 82.7% | 92.3% | **+9.6** | 58 | 14 | **0.000** |
+| `deepseek` | 82.9% | 82.7% | **−0.2** | 15 | 56 | 1.000 |
+
+On `deepseek` the expensive rung is **not measurably better than the cheap one**.
+Fifteen of 415 tasks are routable against 56 hopeless ones, and the whole
+accuracy dynamic range is 7.5%. No policy can win what is not there — which is
+why `always_expensive` lands *below* a cost-matched coin flip on that ladder.
+
+> **A confound this design cannot separate.** The project set out to test a
+> **price-ratio** crossover (cascading loses at ~3×, wins at ~46×). What the data
+> distinguishes is the **capability gap** between rungs, and here the two are
+> confounded: the ladder with the small price ratio is also the ladder whose
+> rungs are equally capable. Three ladders cannot tell them apart.
+>
+> The supported claim is *"cascading pays when the top rung is genuinely
+> better."* The price-ratio framing remains a hypothesis, and separating them
+> needs a ladder with a large price ratio and a small capability gap.
+
+### 2.5 A fifth of the routing opportunity is noise
+
+71 decisive tasks, 3 fresh draws at both rungs, $0.3429.
+
+| measure | routable fraction | counts |
+|---|---|---|
+| observed | 13.5% | one draw per cell — what a probe publishes |
+| expected | 12.2% | mean over fresh draws |
+| **reproducible** | **11.3%** | cheap reliably fails **and** the top rung reliably succeeds |
+
+**7.2% of the apparent opportunity is one model having a bad draw.** A router
+credited against `observed` is paid for mass it cannot capture twice running.
+This is a *lower bound* on the correction: `both_ok` and `inverted` were not
+redrawn, so flakiness hidden there is still uncounted.
+
+### 2.6 Greedy decoding is not deterministic, for either provider
+
+Across 21 tasks with ≥5 draws at temperature 0, more than one distinct answer
+came back on **76%** of tasks for `claude-opus-5` and **67%** for
+`deepseek-v4-flash`.
+
+**The previously recorded "Opus deterministic, DeepSeek not" asymmetry is
+retracted.** It was scheduled to be promoted as a finding; it is backwards.
 
 ---
 
-## 6. Where things live
+## 3. What each policy got right and wrong
 
-| file | read it when |
+`scorecard.py` joins each policy's decision against what the two rungs could
+actually do. `wide` ladder, 209 tasks:
+
+| policy | acc | $/task | rescued | no-top | missed | wasted | harmful | prec |
+|---|---|---|---|---|---|---|---|---|
+| `oracle` | 96.2% | 0.00050 | 25 | 2 | 0 | 0 | 0 | 100% |
+| `cascade` | 95.7% | 0.00095 | 24 | 2 | 1 | 1 | 0 | 73% |
+| `cascade_routing` | 95.2% | 0.00068 | 23 | 2 | 2 | 0 | 0 | 74% |
+| `always_expensive` | 92.3% | 0.00402 | 27 | 0 | 0 | **166** | **8** | 13% |
+| `llm_router` | 90.4% | 0.00309 | 17 | 0 | 10 | 85 | 2 | 15% |
+| `routellm` | 89.0% | 0.00192 | 14 | 0 | 13 | 74 | 2 | 15% |
+| `random_matched` | 87.1% | 0.00293 | 11 | 0 | 16 | 84 | 3 | 11% |
+| `always_cheap` | 83.3% | 0.00005 | 0 | 0 | 27 | 0 | 0 | — |
+
+- **rescued** — escalated a routable task, the only way to win
+- **no-top** — got a routable task right *without* the top rung: cheap-rung
+  self-consistency, or a middle rung
+- **missed** — stayed cheap and got it wrong
+- **wasted** — escalated a task the cheap rung already had
+- **harmful** — escalated a task the cheap rung had right, and got it wrong
+
+`always_expensive` escalates 201 tasks to buy 27 rescues and burns **$0.71** on
+escalations that could not improve the answer, losing 8 tasks the cheap rung had
+already answered. `cascade` wastes **$0.084** — eight times less — because
+verification tells it which escalations are worth making.
+
+`always_mid` is measured for the first time (on `claude`, the only three-rung
+ladder): **88.5%**, solving **12 of 22** routable tasks without ever reaching
+Opus. The middle rung does real work.
+
+---
+
+## 4. What it cost
+
+| | |
 |---|---|
-| **`SHIP_PLAN.md`** | **first — what is wrong, what it costs to fix, and what not to buy** |
-| `STATUS.md` | then, for where the project stands |
-| `docs/WALKTHROUGH.md` | you want to understand the code: file by file, with a real trace |
-| `README.md` | you want the technical overview and the citations |
-| `docs/EXPLAINED.md` | you want the plain-language version of any concept |
-| `docs/NOTES.md` | you want the honest list of what is wrong and what is unresolved |
-| `models.py` | changing models, prices or ladders — `DECISION #1` at the top. `MAX_TOKENS` carries the truncation measurement |
-| `policies.py` | changing what a policy does — `DECISION #2`–`#9` |
-| `build_taskset.py` | changing how many tasks, or which. Both difficulty defaults were raised on 6 August |
-| `docs/DATASETS.md` | choosing a different benchmark, and why MBPP+ was the one taken |
-| `docs/ROUTABLE_2026-07-30.md` | why the routable fraction is the quantity that matters |
+| `wide` cache | $5.5878 |
+| `claude` cache | $2.8498 |
+| `deepseek` cache | $0.0769 |
+| **total** | **$8.5145** over 5,075 real responses |
 
-Everything *fabricated* is gitignored: `frontier.jsonl`, `sweep_degraded.jsonl`,
-`figures/`, and the mock caches (`raw_calls.*.mock.jsonl`). That is deliberate — a
-plausible percentage sitting in a repo is how a simulated number ends up quoted as
-a measurement.
+The 10 August session spent **$4.2794**: pool screen $0.0301, code-half census
+$0.8804, `both_fail` redraw $0.2497, decisive redraw $0.3429, buy D $0.0000
+(entirely cached), `deepseek` ladder $0.0769, `claude` ladder $2.8498.
 
-The real artefacts are the exception and are **force-added to git** despite the
-ignore rule:
+**Cross-ladder cache reuse is worth about $1.70.** The ladder is deliberately
+absent from the cache key, so `wide`'s Opus answers serve `claude`'s top rung
+and `wide`'s flash answers serve `deepseek`'s bottom rung, for nothing.
 
-- `cache/raw_calls.{wide,claude,deepseek}.jsonl` — **982 real responses, $4.24 of
-  spend** (980 of them on `wide`; the other two ladders hold one probe call
-  each and have never been run for real). The irreplaceable asset. `ROUTER_MODE=replay`
-  reproduces every paid run from them field-for-field, and it is what makes
-  `scripts/demo.py` free.
-- `results.probe.jsonl` — 200 rows, both arms, all `simulated: false`. Normally
-  gitignored as fabricated; force-added because this copy is real.
-
-**`results.jsonl` exists again as of 7 August 2026, and it is real.** 420 rows,
-`mode: replay`, every one `simulated: false`, covering the nine policies the
-cache can serve: `always_cheap`, `always_expensive`, `routellm`,
-`random_matched`, `llm_router`, `cascade`, `cascade_routing`, `cascade_degraded`
-(20 rows, code half only by design) and `oracle`. The remaining two are dropped
-by name with the reason printed — `routellm` for want of current scores,
-`always_mid` because it does not exist on a two-rung ladder. It was five
-policies until `scripts/record_missing.py` bought the missing self-consistency
-samples; see "the replay was reading the mock cache" above.
-
-The 47 rows that used to be here were from the 30 July plumbing run and every
-one of their task ids died in the 6 August rebuild. They are kept unedited in
-[`archive/`](archive/README.md) — nothing real is deleted in this repository.
-
-**`results.jsonl` was clobbered by a mock run once, on 31 July, and recovered from
-git.** The clobber guard in `run_eval.guard_clobber` exists to prevent exactly
-that; `--force` defeats it. If it happens again, `git checkout HEAD -- results.jsonl`
-is the recovery — note `HEAD`, because the file may be staged.
+**Estimates run low.** The `claude` buy came in **52% over** a $1.87 estimate;
+the call count was exact (1489 vs 1491) and the per-call cost was 53% high,
+because the estimate used Opus token counts as a length proxy and weaker models
+write longer answers to the same question. A cheaper model is not a
+proportionally cheaper call.
 
 ---
 
-## 7. One-paragraph summary
+## 5. Known limitations
 
-The pipeline is done, the task set has been hardened on both halves, and the
-two-arm probe has been run for real: **routable = 15.0%** [9.3%, 23.3%] on the
-`wide` ladder, cheap 79% against expensive 92%, McNemar p=0.002, rescue rate 71%.
-That is up from an effective zero on 30 July, so the MBPP+ and level-5 hardening
-did what it was supposed to — **but read that 15.0% as ~10%**: the 7 August
-redraw of the 21 decisive tasks showed a third of it was single-draw noise, with
-~9% reproducible and nearly all of that in the code half. Nine of the ten
-policies now have real numbers, from 393 replayed rows over 982 committed
-responses and $4.24 of spend.
-Two measurement bugs were found and fixed on the way
-and both mattered: the maths grader was rejecting 7 of 20 correct-but-differently-
-formatted answers (worth 5 points of Opus accuracy, and invisible to a regression
-gate that only tested `grade(GT, GT)`), and the models turn out to disagree with
-themselves on 8.7% of maths tasks between independent draws of the same prompt.
-The signal is real, significant, and thin: every policy competes over a 17-point
-ceiling, and 15% sits exactly on the floor of the band `routable.py` asks for —
-which more tasks cannot resolve, since the CI just shrinks around the boundary.
-The next move is to enlarge the task set to the full 504 available at the current
-settings for statistical power, then pay for a full ten-policy run — budgeting
-from the measured $0.0078/call on maths rather than the modelled figures in §3,
-which the probe showed to be low by about 2.5x. One of the ten policies still
-has no real accuracy data at all: `always_mid`, which exists only on the
-three-rung `claude` ladder.
+Ordered by how much they bound the findings.
+
+1. **The verifier that produces the signal is not the verifier that ships.** The
+   code half is graded by executing tests, which a deployed router does not
+   have. The maths half — where a self-consistency verifier *would* deploy —
+   carries far less routing signal. Every number here is collected under a
+   verifier the product cannot have. This is the sharpest open problem in the
+   repository.
+2. **Verification is not uniform across rungs.** On `claude`, only haiku accepts
+   a temperature, so the middle rung cannot be verified by self-consistency at
+   all.
+3. **Price ratio and capability gap are confounded** — see §2.4.
+4. **The task set is 86% code.** Every aggregate is a code number. Per-domain
+   figures are reported throughout and should be preferred.
+5. **Cheap-rung failure is 19.0%** [15%, 23%], marginally below the 20% floor
+   the pilot gate sets. The full MBPP+ census is *easier* than the hand-sampled
+   35-task half it replaced; what it bought was ten times the discriminating
+   power in absolute terms.
+6. **Maths cannot discriminate one-shot routers.** `llm_router` sends every
+   maths task to the expensive rung. Declared rather than measured away — the
+   fix was costed at $3.2 and cut.
+7. **13 tasks are quarantined as unpassable-by-specification**, each with the
+   disputed input recorded as evidence in `build_taskset.QUARANTINED`. Five
+   ambiguous-but-arguable tasks were deliberately **kept**, which biases against
+   the routers rather than for them.
+8. **`cascade_routing` is the greedy variant** of Dekoninck et al., not the full
+   algorithm.
+
+---
+
+## 6. The quarantine rule
+
+A `both_fail` task is either genuinely hard or broken by its own specification,
+and the cross-tab cannot tell them apart. Getting this wrong is expensive in
+both directions: an unpassable task silently caps every policy, and deleting a
+hard-but-solvable task removes the signal the experiment exists to measure.
+
+**The bar: a task may be quarantined only if every rung's multi-draw p̂ is
+exactly 0.** One greedy draw cannot establish that.
+
+This is not hypothetical. `codeplus-305` was quarantined on 8 August as
+unpassable while `redraw.wide.json` **in the same commit** recorded its
+expensive rung at p̂ = 0.5. It is a task the cheap rung reliably fails and the
+top rung solves half the time — precisely a *routable* task. It was reversed on
+10 August, and the tripwire that now enforces the bar fires on the historical
+data.
+
+Redrawing all 24 `both_fail` candidates before adjudicating cost $0.25 and found
+**two more** that were passable: `codeplus-235` (p̂ = 1.00, passes every fresh
+draw) and `codeplus-301` (p̂ = 0.67). Both would have been deleted as hopeless
+under the old rule.
+
+`scripts/triage_both_fail.py` gathers the evidence and refuses to make the
+decision. Its discriminator — independent prompt-conformant candidates disputing
+*the same* hidden inputs — was validated against the five hand-adjudicated tasks
+and reproduces their evidence sentences. Two simpler discriminators were tried
+and rejected on measurement; see its docstring.
+
+---
+
+## 7. Standing invariants
+
+- **Never touch prompt templates, `models.MAX_TOKENS`, or `MODEL_SPECS` ids.**
+  All are in the cache key. Changing one strands 5,075 responses and re-charges
+  $8.51. It has happened once, for $0.39.
+- **Never delete `archive/`.** It holds superseded real data that cost money.
+- **A quarantined task is never counted again**, in any rerun, ladder, or figure.
+  Responses are deleted, not filtered; `TestQuarantine` is the tripwire.
+- **CI can never spend.** `ROUTER_MODE: mock` is hard-set and no keys are
+  configured.
+
+---
+
+## 8. Reproducing everything
+
+```bash
+ROUTER_MODE=replay python scripts/run_all_ladders.py   # all 3 ladders, $0.00
+python stats.py     --results results.wide.jsonl
+python scorecard.py --results results.wide.jsonl
+```
+
+The published figures were produced by **deleting every derived artefact** and
+regenerating all three ladders from the response cache. 0 calls reached a
+backend; 0 rows are simulated.
+
+Analysis entry points: `run_eval.py` (per-policy run), `frontier.py`
+(cost-quality curves and AUC), `stats.py` (McNemar and paired bootstrap),
+`scorecard.py` (per-policy error attribution), `routable.py` (the cross-tab),
+`sweep_degraded.py` (verifier-degradation curve), `plot.py` (SVGs).
+
+Paid tools, each of which prints a costed plan and refuses to spend without
+`--go`: `scripts/redraw_decisive.py` (redraw or screen),
+`scripts/record_missing.py` (buy the gap a replay needs).
+
+`docs/NOTES.md` is the open-issues list and is more detailed than §5 here.
+
+---
+
+## 9. What is worth doing next
+
+1. **A verifier that needs no shipped tests** — the cheap model generating its
+   own tests, or self-consistency over code. This addresses limitation §5.1,
+   which currently bounds every claim in this file, and is more informative than
+   another ladder.
+2. **A ladder with a large price ratio and a small capability gap**, to separate
+   the confound in §2.4.
+3. **Redraw `both_ok` and `inverted`** to turn the routable fraction from a
+   lower bound into a two-sided estimate. Costed at roughly $14; not obviously
+   worth it.

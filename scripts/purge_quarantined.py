@@ -21,7 +21,7 @@ deleted, which is why it is committed rather than run from a shell one-liner.
 WHAT IS NOT LOST
 ----------------
 Git. Commit 24302ba is the last one containing every purged row, so the
-responses remain recoverable and the diagnosis in SHIP_PLAN.md section 0.1
+responses remain recoverable and the diagnosis in STATUS.md section 6 (the quarantine rule)
 stays reproducible from history. The evidence for the quarantine also survives
 in prose: each entry in QUARANTINED carries the specific input that breaks it,
 and a test asserts that it does.

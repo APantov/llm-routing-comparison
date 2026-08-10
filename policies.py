@@ -477,7 +477,7 @@ def policy_cascade_degraded(task):
 # because a threshold sweep over a constant has nowhere to go. The published
 # reading of that sweep, "predictive contributes no point to the frontier,
 # LLMRouterBench reproduced on real data", was an arithmetic consequence of the
-# level filter and is retracted. See SHIP_PLAN.md 0.2 and 5.
+# level filter and is retracted. See STATUS.md section 2.3.
 #
 # THE CLAIM IT MADE, which DECISION #7 exists to test and run_eval still prints:
 # an LLM routing call "would add a full round trip and defeat the purpose". The

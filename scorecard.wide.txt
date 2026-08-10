@@ -1,0 +1,40 @@
+  73 stranded response(s) skipped - recorded under a parameter the cache key has since moved past, so the experiment cannot serve them.
+  !! 1 greedy response(s) hit max_tokens and are UNMEASURED, not failures.
+     math-96          cheap      dropped from the cross-tab
+     n falls by that many pairs. Raising models.MAX_TOKENS re-charges every
+     cached response (SHIP_PLAN.md section 1), so the task is excluded instead.
+
+scorecard: results.wide.jsonl  |  ladder wide  |  209 tasks classified
+
+  task cells: both_ok=166  routable=27  both_fail=8  inverted=8
+  dynamic range: 35 of 209 tasks (16.7%) can distinguish two routers at all.
+  On the rest every policy scores identically by construction, so accuracy
+  differences can only ever come from those.
+
+--- all ---------------------------------------------------------------------
+policy                acc    $/task  rescued  no-top  missed  wasted  harmful  recall   prec  $ wasted
+--------------------------------------------------------------------------------------------------------
+always_cheap       83.3%  0.000049        0       0      27       0        0      0%    n/a    0.0000
+always_expensive   92.3%  0.004022       27       0       0     166        8    100%    13%    0.7105
+cascade            95.7%  0.000948       24       2       1       1        0     96%    73%    0.0840
+cascade_degraded   95.5%  0.000632       23       0       0       0        0    100%    74%    0.0548
+cascade_routing    95.2%  0.000680       23       2       2       0        0     93%    74%    0.0548
+llm_router         90.4%  0.003094       17       0      10      85        2     63%    15%    0.5343
+oracle             96.2%  0.000503       25       2       0       0        0    100%   100%    0.0000
+random_matched     87.1%  0.002931       11       0      16      84        3     41%    11%    0.5167
+routellm           89.0%  0.001920       14       0      13      74        2     52%    15%    0.3344
+
+  rescued  = routable task, escalated        (the only way to win)
+  no-top   = routable/both_fail task, got it right WITHOUT the top
+             rung - cheap self-consistency, or a middle rung
+  missed   = routable task, stayed cheap and got it wrong
+  wasted   = both_ok task, escalated         (paid, changed nothing)
+  harmful  = inverted task, escalated        (paid to get it wrong)
+  recall   = (rescued + no-top) / routable   (of what was winnable)
+  prec     = rescued / all escalations       (of what it paid for)
+  $ wasted = spend on escalations that could not improve the answer
+
+  reconciled: every policy's correct-outcome buckets sum to the accuracy
+  its result rows report.
+
+wrote scorecard.wide.json

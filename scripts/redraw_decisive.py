@@ -143,7 +143,7 @@ def mean_call_cost(ladder, task_ids=None, domain=None):
 
 # Raw candidate pools, for screening rather than redrawing. Each returns
 # (tasks, domain); `build_taskset.drop_quarantined` is applied to every one of
-# them at the call site, because SHIP_PLAN.md section 0.5 makes that rule apply
+# them at the call site, because STATUS.md section 6 (the quarantine rule) makes that rule apply
 # to "every rerun, every ladder, every figure" - a screener that re-bought the
 # five unpassable tasks would be the first thing to break it.
 def _pool_mbppplus(min_math_level):

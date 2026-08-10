@@ -24,7 +24,7 @@ normalised strings.
 A third, softer requirement: a **shipped difficulty label** is valuable. The
 predictive router used MATH500's `level` until that policy was deleted for the
 field being constant; a dataset with genuine difficulty variance would restore
-the option. See SHIP_PLAN.md 0.2.
+the option. See STATUS.md section 2.3.
 
 ---
 

@@ -279,7 +279,7 @@ def stratified_sample(tasks, n, rng):
 # always_expensive's failures on the eval split. Left in, they set the ceiling
 # for every policy: `always_expensive` and `oracle` read 92% instead of 100%,
 # and the code half reads 80% instead of 100%. STATUS.md's "code is now the
-# harder domain in absolute terms" was this artefact. See SHIP_PLAN.md 0.1.
+# harder domain in absolute terms" was this artefact. See STATUS.md section 6.
 #
 # Removal happens AFTER sampling and AFTER add_difficulty_pct, deliberately.
 # Filtering the pool first would let stratified_sample draw five replacements,

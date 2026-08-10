@@ -119,7 +119,7 @@ class TestProbe:
         # All 5 of its both_fail tasks were unpassable, not hard, so the code
         # half now has ZERO both_fail and a 100% rescue rate - the clean cascade
         # structure. Pinned here because it is the claim most likely to creep
-        # back into the docs. See SHIP_PLAN.md section 0.1.
+        # back into the docs. See STATUS.md section 6 (the quarantine rule).
         for domain, want in snap["by_domain"].items():
             assert probe.by_domain[domain]["both_fail"] == want["both_fail"], (
                 f"{domain} both_fail moved from {want['both_fail']} to "

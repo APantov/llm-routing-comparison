@@ -44,7 +44,7 @@ RESULTS = HERE / "results.jsonl"
 # PER RUN, not per project: a runaway guard, sitting above the largest planned
 # run and far below the funded card, so a bug costs one run rather than the
 # budget. $20 -> $3 on 8 August, $3 -> $5 on 9 August. The $5 is set against
-# next_step.md Stage 3, whose largest single buy is E at ~$2.64 and whose whole
+# STATUS.md section 4 (what it cost), whose largest single buy is E at ~$2.64 and whose whole
 # sequence is ~$4.0; $3 would have bound partway through E, which is the worst
 # place for a cap to bind - not a bug, just a plan the guard had not been told
 # about.
@@ -764,7 +764,7 @@ def report(rows):
             )
         print(
             "   These are MISSING measurements, not capability failures. Raising\n"
-            "   models.MAX_TOKENS re-charges every cached response (SHIP_PLAN.md\n"
+            "   models.MAX_TOKENS re-charges every cached response (STATUS.md\n"
             "   section 1), so exclude the task or accept the row as unmeasured -\n"
             "   do not read it as the model getting the answer wrong."
         )

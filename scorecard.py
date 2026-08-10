@@ -71,7 +71,7 @@ CELLS = {
 }
 
 ORDER = [
-    "correct_rescue", "rescued_by_resampling", "missed_rescue",
+    "correct_rescue", "rescued_without_top_rung", "missed_rescue",
     "wasted_escalation", "harmful_escalation", "wasted_on_lost_cause",
     "correct_thrift", "lucky_thrift", "unavoidable_loss", "unexpected_loss",
 ]
@@ -85,7 +85,7 @@ WASTEFUL = {"wasted_escalation", "harmful_escalation", "wasted_on_lost_cause"}
 # answer, and conflating the two is what the reconciliation check below caught
 # the first time it ran.
 CORRECT_OUTCOMES = {
-    "correct_rescue", "rescued_by_resampling", "correct_thrift",
+    "correct_rescue", "rescued_without_top_rung", "correct_thrift",
     "lucky_thrift", "wasted_escalation",
 }
 
@@ -102,7 +102,7 @@ def outcome_of(cell, used_expensive, correct):
 
     So the cell is a prediction and `correct` is the observation, and where they
     disagree the observation wins. Those disagreements are not noise to be
-    smoothed over - `rescued_by_resampling` is the measured size of the effect
+    smoothed over - `rescued_without_top_rung` is the measured size of the effect
     `scripts/resample_vs_reroute.py` exists to ask about, which is whether
     majority-of-k substitutes for escalating.
     """
@@ -114,10 +114,20 @@ def outcome_of(cell, used_expensive, correct):
             "inverted": ("harmful_escalation", True),
         }[cell]
     if cell in ("routable", "both_fail"):
-        # The cross-tab says one greedy cheap call fails here. Getting it right
-        # anyway means something other than escalation did the work.
+        # The cross-tab says one greedy cheap call fails here and the TOP rung
+        # is the only thing that fixes it. Getting it right without reaching the
+        # top rung means something else did the work, and on this repo's data
+        # there are two such mechanisms:
+        #
+        #   cheap-rung self-consistency - the oracle recovers math-422 and
+        #   math-432 with calls = ['cheap'] * 5;
+        #
+        #   a MIDDLE rung - on the three-rung claude ladder always_mid solves 12
+        #   routable tasks, and it neither escalates nor resamples. Calling that
+        #   "resampling" was wrong, which is why this bucket is named for what
+        #   it is not rather than for one guess at what it is.
         if correct:
-            return "rescued_by_resampling", False
+            return "rescued_without_top_rung", False
         return ("missed_rescue", True) if cell == "routable" else \
                ("unavoidable_loss", False)
     # cell says the cheap rung handles it.
@@ -193,13 +203,13 @@ def fmt_policy(name, d):
     # Every task the cross-tab says only the expensive rung gets right, however
     # the policy went on to handle it.
     rescuable = (o["correct_rescue"] + o["missed_rescue"]
-                 + o["rescued_by_resampling"])
+                 + o["rescued_without_top_rung"])
     escalations = (o["correct_rescue"] + o["wasted_escalation"]
                    + o["harmful_escalation"] + o["wasted_on_lost_cause"])
     # Numerator matches the denominator: every winnable task the policy got
     # right, by escalating OR by resampling at the cheap rung. Counting only
     # escalations here reported the oracle at 71% on a set where it got 7 of 7.
-    recovered = o["correct_rescue"] + o["rescued_by_resampling"]
+    recovered = o["correct_rescue"] + o["rescued_without_top_rung"]
     recall = recovered / rescuable if rescuable else float("nan")
     precision = o["correct_rescue"] / escalations if escalations else float("nan")
     return {
@@ -306,7 +316,7 @@ def main():
         print()
         print(f"--- {g} " + "-" * (72 - len(g)))
         print(f"{'policy':<18}{'acc':>7}{'$/task':>10}"
-              f"{'rescued':>9}{'resamp':>8}{'missed':>8}{'wasted':>8}"
+              f"{'rescued':>9}{'no-top':>8}{'missed':>8}{'wasted':>8}"
               f"{'harmful':>9}{'recall':>8}{'prec':>7}{'$ wasted':>10}")
         print("-" * 104)
         for name, d in present:
@@ -316,19 +326,19 @@ def main():
             pre = "  n/a" if f["escalation_precision"] != f["escalation_precision"] \
                   else f"{f['escalation_precision']:>5.0%}"
             print(f"{name:<18}{f['accuracy']:>6.1%}{f['cost_per_task']:>10.6f}"
-                  f"{f['correct_rescue']:>9}{f['rescued_by_resampling']:>8}"
+                  f"{f['correct_rescue']:>9}{f['rescued_without_top_rung']:>8}"
                   f"{f['missed_rescue']:>8}"
                   f"{f['wasted_escalation']:>8}{f['harmful_escalation']:>9}"
                   f"{rec:>8}{pre:>7}{f['wasted_cost']:>10.4f}")
 
     print()
     print("  rescued  = routable task, escalated        (the only way to win)")
-    print("  resamp   = routable/both_fail task, got it right WITHOUT the")
-    print("             expensive rung - cheap self-consistency did the work")
+    print("  no-top   = routable/both_fail task, got it right WITHOUT the top")
+    print("             rung - cheap self-consistency, or a middle rung")
     print("  missed   = routable task, stayed cheap and got it wrong")
     print("  wasted   = both_ok task, escalated         (paid, changed nothing)")
     print("  harmful  = inverted task, escalated        (paid to get it wrong)")
-    print("  recall   = (rescued + resamp) / routable   (of what was winnable)")
+    print("  recall   = (rescued + no-top) / routable   (of what was winnable)")
     print("  prec     = rescued / all escalations       (of what it paid for)")
     print("  $ wasted = spend on escalations that could not improve the answer")
 

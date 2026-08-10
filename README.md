@@ -1,6 +1,6 @@
 # LLM Routing: a measured benchmark, and the router it argues for
 
-**A cost-aware LLM routing service (LangGraph + MCP), and the 100-task
+**A cost-aware LLM routing service (LangGraph + MCP), and the 417-task
 benchmark that decides its policy.**
 
 Answer at the cheapest model that can be *verified* to have got it right;
@@ -11,41 +11,29 @@ between your models, and this repository measures where the crossover is.
 |  |  |
 |---|---|
 | **What runs** | A LangGraph state machine — `classify → answer → verify → escalate ⟲` — with human-in-the-loop approval *inside* the escalation loop and checkpointed resume, exposed over an MCP server with four tools and four resources. |
-| **What decides its policy** | 100 tasks (MBPP+ code, MATH500 level 5), 10 policies, 3 price ladders, cost–quality frontiers, exact McNemar and a paired bootstrap. |
-| **Built with** | Python 3.10–3.13 · LangGraph · MCP · Anthropic + DeepSeek APIs · pytest (164 tests) · GitHub Actions. The research core is **pure standard library** — no dependency can change a benchmark number. |
-| **Measured against real models** | **~10%** of tasks are ones the cheap model reliably gets wrong and the expensive one reliably gets right (n=95, wide ladder). A single draw per task said 15%; ten draws on the 16 decisive tasks showed **four of them were coin-flips the cheap model wins every time**. The routing signal is real, thinner than it first looked, and lives almost entirely in the code half. 982 real responses committed, so anyone can replay all of it for $0.00. Total spend to date: **$4.24**. |
-| **Measured, not simulated** | **Every policy the `wide` ladder defines — 9 of 10**, on real models, on the held-out half. `cascade` reaches **90.0% against always-expensive's 92.0% at 23% of the cost**, and the cost gap is significant while the accuracy gap is not. See [§ Status](#status-every-policy-on-this-ladder-now-has-real-numbers). |
-| **Not yet measured** | `always_mid` only, because it exists only on the three-rung `claude` ladder. Any policy a replay cannot serve is **dropped by name**, never scored on a subset. |
+| **What decides its policy** | 417 tasks (MBPP+ code, MATH500 level 5), 10 policies, 3 price ladders **all measured on real models**, cost–quality frontiers, exact McNemar and a paired bootstrap. |
+| **Built with** | Python 3.10–3.13 · LangGraph · MCP · Anthropic + DeepSeek APIs · pytest (205 tests) · GitHub Actions. The research core is **pure standard library** — no dependency can change a benchmark number. |
+| **Measured against real models** | **11.3%** of tasks are ones the cheap model reliably gets wrong and the expensive one reliably gets right (n=417, wide ladder). A single draw per task said 13.5%; three fresh draws on the 71 decisive tasks show **7.2% of the apparent opportunity is one model having a bad draw**. The routing signal is real, thinner than a single draw suggests, and lives almost entirely in the code half. 5,075 real responses committed, so anyone can replay all of it for $0.00. Total spend to date: **$8.51**. |
+| **Measured, not simulated** | **All 10 policies, on all three ladders**, on real models, on the held-out half. On `wide`, `cascade` reaches **95.7% against always-expensive's 92.3% at a quarter of the cost** — more accurate *and* cheaper, p=0.039. On `claude` it wins by 4.3 points but costs *more*. See [STATUS.md](STATUS.md). |
+| **Not yet measured** | Nothing. `always_mid` was the last gap and is measured on the three-rung `claude` ladder: **88.5%**, solving 12 of 22 routable tasks without ever reaching Opus. Any policy a replay cannot serve is **dropped by name**, never scored on a subset. |
 
-> **⚠ THE ACCURACY FIGURES ON THIS PAGE ARE SUPERSEDED — 8 August 2026.**
-> They are rewritten in [SHIP_PLAN.md](SHIP_PLAN.md) Phase 3. An audit found five
-> MBPP+ tasks whose expected answers cannot be derived from their prompt —
-> unpassable, not hard — and they were **all** of `always_expensive`'s failures,
-> so they capped every policy in the project.
+> **THE PER-POLICY ACCURACY FIGURES FURTHER DOWN THIS PAGE ARE FROM THE
+> 95-TASK RUN AND ARE SUPERSEDED.** The header table above is current. The
+> corrected figures, on 417 tasks and all three ladders, are in
+> **[STATUS.md](STATUS.md)** — start there.
 >
-> **They are now quarantined, and the rule is standing: a quarantined task is
-> never counted again, in any rerun, ladder or figure.** The list and the
-> per-task evidence are in `build_taskset.QUARANTINED`; the rule and its
-> enforcement points are [SHIP_PLAN.md §0.5](SHIP_PLAN.md).
+> Two claims this page used to make are **retracted** by the newer data:
 >
-> | | this page says | corrected (n=95) |
-> |---|---|---|
-> | `always_expensive`, `oracle` | 92.0% | **100.0%** |
-> | `cascade` | 90.0% | **97.9%** |
-> | `cascade` on code | 80.0% | **100.0%**, at 3.5% of always-expensive's cost |
-> | code `both_fail` / rescue | 5 / 50% | **0 / 100%** |
+> - *"cost differences are significant, accuracy differences are not (0 of 8)"*
+>   — that was a statement about n=47. At n=209 it is **4 of 8** on `wide` and
+>   on `claude`.
+> - *"the cascade is within one task of always-expensive"* — it rested on a
+>   single discordant pair. At n=209 the cascade **beats** always-expensive by
+>   3.3 points on `wide` (p=0.039) and 4.3 on `claude` (p=0.012).
 >
-> "Code is now the harder domain" is **retracted** — it was this artefact. What
-> holds: cost differences are significant, accuracy differences are not (0 of 8
-> at n=47).
->
-> Its second finding has been acted on. The `predictive` policy routed on a
-> difficulty label that `MIN_MATH_LEVEL = 5` made constant, so it was
-> `always_expensive` on 60% of the task set while being reported as a router. It
-> has been **deleted**, and predictive routing is now measured with the two real
-> implementations it always had: `llm_router` and `routellm`.
-
-New here? [SHIP_PLAN.md](SHIP_PLAN.md) says what is wrong and what to do about
+> The sections below are kept for the reasoning and the method, not the
+> magnitudes.
+New here? [STATUS.md](STATUS.md) says what is wrong and what to do about
 it; [STATUS.md](STATUS.md) says where the project stands;
 [docs/WALKTHROUGH.md](docs/WALKTHROUGH.md) traces one task through every file;
 [docs/EXPLAINED.md](docs/EXPLAINED.md) is the plain-language version of the ideas.
@@ -121,7 +109,7 @@ $ llm-router --findings | jq .ratio.verdict     # on the deepseek ladder
 
 | | |
 |---|---|
-| **The experiment** (repo root) | 100 tasks, 10 policies, 3 ladders, cost-quality frontiers, paired significance tests. Pure standard library in mock mode. |
+| **The experiment** (repo root) | 417 tasks, 10 policies, 3 ladders, cost-quality frontiers, paired significance tests. Pure standard library in mock mode. |
 | **The product** (`router_agent/`) | A LangGraph cascade and an MCP server, built on the same substrate, implementing what the experiment found. |
 
 They share one model client, one price table and one response cache — which is

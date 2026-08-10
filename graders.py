@@ -100,7 +100,7 @@ def _canon_latex(s):
     stripped by normalize_math_answer before this runs.
 
     The superscript case was missed by the 6 August grader fix, which caught
-    \sqrt and \frac but not ^ and _. See SHIP_PLAN.md §0.3.
+    \sqrt and \frac but not ^ and _. See STATUS.md §5.
     """
     s = re.sub(r"\\sqrt(?!\{)(\\?[A-Za-z0-9])", r"\\sqrt{\1}", s)
     # Two passes so \frac{270}7 and \frac3{4} are both reached.

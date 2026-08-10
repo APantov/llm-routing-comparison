@@ -127,7 +127,7 @@ _conflicts = []        # keys seen twice on disk with different payloads
 # `wide` and `deepseek` share DeepSeek v4-flash as their bottom rung, so the 980
 # responses already bought for `wide` cover a large part of both other ladders.
 # Without this, running the `claude` ladder re-buys every Opus call - about $1.91
-# at the current task set. See SHIP_PLAN.md section 1.
+# at the current task set. See STATUS.md section 7 (standing invariants).
 #
 # Only REAL caches are shared. Mock caches stay per-ladder: a mock response is a
 # function of MOCK_SEED and the model's stipulated skill, so pooling them across

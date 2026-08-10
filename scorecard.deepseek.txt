@@ -1,16 +1,41 @@
-  !! 1 greedy response(s) hit max_tokens and are UNMEASURED, not failures.
+  37 stranded response(s) skipped - recorded under a parameter the cache key has since moved past, so the experiment cannot serve them.
+  !! 2 greedy response(s) hit max_tokens and are UNMEASURED, not failures.
      math-400         expensive  dropped from the cross-tab
+     math-96          cheap      dropped from the cross-tab
      n falls by that many pairs. Raising models.MAX_TOKENS re-charges every
      cached response (SHIP_PLAN.md section 1), so the task is excluded instead.
 
-scorecard: results.deepseek.jsonl  |  ladder deepseek  |  0 tasks classified
-  209 task(s) unclassified - the cross-tab needs BOTH rungs' greedy answers,
-  and truncated or stranded responses are excluded as unmeasured rather than wrong.
+scorecard: results.deepseek.jsonl  |  ladder deepseek  |  209 tasks classified
 
-  task cells: both_ok=0  routable=0  both_fail=0  inverted=0
+  task cells: both_ok=166  routable=9  both_fail=26  inverted=8
+  dynamic range: 17 of 209 tasks (8.1%) can distinguish two routers at all.
+  On the rest every policy scores identically by construction, so accuracy
+  differences can only ever come from those.
 
-No task could be classified, so there is nothing to score.
-  The cross-tab needs both rungs' greedy answers for the 'deepseek' ladder,
-  graded through models.is_reachable. Zero classified usually means the cache
-  for this ladder is empty or was recorded under superseded parameters.
-  Check:  ROUTER_LADDER=deepseek python routable.py --real
+--- all ---------------------------------------------------------------------
+policy                acc    $/task  rescued  no-top  missed  wasted  harmful  recall   prec  $ wasted
+--------------------------------------------------------------------------------------------------------
+always_cheap       83.3%  0.000049        0       0       9       0        0      0%    n/a    0.0000
+always_expensive   83.7%  0.000185        9       0       0     166        8    100%     4%    0.0347
+cascade            86.6%  0.000185        6       2       1       0        1     89%    18%    0.0089
+cascade_degraded   86.0%  0.000045        6       0       0       0        0    100%    19%    0.0039
+cascade_routing    84.2%  0.000159        0       2       7       0        0     22%    n/a    0.0000
+llm_router         82.3%  0.000167        4       0       5      81        6     44%     4%    0.0282
+oracle             87.6%  0.000062        9       0       0       0        0    100%   100%    0.0000
+random_matched     82.8%  0.000150        6       0       3      80        7     67%     6%    0.0252
+routellm           83.7%  0.000118        5       0       4      72        4     56%     5%    0.0177
+
+  rescued  = routable task, escalated        (the only way to win)
+  no-top   = routable/both_fail task, got it right WITHOUT the top
+             rung - cheap self-consistency, or a middle rung
+  missed   = routable task, stayed cheap and got it wrong
+  wasted   = both_ok task, escalated         (paid, changed nothing)
+  harmful  = inverted task, escalated        (paid to get it wrong)
+  recall   = (rescued + no-top) / routable   (of what was winnable)
+  prec     = rescued / all escalations       (of what it paid for)
+  $ wasted = spend on escalations that could not improve the answer
+
+  reconciled: every policy's correct-outcome buckets sum to the accuracy
+  its result rows report.
+
+wrote scorecard.deepseek.json

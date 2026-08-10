@@ -244,7 +244,7 @@ def main():
         for task_id, tier, kind, idx in sorted(models.truncated_ids):
             print(f"     {task_id:<16} {tier:<10} {kind} sample={idx}")
         print("   Raising models.MAX_TOKENS re-charges every cached response "
-              "(SHIP_PLAN.md section 1). Exclude the task instead.")
+              "(STATUS.md section 7 (standing invariants)). Exclude the task instead.")
     print("\nEverything replays free from here:")
     print(f"  ROUTER_MODE=replay ROUTER_LADDER={ladder} python3 run_eval.py")
 
