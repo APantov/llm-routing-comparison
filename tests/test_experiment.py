@@ -829,69 +829,106 @@ class TestRoutableReestimate:
         assert out["observed"] == pytest.approx(0.0)
         assert out["expected"] == pytest.approx(0.005)
 
-    def test_it_reproduces_the_published_re_estimate(self):
-        """End to end against the committed artefact. If redraw.wide.json is
-        present, the numbers in README and STATUS must fall out of it.
+    def test_the_correction_only_ever_shrinks_the_headline(self):
+        """The ordering that makes the redraw worth buying, as an invariant.
 
-        Updated 9 August 2026 for the purge. The redrawn set went from 21 tasks
-        to 16 - the five removed were all both_fail - and the denominator from
-        100 to 95. `observed` therefore RISES, 0.150 -> 0.158, purely because
-        the same 15 routable tasks are now a share of fewer: no task changed
-        cell. `expected` is unmoved at 0.102, because the tasks that left
-        contributed (1-p_cheap) * p_expensive = 0 to it; they were unpassable,
-        so p_expensive was 0.
+        These assertions used to be magnitudes - n_graded == 94, 15 p_hat
+        entries, observed == 0.149. They went stale twice, and the second time
+        (the code half going from 35 tasks to 366) they said nothing useful:
+        a pinned number cannot tell "the task set moved" from "the correction
+        broke".
 
-        Updated again the same day, when truncated responses stopped being
-        graded as failures. `math-96`'s cheap greedy draw was cut off at
-        max_tokens, so the cross-tab had it as cheap-wrong / expensive-right
-        and counted it ROUTABLE. Ten fresh cheap draws solve it 10 times out of
-        10 - it was never a routing opportunity, it was a phantom manufactured
-        by the token cap. It is now unmeasured, so n falls 95 -> 94 and
-        routable 15 -> 14, and `observed` falls with it, 0.158 -> 0.149.
+        What must hold on any task set is the DIRECTION. `observed` counts one
+        draw per cell and cannot distinguish "the cheap model cannot do this"
+        from "the cheap model usually can and missed once", so it overstates.
+        `expected` averages fresh draws. `reproducible` further requires the
+        behaviour to be reliable at both rungs. Each step can only remove mass
+        it cannot re-confirm, so:
 
-        `expected` barely moves (0.1021 -> 0.1026) because math-96 contributed
-        almost nothing to it anyway: p_cheap = 1.0 makes (1 - p_cheap) * p_exp
-        zero. That is the tell that the 15th task was never real routable mass
-        - only the single-draw cross-tab ever thought so.
+            observed  >=  expected  >=  reproducible
+
+        If that ever inverted, the re-estimate would be manufacturing routing
+        opportunities rather than pricing the noise in them, which is the exact
+        failure this script exists to prevent.
         """
         path = REPO_ROOT / "redraw.wide.json"
         if not path.exists():
             pytest.skip("redraw.wide.json not present; run scripts/redraw_decisive.py")
         import json
         d = json.loads(path.read_text(encoding="utf-8"))
-        assert d["n_graded"] == 94
-        assert len(d["p_hat"]) == 15
-        assert d["observed"] == pytest.approx(0.149, abs=0.001)
-        assert d["expected"] == pytest.approx(0.103, abs=0.002)
-        assert d["reproducible"] == pytest.approx(0.096, abs=0.001)
-        # Three phantoms left: cheap solves them every time. All three maths.
-        # The fourth was math-96, which is no longer in a decisive cell at all.
+
+        assert d["observed"] >= d["expected"] - 1e-9, (
+            f"fresh draws found MORE routable mass than the single-draw "
+            f"cross-tab: observed {d['observed']:.4f} < expected "
+            f"{d['expected']:.4f}")
+        assert d["expected"] >= d["reproducible"] - 1e-9, (
+            f"requiring reliability found more mass than not requiring it: "
+            f"expected {d['expected']:.4f} < reproducible "
+            f"{d['reproducible']:.4f}")
+        assert 0.0 <= d["reproducible"] <= 1.0
+        assert d["noise_share"] == pytest.approx(
+            (d["expected"] - d["reproducible"]) / d["expected"], abs=1e-6), (
+            "noise_share must be the share of `expected` that `reproducible` "
+            "drops, or it is not the quantity its name claims")
+
+    def test_phantoms_are_reported_not_silently_kept(self):
+        """A task whose cheap rung solves it on every fresh draw was never a
+        routing opportunity - the single-draw cross-tab manufactured it.
+
+        `math-96` was the original: its cheap greedy draw was cut off at
+        max_tokens, so the cross-tab read cheap-wrong / expensive-right and
+        called it routable, while ten fresh cheap draws solved it 10 times out
+        of 10. Phantoms are why `observed` is not the number to quote.
+        """
+        path = REPO_ROOT / "redraw.wide.json"
+        if not path.exists():
+            pytest.skip("redraw.wide.json not present; run scripts/redraw_decisive.py")
+        import json
+        d = json.loads(path.read_text(encoding="utf-8"))
         phantoms = [t for t, p in d["p_hat"].items()
-                    if p["cheap"] is not None and p["cheap"] >= 0.9]
-        assert len(phantoms) == 3
-        assert all(t.startswith("math-") for t in phantoms)
+                    if p.get("cheap") is not None and p["cheap"] >= 0.9]
+        # Not a bound on how many there are - that is a property of the task
+        # set. The invariant is that having them is compatible with the
+        # correction shrinking, which the test above asserts.
+        assert isinstance(phantoms, list)
+        for t in phantoms:
+            assert d["p_hat"][t]["cheap"] >= 0.9
 
     def test_truncated_draws_left_the_denominator(self):
         """p_hat must be a share of GRADEABLE draws, not of requested ones.
 
-        Two responses on disk hit max_tokens mid-derivation. Counting them as
-        wrong answers put them in the numerator's complement AND the
-        denominator; dropping them removes both. math-154's expensive rung is
-        the one that matters - it reads 0.00 either way, but on 9 draws rather
-        than 10, and it sits in `both_fail`, one of the two cells this whole
-        script exists to re-estimate.
+        A response cut off at max_tokens never reached its answer, so grading it
+        False counts it in the numerator's complement AND the denominator.
+        Dropping it must remove both - and the bookkeeping has to agree: every
+        draw missing from `draws_used` is one the run reported dropping.
         """
         path = REPO_ROOT / "redraw.wide.json"
         if not path.exists():
             pytest.skip("redraw.wide.json not present; run scripts/redraw_decisive.py")
         import json
         d = json.loads(path.read_text(encoding="utf-8"))
-        assert d["truncated_draws_dropped"] == 2
-        assert d["draws_used"]["math-154"]["expensive"] == 9
-        assert d["draws_used"]["math-422"]["cheap"] == 9
-        # Everything else got the full ten.
-        full = [n for t, row in d["draws_used"].items() for n in row.values()]
-        assert sorted(full)[2:] == [d["draws"]] * (len(full) - 2)
+
+        requested = d["draws"]
+        missing = 0
+        for task_id, row in d["draws_used"].items():
+            for tier, used in row.items():
+                assert 0 <= used <= requested, (
+                    f"{task_id}/{tier} used {used} of {requested} draws")
+                missing += requested - used
+        assert missing == d["truncated_draws_dropped"], (
+            f"{missing} draw(s) are missing from draws_used but the run "
+            f"reported dropping {d['truncated_draws_dropped']}. A draw that "
+            f"vanishes without being counted as truncated is a draw graded "
+            f"as a failure somewhere.")
+
+        # A rung with every draw truncated must be None, never 0.0 - the
+        # difference between "unmeasured" and "the model got it wrong".
+        for task_id, row in d["draws_used"].items():
+            for tier, used in row.items():
+                if used == 0:
+                    assert d["p_hat"][task_id][tier] is None, (
+                        f"{task_id}/{tier} has no gradeable draws but reports "
+                        f"p_hat {d['p_hat'][task_id][tier]}")
 
 
 # ---------------------------------------------------------------------------

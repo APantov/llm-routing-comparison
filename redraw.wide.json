@@ -1,0 +1,590 @@
+{
+  "ladder": "wide",
+  "draws": 3,
+  "temperature": 0.0,
+  "tau": 0.2,
+  "tiers": [
+    "cheap",
+    "expensive"
+  ],
+  "p_hat": {
+    "math-422": {
+      "cheap": 0.6666666666666666,
+      "expensive": 1.0
+    },
+    "math-94": {
+      "cheap": 0.3333333333333333,
+      "expensive": 1.0
+    },
+    "math-26": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "math-43": {
+      "cheap": 0.3333333333333333,
+      "expensive": 1.0
+    },
+    "codeplus-722": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-278": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-765": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "math-308": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-454": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-741": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "math-481": {
+      "cheap": 1.0,
+      "expensive": 1.0
+    },
+    "math-147": {
+      "cheap": 1.0,
+      "expensive": 1.0
+    },
+    "math-432": {
+      "cheap": 1.0,
+      "expensive": 1.0
+    },
+    "math-284": {
+      "cheap": 0.3333333333333333,
+      "expensive": 1.0
+    },
+    "codeplus-290": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-757": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-748": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-244": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-448": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-398": {
+      "cheap": 0.0,
+      "expensive": 0.0
+    },
+    "codeplus-255": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-633": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-739": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-581": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-597": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-300": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-749": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-576": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-638": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-594": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-427": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-161": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-610": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-410": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-446": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-564": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-305": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-440": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-223": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-310": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-260": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-445": {
+      "cheap": 0.3333333333333333,
+      "expensive": 1.0
+    },
+    "codeplus-160": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-603": {
+      "cheap": 0.0,
+      "expensive": 0.0
+    },
+    "codeplus-759": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-589": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-631": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-391": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-99": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-101": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-294": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-777": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-109": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-790": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-267": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-639": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "math-154": {
+      "cheap": 0.0,
+      "expensive": 0.0
+    },
+    "codeplus-113": {
+      "cheap": 0.0,
+      "expensive": 0.0
+    },
+    "codeplus-620": {
+      "cheap": 0.0,
+      "expensive": 0.0
+    },
+    "codeplus-780": {
+      "cheap": 0.0,
+      "expensive": 0.0
+    },
+    "codeplus-16": {
+      "cheap": 0.0,
+      "expensive": 0.0
+    },
+    "codeplus-462": {
+      "cheap": 0.0,
+      "expensive": 0.0
+    },
+    "codeplus-556": {
+      "cheap": 0.0,
+      "expensive": 0.0
+    },
+    "codeplus-235": {
+      "cheap": 0.0,
+      "expensive": 1.0
+    },
+    "codeplus-92": {
+      "cheap": 0.0,
+      "expensive": 0.0
+    },
+    "codeplus-74": {
+      "cheap": 0.0,
+      "expensive": 0.0
+    },
+    "codeplus-301": {
+      "cheap": 0.0,
+      "expensive": 0.6666666666666666
+    },
+    "codeplus-306": {
+      "cheap": 1.0,
+      "expensive": 0.0
+    },
+    "codeplus-468": {
+      "cheap": 0.0,
+      "expensive": 0.0
+    },
+    "codeplus-138": {
+      "cheap": 0.0,
+      "expensive": 0.0
+    },
+    "codeplus-415": {
+      "cheap": 0.0,
+      "expensive": 0.0
+    }
+  },
+  "draws_used": {
+    "math-422": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "math-94": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "math-26": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "math-43": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-722": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-278": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-765": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "math-308": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-454": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-741": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "math-481": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "math-147": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "math-432": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "math-284": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-290": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-757": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-748": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-244": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-448": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-398": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-255": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-633": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-739": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-581": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-597": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-300": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-749": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-576": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-638": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-594": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-427": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-161": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-610": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-410": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-446": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-564": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-305": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-440": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-223": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-310": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-260": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-445": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-160": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-603": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-759": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-589": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-631": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-391": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-99": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-101": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-294": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-777": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-109": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-790": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-267": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-639": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "math-154": {
+      "cheap": 3,
+      "expensive": 2
+    },
+    "codeplus-113": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-620": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-780": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-16": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-462": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-556": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-235": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-92": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-74": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-301": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-306": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-468": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-138": {
+      "cheap": 3,
+      "expensive": 3
+    },
+    "codeplus-415": {
+      "cheap": 3,
+      "expensive": 3
+    }
+  },
+  "truncated_draws_dropped": 1,
+  "cells_redrawn": "decisive",
+  "n_graded": 416,
+  "observed": 0.1346153846153846,
+  "expected": 0.12179487179487179,
+  "reproducible": 0.11298076923076923,
+  "noise_share": 0.07236842105263153,
+  "unmeasured": []
+}
