@@ -53,6 +53,7 @@ Reads only files already on disk. No API calls, no spend.
 
 import argparse
 import json
+import os
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -230,8 +231,6 @@ def main():
     ap.add_argument("--json", metavar="PATH", default=None)
     args = ap.parse_args()
 
-    import run_eval
-
     path = Path(args.results) if args.results else RESULTS
     rows = load_results(path)
 
@@ -240,6 +239,21 @@ def main():
         sys.exit(f"{path.name} mixes ladders {sorted(ladders)}. A cross-tab is a "
                  f"property of one ladder; score them separately.")
     ladder = args.ladder or (ladders.pop() if ladders else "wide")
+
+    # SET THE LADDER BEFORE IMPORTING models, VIA run_eval.
+    #
+    # `models` reads ROUTER_LADDER at module scope and builds MODELS/TIERS once.
+    # Scoring results.claude.jsonl while the environment still said `wide` made
+    # every response fail models.is_reachable - the model ids did not match the
+    # ladder - and the cross-tab came back with 0 tasks in it, which then
+    # divided by zero rather than saying anything useful.
+    #
+    # Reading the ladder out of the results file first and setting it here makes
+    # the tool correct whatever the environment says, which matters because the
+    # ladder a results file was measured on is a property of the file.
+    if os.environ.get("ROUTER_LADDER") != ladder:
+        os.environ["ROUTER_LADDER"] = ladder
+    import run_eval
 
     simulated = any(r.get("simulated", r.get("mode") == "mock") for r in rows)
 
@@ -266,6 +280,15 @@ def main():
     print(f"\n  task cells: " + "  ".join(
         f"{k}={cellcount[k]}" for k in
         ("both_ok", "routable", "both_fail", "inverted")))
+    if not total:
+        sys.exit(
+            f"\nNo task could be classified, so there is nothing to score.\n"
+            f"  The cross-tab needs both rungs' greedy answers for the "
+            f"{ladder!r} ladder,\n  graded through models.is_reachable. Zero "
+            f"classified usually means the cache\n  for this ladder is empty or "
+            f"was recorded under superseded parameters.\n"
+            f"  Check:  ROUTER_LADDER={ladder} python routable.py --real"
+        )
     win = cellcount["routable"] + cellcount["inverted"]
     print(f"  dynamic range: {win} of {total} tasks ({win/total:.1%}) can "
           f"distinguish two routers at all.")

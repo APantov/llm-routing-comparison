@@ -1282,3 +1282,80 @@ class TestScorecard:
 def scorecard_correct():
     import scorecard
     return scorecard.CORRECT_OUTCOMES
+
+
+class TestScorecardLadder:
+    """The scorecard must configure the ladder from the FILE, not the shell.
+
+    `models` reads ROUTER_LADDER at module scope and builds MODELS/TIERS once.
+    Scoring results.claude.jsonl while the environment still said `wide` made
+    every cached response fail models.is_reachable - the model ids did not match
+    the ladder - so the cross-tab came back empty and the report divided by zero.
+
+    A silently empty cross-tab is the dangerous version of this: with one more
+    task classified it would have printed a full table of outcomes computed from
+    almost no data, and nothing in the output would have said so.
+    """
+
+    def test_it_reads_the_ladder_from_the_results_file(self):
+        src = (REPO_ROOT / "scorecard.py").read_text(encoding="utf-8")
+        set_at = src.index('os.environ["ROUTER_LADDER"] = ladder')
+        import_at = src.index("import run_eval", set_at - 2000)
+        assert set_at < import_at, (
+            "scorecard.py must set ROUTER_LADDER BEFORE importing run_eval, "
+            "which imports models, which reads it at module scope"
+        )
+
+    def test_an_empty_crosstab_refuses_rather_than_reports(self):
+        """Zero classified tasks must stop the run, not produce a table."""
+        src = (REPO_ROOT / "scorecard.py").read_text(encoding="utf-8")
+        assert "No task could be classified" in src
+        i = src.index("if not total:")
+        j = src.index("dynamic range:")
+        assert i < j, "the guard must come before the first division by `total`"
+
+
+class TestCrossLadderVerdicts:
+    """`routable.real_verdicts` must see what the CACHE would serve, not one file.
+
+    The ladder is deliberately absent from the cache key, so a response bought
+    for one ladder serves any ladder whose rung uses the same model - that is
+    what made three ladders affordable here. But it also means a ladder's own
+    file is not where its responses live: on 10 August 2026
+    raw_calls.claude.jsonl held haiku and sonnet and no Opus, because Opus had
+    been bought for `wide`. Reading one file returned a cross-tab with ZERO
+    tasks in it for a fully measured ladder.
+
+    The second trap is subtler and worse. Reading all the files but trusting the
+    recorded `tier` label would file Opus answers as the deepseek ladder's top
+    rung - `wide`'s "expensive" is Opus, `deepseek`'s is v4-pro - and produce a
+    clean-looking cross-tab comparing two different models. Rows must be matched
+    to rungs by MODEL, which is what response_cache.make_key actually hashes.
+    """
+
+    def test_it_reads_every_file_the_cache_would_serve(self):
+        src = (REPO_ROOT / "routable.py").read_text(encoding="utf-8")
+        assert "_sibling_real_paths" in src, (
+            "real_verdicts must consult the same sibling caches "
+            "response_cache.configure() does, or it sees fewer responses than "
+            "the experiment serves"
+        )
+
+    def test_it_matches_rungs_by_model_not_by_recorded_tier(self):
+        src = (REPO_ROOT / "routable.py").read_text(encoding="utf-8")
+        assert "tier_of_model" in src
+        body = src[src.index("def real_verdicts"):src.index("def report(")]
+        assert 'd["tier"]' not in body, (
+            "a row's `tier` belongs to the ladder it was RECORDED under; using "
+            "it across files compares different models under one label"
+        )
+
+    @pytest.mark.parametrize("ladder", ["wide", "claude", "deepseek"])
+    def test_every_ladder_resolves_its_own_rungs(self, use_ladder, ladder):
+        """The mapping must cover each ladder's rungs with distinct models."""
+        m = use_ladder(ladder)
+        ids = [m.MODELS[t]["id"] for t in m.TIERS]
+        assert len(set(ids)) == len(ids), (
+            f"{ladder} maps two rungs to one model id, so a response could not "
+            f"be attributed to a rung unambiguously"
+        )

@@ -1,0 +1,76 @@
+  37 stranded response(s) skipped - recorded under a parameter the cache key has since moved past, so the experiment cannot serve them.
+  !! 2 greedy response(s) hit max_tokens and are UNMEASURED, not failures.
+     math-400         expensive  dropped from the cross-tab
+     math-96          cheap      dropped from the cross-tab
+     n falls by that many pairs. Raising models.MAX_TOKENS re-charges every
+     cached response (SHIP_PLAN.md section 1), so the task is excluded instead.
+
+=== REAL (cached responses), ladder=deepseek ===
+  all              n=415  both_ok=328  routable=15   both_fail=56   inverted=16  | cheap= 82.9% exp= 82.7% | routable=  3.6% [2.2%,5.9%] | ceiling=  7.5% | rescue= 21.1% | McNemar p=1.000
+  code             n=357  both_ok=284  routable=11   both_fail=50   inverted=12  | cheap= 82.9% exp= 82.6% | routable=  3.1% [1.7%,5.4%] | ceiling=  6.4% | rescue= 18.0% | McNemar p=1.000
+  math             n=58   both_ok=44   routable=4    both_fail=6    inverted=4   | cheap= 82.8% exp= 82.8% | routable=  6.9% [2.7%,16.4%] | ceiling= 13.8% | rescue= 40.0% | McNemar p=1.000
+  math level 5     n=58   both_ok=44   routable=4    both_fail=6    inverted=4   | cheap= 82.8% exp= 82.8% | routable=  6.9% [2.7%,16.4%] | ceiling= 13.8% | rescue= 40.0% | McNemar p=1.000
+
+  !! both_fail review queue: 56 task(s) defeated BOTH rungs.
+     Each is either genuinely hard or unpassable-by-spec. The cross-tab
+     cannot tell, and an unpassable task silently caps every policy.
+       codeplus-101     code
+       codeplus-109     code
+       codeplus-113     code
+       codeplus-138     code
+       codeplus-16      code
+       codeplus-160     code
+       codeplus-223     code
+       codeplus-235     code
+       codeplus-244     code
+       codeplus-260     code
+       codeplus-267     code
+       codeplus-278     code
+       codeplus-294     code
+       codeplus-300     code
+       codeplus-301     code
+       codeplus-305     code
+       codeplus-306     code
+       codeplus-310     code
+       codeplus-398     code
+       codeplus-410     code
+       codeplus-415     code
+       codeplus-427     code
+       codeplus-440     code
+       codeplus-446     code
+       codeplus-448     code
+       codeplus-462     code
+       codeplus-468     code
+       codeplus-556     code
+       codeplus-564     code
+       codeplus-576     code
+       codeplus-581     code
+       codeplus-589     code
+       codeplus-597     code
+       codeplus-603     code
+       codeplus-610     code
+       codeplus-620     code
+       codeplus-633     code
+       codeplus-638     code
+       codeplus-639     code
+       codeplus-739     code
+       codeplus-74      code
+       codeplus-748     code
+       codeplus-757     code
+       codeplus-759     code
+       codeplus-765     code
+       codeplus-777     code
+       codeplus-780     code
+       codeplus-790     code
+       codeplus-92      code
+       codeplus-99      code
+       math-147         math
+       math-154         math
+       math-26          math
+       math-284         math
+       math-308         math
+       math-43          math
+     Check each against a textbook-correct solution; if unpassable, add
+     it to build_taskset.QUARANTINED with the evidence.
+
+real:deepseek    TOO EASY - routable fraction is below 15% and the CI does not reach it

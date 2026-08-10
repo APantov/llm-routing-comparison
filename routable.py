@@ -165,19 +165,66 @@ def mock_verdicts(tasks, ladder):
 # ---------------------------------------------------------------------------
 def real_verdicts(tasks, ladder):
     import models
+    import response_cache
     from graders import grade
 
-    path = HERE / "cache" / f"raw_calls.{ladder}.jsonl"
-    if not path.exists():
+    # EVERY file the cache would serve this ladder from, not just its own.
+    #
+    # The ladder is deliberately absent from the cache key, so a response bought
+    # for one ladder serves any ladder whose rung uses the same model. That is
+    # what makes three ladders affordable - `wide`'s Opus answers are `claude`'s
+    # top rung, and `wide`'s flash answers are `deepseek`'s bottom rung.
+    #
+    # Reading only raw_calls.<ladder>.jsonl therefore sees a DIFFERENT and
+    # smaller set of responses than the experiment does. Concretely, on
+    # 10 August 2026: raw_calls.claude.jsonl held haiku and sonnet but no Opus,
+    # so no task had both rungs and the cross-tab came back with zero tasks in
+    # it, for a ladder that was fully measured.
+    #
+    # This is the second time this function has been wrong by reading raw files
+    # instead of going through the cache's own view (see models.is_reachable
+    # below, added when it was grading responses stranded at max_tokens=2048).
+    # The rule both fixes point at: if the experiment would not serve it, do not
+    # grade it - and if the experiment WOULD serve it, do not miss it.
+    paths = [p for p in (response_cache._sibling_real_paths(ladder)
+                         + [HERE / "cache" / f"raw_calls.{ladder}.jsonl"])
+             if p.exists()]
+    if not paths:
         return {}
     by_id = {t["id"]: t for t in tasks}
     out = defaultdict(dict)
     truncated = []
     orphans = 0
-    for line in open(path, encoding="utf-8"):
+    # Map responses to THE REQUESTED ladder's rungs by MODEL, never by the
+    # recorded `tier`. A row's tier label belongs to the ladder it was recorded
+    # under: `wide`'s "expensive" is Opus, `deepseek`'s "expensive" is v4-pro.
+    # Reading the label across files would file Opus answers as the deepseek
+    # ladder's top rung and silently compare two different models.
+    #
+    # Model identity is the right key because it is what the CACHE keys on -
+    # `response_cache.make_key` hashes the model id and has never heard of a
+    # tier. Matching the way the cache matches is what makes this agree with
+    # what the experiment actually serves.
+    #
+    # Built from `models.LADDERS[ladder]` - the ARGUMENT - and not from
+    # `models.TIERS`, which is whichever ladder the process happens to have been
+    # imported under. Those two disagree whenever a caller asks for a ladder
+    # other than the configured one, and this function's whole signature
+    # promises it will answer for the ladder it was passed.
+    rung_names = models._TIER_NAMES.get(len(models.LADDERS[ladder]))
+    if rung_names is None:
+        raise ValueError(f"no rung names for a {len(models.LADDERS[ladder])}-rung ladder")
+    tier_of_model = dict(zip(models.LADDERS[ladder], rung_names))
+
+    lines = (line for path in paths for line in open(path, encoding="utf-8"))
+    for line in lines:
         if not line.strip():
             continue
         d = json.loads(line)
+        tier = tier_of_model.get(d.get("model"))
+        if tier is None:
+            # A model that is not a rung of this ladder at all.
+            continue
         # Greedy answers only: temperature 0, sample 0. The temperature-0.8
         # self-consistency samples are a different action and belong to the
         # cascade, not to the tier-choice question this file asks.
@@ -210,9 +257,9 @@ def real_verdicts(tasks, ladder):
             # Dropping the tier drops the TASK, because crosstab needs both
             # rungs. That is the correct arithmetic: an unmeasured pair cannot
             # be classified into any of the four cells.
-            truncated.append((d["task_id"], d["tier"]))
+            truncated.append((d["task_id"], tier))
             continue
-        out[d["task_id"]][d["tier"]] = grade(task, d["text"])
+        out[d["task_id"]][tier] = grade(task, d["text"])
     if orphans:
         print(f"  {orphans} stranded response(s) skipped - recorded under a "
               f"parameter the cache key has since moved past, so the "

@@ -1,0 +1,16 @@
+  !! 1 greedy response(s) hit max_tokens and are UNMEASURED, not failures.
+     math-400         expensive  dropped from the cross-tab
+     n falls by that many pairs. Raising models.MAX_TOKENS re-charges every
+     cached response (SHIP_PLAN.md section 1), so the task is excluded instead.
+
+scorecard: results.deepseek.jsonl  |  ladder deepseek  |  0 tasks classified
+  209 task(s) unclassified - the cross-tab needs BOTH rungs' greedy answers,
+  and truncated or stranded responses are excluded as unmeasured rather than wrong.
+
+  task cells: both_ok=0  routable=0  both_fail=0  inverted=0
+
+No task could be classified, so there is nothing to score.
+  The cross-tab needs both rungs' greedy answers for the 'deepseek' ladder,
+  graded through models.is_reachable. Zero classified usually means the cache
+  for this ladder is empty or was recorded under superseded parameters.
+  Check:  ROUTER_LADDER=deepseek python routable.py --real
