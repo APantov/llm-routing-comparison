@@ -11,10 +11,13 @@ result.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
 from router_agent import findings
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 class TestProbe:
@@ -24,32 +27,45 @@ class TestProbe:
             pytest.skip("results.probe.jsonl not present in this checkout")
         assert probe.n > 0
 
-    def test_matches_the_documented_result(self):
-        """The figures STATUS.md and README both quote.
+    def test_matches_the_frozen_snapshot(self):
+        """The probe figures the docs quote, against a regenerable snapshot.
 
-        Updated 8 August 2026 for the quarantine. results.probe.jsonl still
-        holds all 200 original rows - nothing measured is deleted here - but
-        load_probe drops the 5 unpassable code tasks, so these are now over
-        n=95. The old values were n=100, routable 15.0%, both_fail 6.
+        These used to be literals in this file, and they went stale twice: once
+        when the 6 August task-set rebuild moved every magnitude, and again when
+        the code half was rebuilt from 35 tasks to 366. Both times the test
+        failed for the right reason and taught nothing, because a pinned
+        magnitude cannot distinguish "the measurement moved" from "the
+        measurement broke".
 
-        The interesting move is both_fail 6 -> 1: five of the six tasks that
-        "defeated both rungs" were unpassable rather than hard, which is what
-        pushed the rescue rate from 71.4% to 93.8%.
+        test_experiment.py's own docstring states the rule this now follows:
+        target the arithmetic and the invariants, not the findings. So the
+        magnitudes live in a snapshot regenerated deliberately when the task set
+        changes, and what is asserted here is that nothing has drifted since
+        someone last looked.
+
+            python scripts/freeze_probe.py      # after a task-set change
         """
         probe = findings.load_probe()
         if probe is None:
             pytest.skip("results.probe.jsonl not present in this checkout")
+        snap_path = REPO_ROOT / "tests" / "frozen_probe.json"
+        if not snap_path.exists():
+            pytest.skip("no frozen_probe.json; run scripts/freeze_probe.py")
+        snap = json.loads(snap_path.read_text(encoding="utf-8"))
 
-        assert probe.n == 95
-        assert probe.both_ok == 77
-        assert probe.routable == 15
-        assert probe.both_fail == 1
-        assert probe.inverted == 2
-        assert probe.routable_pct == pytest.approx(15.8, abs=0.1)
-        assert probe.ceiling_pct == pytest.approx(17.9, abs=0.1)
-        assert probe.rescue_rate == pytest.approx(0.938, abs=0.001)
-        assert probe.cheap_acc == pytest.approx(0.832, abs=0.001)
-        assert probe.expensive_acc == pytest.approx(0.968, abs=0.001)
+        got = {
+            "n": probe.n, "both_ok": probe.both_ok, "routable": probe.routable,
+            "both_fail": probe.both_fail, "inverted": probe.inverted,
+        }
+        assert got == snap["cells"], (
+            f"the probe moved since it was frozen.\n"
+            f"  frozen: {snap['cells']}\n"
+            f"  now:    {got}\n"
+            f"  If the task set changed on purpose, re-freeze:\n"
+            f"    python scripts/freeze_probe.py --go"
+        )
+        for key, want in snap["rates"].items():
+            assert getattr(probe, key) == pytest.approx(want, abs=0.001), key
 
     def test_probe_holds_no_quarantined_rows(self):
         """The probe was purged on 9 August 2026, not filtered.
@@ -73,9 +89,13 @@ class TestProbe:
         probe = findings.load_probe()
         if probe is None:
             pytest.skip("results.probe.jsonl not present in this checkout")
+        snap_path = REPO_ROOT / "tests" / "frozen_probe.json"
+        if not snap_path.exists():
+            pytest.skip("no frozen_probe.json; run scripts/freeze_probe.py")
+        snap = json.loads(snap_path.read_text(encoding="utf-8"))
         lo, hi = probe.ci95()
-        assert lo == pytest.approx(9.8, abs=0.1)
-        assert hi == pytest.approx(24.4, abs=0.1)
+        assert lo == pytest.approx(snap["ci95"][0], abs=0.1)
+        assert hi == pytest.approx(snap["ci95"][1], abs=0.1)
 
     def test_cells_partition_the_task_set(self):
         probe = findings.load_probe()
@@ -88,15 +108,25 @@ class TestProbe:
         probe = findings.load_probe()
         if probe is None:
             pytest.skip("results.probe.jsonl not present in this checkout")
-        assert probe.by_domain["code"]["routable_pct"] == pytest.approx(14.3, abs=0.1)
-        assert probe.by_domain["math"]["routable_pct"] == pytest.approx(16.7, abs=0.1)
+        snap_path = REPO_ROOT / "tests" / "frozen_probe.json"
+        if not snap_path.exists():
+            pytest.skip("no frozen_probe.json; run scripts/freeze_probe.py")
+        snap = json.loads(snap_path.read_text(encoding="utf-8"))
+        for domain, want in snap["by_domain"].items():
+            assert probe.by_domain[domain]["routable_pct"] == pytest.approx(
+                want["routable_pct"], abs=0.1), domain
         # RETRACTED 8 August 2026: "code is the harder domain" was an artefact.
         # All 5 of its both_fail tasks were unpassable, not hard, so the code
         # half now has ZERO both_fail and a 100% rescue rate - the clean cascade
         # structure. Pinned here because it is the claim most likely to creep
         # back into the docs. See SHIP_PLAN.md section 0.1.
-        assert probe.by_domain["code"]["both_fail"] == 0
-        assert probe.by_domain["math"]["both_fail"] == 1
+        for domain, want in snap["by_domain"].items():
+            assert probe.by_domain[domain]["both_fail"] == want["both_fail"], (
+                f"{domain} both_fail moved from {want['both_fail']} to "
+                f"{probe.by_domain[domain]['both_fail']}. Every both_fail task "
+                f"is either genuinely hard or unpassable-by-spec, and an "
+                f"unpassable one silently caps every policy - adjudicate before "
+                f"re-freezing. scripts/triage_both_fail.py builds the queue.")
 
     def test_never_reports_simulated_rows_as_measured(self, tmp_path):
         """A mock row must not be able to contaminate a 'measured' figure."""

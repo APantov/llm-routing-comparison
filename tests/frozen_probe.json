@@ -1,0 +1,31 @@
+{
+  "note": "Regenerate with scripts/freeze_probe.py after a DELIBERATE task-set change. See that script for why this is a file rather than literals in the test.",
+  "cells": {
+    "n": 417,
+    "both_ok": 328,
+    "routable": 57,
+    "both_fail": 15,
+    "inverted": 17
+  },
+  "rates": {
+    "routable_pct": 13.66906474820144,
+    "ceiling_pct": 17.74580335731415,
+    "rescue_rate": 0.7916666666666666,
+    "cheap_acc": 0.8273381294964028,
+    "expensive_acc": 0.9232613908872902
+  },
+  "ci95": [
+    10.701912563613746,
+    17.29950174523785
+  ],
+  "by_domain": {
+    "code": {
+      "routable_pct": 13.2,
+      "both_fail": 14
+    },
+    "math": {
+      "routable_pct": 16.7,
+      "both_fail": 1
+    }
+  }
+}

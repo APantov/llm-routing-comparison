@@ -1112,3 +1112,136 @@ class TestLadderScopedOutputs:
             "than hard-coding it, so a new ladder is picked up automatically"
         )
         assert models.LADDERS, "models defines no ladders"
+
+
+class TestScorecard:
+    """The per-policy error attribution must agree with the accuracy it explains.
+
+    `scorecard.py` re-derives what each policy did from two independent sources:
+    the result rows, and the cheap-vs-expensive cross-tab built from the raw
+    cache. Those can disagree, and when they do every number it prints is wrong.
+    Both disagreements found while writing it were real:
+
+      the oracle rescued two `routable` tasks with `calls = ['cheap'] * 5` -
+      cheap self-consistency, a third action that a binary escalated/not reading
+      files as a missed rescue while the row says `correct: true`;
+
+      `wasted_escalation` tasks are CORRECT - on a both_ok task both rungs get
+      it right, so the waste is the money, not the answer.
+    """
+
+    def test_the_outcome_buckets_partition_every_task(self):
+        import scorecard
+
+        seen = set()
+        for cell in ("both_ok", "routable", "both_fail", "inverted"):
+            for used_expensive in (True, False):
+                for correct in (True, False):
+                    name, _ = scorecard.outcome_of(cell, used_expensive, correct)
+                    assert name in scorecard.ORDER, (
+                        f"{name} is not in ORDER, so it would be silently "
+                        f"dropped from the report")
+                    seen.add(name)
+        assert seen <= set(scorecard.ORDER)
+
+    def test_a_correct_outcome_is_never_also_a_wasteful_mistake_about_accuracy(self):
+        """WASTEFUL is about money and CORRECT_OUTCOMES about answers, so
+        `wasted_escalation` belongs to both. That is the distinction the
+        reconciliation check exists to protect."""
+        import scorecard
+
+        assert "wasted_escalation" in scorecard.CORRECT_OUTCOMES
+        assert "wasted_escalation" in scorecard.WASTEFUL
+        assert "missed_rescue" not in scorecard.CORRECT_OUTCOMES
+        assert "harmful_escalation" not in scorecard.CORRECT_OUTCOMES
+
+    def test_resampling_a_routable_task_right_is_not_a_missed_rescue(self):
+        """The oracle case, as a unit test."""
+        import scorecard
+
+        name, mistake = scorecard.outcome_of("routable", False, correct=True)
+        assert name == "rescued_by_resampling" and not mistake
+        name, mistake = scorecard.outcome_of("routable", False, correct=False)
+        assert name == "missed_rescue" and mistake
+
+    def test_the_buckets_reproduce_accuracy_on_a_synthetic_set(self):
+        """The reconciliation invariant, tested without grading 366 tasks.
+
+        This is the arithmetic that was wrong - `wasted_escalation` was left out
+        of the correct-answer total - and it is a property of the bucketing, not
+        of any particular corpus. One row is placed in every reachable
+        (cell, action, correct) combination, so a bucket that stops implying its
+        own correctness fails here in milliseconds rather than in three minutes.
+        """
+        import scorecard
+
+        rows, cells, expected_correct = [], {}, 0
+        i = 0
+        for cell in ("both_ok", "routable", "both_fail", "inverted"):
+            for used_expensive in (True, False):
+                # What the cross-tab says the outcome must be: escalating gets
+                # the expensive rung's verdict, staying cheap gets the cheap
+                # rung's. `rescued_by_resampling` is the one case where a policy
+                # beats that, and it is covered by the unit test above.
+                correct = ({"both_ok": True, "routable": True,
+                            "both_fail": False, "inverted": False}[cell]
+                           if used_expensive else
+                           {"both_ok": True, "routable": False,
+                            "both_fail": False, "inverted": True}[cell])
+                tid = f"t{i}"
+                i += 1
+                cells[tid] = cell
+                rows.append({
+                    "task_id": tid, "policy": "p", "domain": "code",
+                    "correct": correct, "cost_usd": 0.01,
+                    "calls": ["cheap", "expensive"] if used_expensive else ["cheap"],
+                })
+                expected_correct += correct
+
+        acc = scorecard.score(rows, cells)
+        d = acc["p"]["all"]
+        assert d["n"] == len(rows)
+        assert d["correct"] == expected_correct
+        got = sum(d["outcomes"][k] for k in scorecard.CORRECT_OUTCOMES)
+        assert got == expected_correct, (
+            f"buckets say {got} correct, rows say {expected_correct}. "
+            f"An outcome moved in or out of CORRECT_OUTCOMES.")
+
+    @pytest.mark.slow
+    def test_it_reconciles_against_the_committed_results(self):
+        """End to end on real data: the buckets must sum to the reported
+        accuracy for every policy.
+
+        Marked slow because it grades every code task through a subprocess -
+        3 seconds at 95 tasks, 168 at 426. The fast test above covers the
+        arithmetic; this covers the join against the real cross-tab.
+        """
+        import json
+        import subprocess
+        import sys
+
+        if not (REPO_ROOT / "results.jsonl").exists():
+            pytest.skip("no results.jsonl")
+        out = REPO_ROOT / "tests" / "_scorecard_tmp.json"
+        try:
+            proc = subprocess.run(
+                [sys.executable, str(REPO_ROOT / "scorecard.py"),
+                 "--json", str(out)],
+                capture_output=True, text=True, cwd=REPO_ROOT,
+            )
+            assert proc.returncode == 0, proc.stderr
+            assert "BUCKETS DO NOT RECONCILE" not in proc.stdout, proc.stdout
+            data = json.loads(out.read_text(encoding="utf-8"))
+            for policy, groups in data["policies"].items():
+                g = groups["all"]
+                right = sum(g[k] for k in scorecard_correct())
+                assert abs(right / g["n"] - g["accuracy"]) < 1e-9, (
+                    f"{policy}: buckets do not reproduce its accuracy")
+        finally:
+            if out.exists():
+                out.unlink()
+
+
+def scorecard_correct():
+    import scorecard
+    return scorecard.CORRECT_OUTCOMES

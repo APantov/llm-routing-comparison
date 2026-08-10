@@ -29,6 +29,26 @@ os.environ.setdefault("ROUTER_MODE", "mock")
 os.environ.setdefault("ROUTER_LADDER", "claude")
 
 
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "slow: grades the real task set end to end. Deselected by default - the "
+        "suite is meant to run in seconds so it actually gets run. Enable with "
+        "`pytest -m slow`, and note it scales with the task set: the same test "
+        "took 3 seconds at 95 tasks and 168 at 426.",
+    )
+
+
+def pytest_collection_modifyitems(config, items):
+    """Skip `slow` unless asked for, by -m slow or by name."""
+    if config.getoption("-m") or config.getoption("-k"):
+        return
+    skip = pytest.mark.skip(reason="slow: run with `pytest -m slow`")
+    for item in items:
+        if "slow" in item.keywords:
+            item.add_marker(skip)
+
+
 # Reload order matters: `models` first, then anything holding references to it.
 # `router_agent.graph` caches a compiled graph via lru_cache, so its cache has
 # to be cleared or a reloaded ladder would still be routed by a graph bound to

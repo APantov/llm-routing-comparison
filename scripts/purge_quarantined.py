@@ -107,6 +107,25 @@ def purge_redraw(path: Path, go: bool, n_total: int):
     tasks = routable_mod.load_tasks(REPO / "taskset.jsonl")
     cells = observed_cells(tasks, d.get("ladder", "wide"))
     routable, both_fail = cells["routable"], cells["both_fail"]
+
+    # A redraw file only re-estimates the task set it was drawn on. When the
+    # task set is REBUILT rather than trimmed, the current cross-tab contains
+    # tasks this file never drew, and reestimate() would raise KeyError on the
+    # first one - which is what happened on 10 August 2026 when the code half
+    # went from 35 tasks to 366.
+    #
+    # Refusing here rather than re-estimating over the overlap is deliberate.
+    # `reproducible` is a correction to a PUBLISHED number, and computing it
+    # from whichever tasks happen to appear in both files would produce a
+    # figure that looks like the same quantity and is not.
+    missing = [t["id"] for t in routable + both_fail if t["id"] not in p_hat]
+    if missing:
+        return {
+            "stale": True, "dropped": dropped, "missing": len(missing),
+            "example": missing[:3], "path": path,
+            "drawn_for": len(d.get("p_hat", {})),
+        }
+
     out = reestimate(cells, p_hat, n_total, d.get("tau", 0.2))
 
     before = {k: d.get(k) for k in ("observed", "expected", "reproducible", "noise_share")}
@@ -154,7 +173,19 @@ def main():
     n_total = sum(1 for l in (REPO / "taskset.jsonl").read_text(
         encoding="utf-8").splitlines() if l.strip())
     r = purge_redraw(REPO / REDRAW.format(ladder=args.ladder), args.go, n_total)
-    if r:
+    if isinstance(r, dict) and r.get("stale"):
+        print(f"\n  redraw.{args.ladder}.json  NOT UPDATED - it was drawn for a "
+              f"different task set.")
+        print(f"     it holds p_hat for {r['drawn_for']} task(s); the current "
+              f"cross-tab has {r['missing']} task(s) it never drew,")
+        print(f"     e.g. {', '.join(r['example'])}.")
+        print(f"     `reproducible` is a correction to a published number, and "
+              f"re-estimating it over\n     whichever tasks appear in both "
+              f"files would produce a figure that looks like the\n     same "
+              f"quantity and is not. Archive this file and redraw:")
+        print(f"       ROUTER_MODE=real python scripts/redraw_decisive.py "
+              f"--cells decisive --go")
+    elif r:
         dropped, before, after, n_rout, n_bf = r
         print(f"\n  redraw.{args.ladder}.json  dropped {dropped} of "
               f"{dropped + n_rout + n_bf} p_hat entries; "

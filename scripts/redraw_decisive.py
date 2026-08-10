@@ -306,9 +306,16 @@ def main():
                     help="extra samples per task per rung (default 10)")
     ap.add_argument("--temperature", type=float, default=0.0,
                     help="0.0 matches the probe, and measures ITS reproducibility")
-    ap.add_argument("--cells", choices=["decisive", "all"], default="decisive",
-                    help="'decisive' redraws routable+both_fail only (default). "
-                         "Ignored unless --pool probe.")
+    ap.add_argument("--cells", choices=["decisive", "both_fail", "all"],
+                    default="decisive",
+                    help="'decisive' redraws routable+both_fail (default). "
+                         "'both_fail' redraws only the tasks nothing passed - "
+                         "the adjudication case, and the one the quarantine bar "
+                         "needs: a task may only be quarantined if every rung's "
+                         "p-hat is 0, which one greedy draw cannot establish. "
+                         "Scoping the spend to that question keeps it around a "
+                         "fifth of a full decisive redraw. Ignored unless "
+                         "--pool probe.")
     ap.add_argument("--tau", type=float, default=0.2,
                     help="tolerance for calling a rung's outcome reliable")
     ap.add_argument("--tier", choices=["cheap", "expensive", "both"], default="both",
@@ -355,8 +362,12 @@ def main():
                 f"--policy always_cheap --policy always_expensive --split all\n"
                 f"  Or screen a raw pool instead:  --pool mbppplus --tier cheap"
             )
-        targets = (cells["routable"] + cells["both_fail"] if args.cells == "decisive"
-                   else [t for v in cells.values() for t in v])
+        if args.cells == "decisive":
+            targets = cells["routable"] + cells["both_fail"]
+        elif args.cells == "both_fail":
+            targets = list(cells["both_fail"])
+        else:
+            targets = [t for v in cells.values() for t in v]
         # Per-task means: these tasks defeated a rung, so they are the long ones.
         unit = mean_call_cost(ladder, {t["id"] for t in targets})
         basis = "mean greedy call cost on THESE tasks, not the task set average"
@@ -484,11 +495,22 @@ def main():
         # (1 - p_cheap) * p_expensive per task, so with one rung drawn it would
         # have to substitute the single-draw verdict for the other rung - which
         # is the exact quantity this script exists to stop trusting.
-        path = REPO / f"redraw.{ladder}.{tiers[0]}.json"
+        # The cells go in the FILENAME, not just in the payload. A both_fail-only
+        # expensive redraw and a decisive one answer different questions - "are
+        # these tasks unpassable" against "how much of the routable cell is
+        # reproducible" - and naming them both redraw.<ladder>.expensive.json
+        # lets the narrower one silently overwrite the broader one.
+        stem = (f"redraw.{ladder}.{tiers[0]}" if args.cells == "decisive"
+                else f"redraw.{ladder}.{args.cells}.{tiers[0]}")
+        path = REPO / f"{stem}.json"
         path.write_text(json.dumps(
             {**common, "cells_redrawn": args.cells, "n_graded": n_graded},
             indent=2), encoding="utf-8")
         print(f"\nwrote {path}")
+        if args.cells == "both_fail":
+            print("  This file answers 'are these tasks unpassable', which is "
+                  "what the\n  quarantine bar asks. It is NOT a correction to "
+                  "the routable fraction.")
         print(f"No re-estimate: only the {tiers[0]} rung was drawn, and the "
               f"routable fraction\nis a property of both. Re-run with --tier "
               f"both to get one.")
@@ -516,7 +538,15 @@ def main():
         print("\n  both_ok and inverted were not redrawn, so hidden routable mass\n"
               "  in those cells is not counted. Treat `reproducible` as a lower\n"
               "  bound; --cells all removes the caveat.")
+    elif args.cells == "both_fail":
+        print("\n  both_fail ONLY. This measures whether those tasks are truly\n"
+              "  unpassable - the question the quarantine bar asks - and says\n"
+              "  NOTHING about the routable fraction, because the routable cell\n"
+              "  was not redrawn. It is written to its own file for that reason.")
 
+    # Both rungs were drawn, so this IS a correction to the routable fraction
+    # and keeps the name downstream readers expect. The single-rung case above
+    # returns before here and names itself after the cells it drew.
     path = REPO / f"redraw.{ladder}.json"
     path.write_text(json.dumps(
         {**common, "cells_redrawn": args.cells,

@@ -1,0 +1,160 @@
+{
+  "ladder": "wide",
+  "draws": 3,
+  "temperature": 0.0,
+  "tau": 0.2,
+  "tiers": [
+    "expensive"
+  ],
+  "p_hat": {
+    "math-154": {
+      "expensive": 0.0
+    },
+    "codeplus-113": {
+      "expensive": 0.0
+    },
+    "codeplus-735": {
+      "expensive": 0.0
+    },
+    "codeplus-622": {
+      "expensive": 0.0
+    },
+    "codeplus-620": {
+      "expensive": 0.0
+    },
+    "codeplus-780": {
+      "expensive": 0.0
+    },
+    "codeplus-16": {
+      "expensive": 0.0
+    },
+    "codeplus-462": {
+      "expensive": 0.0
+    },
+    "codeplus-556": {
+      "expensive": 0.0
+    },
+    "codeplus-235": {
+      "expensive": 1.0
+    },
+    "codeplus-558": {
+      "expensive": 0.0
+    },
+    "codeplus-593": {
+      "expensive": 0.0
+    },
+    "codeplus-459": {
+      "expensive": 0.0
+    },
+    "codeplus-806": {
+      "expensive": 0.0
+    },
+    "codeplus-92": {
+      "expensive": 0.0
+    },
+    "codeplus-74": {
+      "expensive": 0.0
+    },
+    "codeplus-301": {
+      "expensive": 0.6666666666666666
+    },
+    "codeplus-306": {
+      "expensive": 0.0
+    },
+    "codeplus-577": {
+      "expensive": 0.0
+    },
+    "codeplus-102": {
+      "expensive": 0.0
+    },
+    "codeplus-559": {
+      "expensive": 0.0
+    },
+    "codeplus-468": {
+      "expensive": 0.0
+    },
+    "codeplus-138": {
+      "expensive": 0.0
+    },
+    "codeplus-415": {
+      "expensive": 0.0
+    }
+  },
+  "draws_used": {
+    "math-154": {
+      "expensive": 2
+    },
+    "codeplus-113": {
+      "expensive": 3
+    },
+    "codeplus-735": {
+      "expensive": 3
+    },
+    "codeplus-622": {
+      "expensive": 3
+    },
+    "codeplus-620": {
+      "expensive": 3
+    },
+    "codeplus-780": {
+      "expensive": 3
+    },
+    "codeplus-16": {
+      "expensive": 3
+    },
+    "codeplus-462": {
+      "expensive": 3
+    },
+    "codeplus-556": {
+      "expensive": 3
+    },
+    "codeplus-235": {
+      "expensive": 3
+    },
+    "codeplus-558": {
+      "expensive": 3
+    },
+    "codeplus-593": {
+      "expensive": 3
+    },
+    "codeplus-459": {
+      "expensive": 3
+    },
+    "codeplus-806": {
+      "expensive": 3
+    },
+    "codeplus-92": {
+      "expensive": 3
+    },
+    "codeplus-74": {
+      "expensive": 3
+    },
+    "codeplus-301": {
+      "expensive": 3
+    },
+    "codeplus-306": {
+      "expensive": 3
+    },
+    "codeplus-577": {
+      "expensive": 3
+    },
+    "codeplus-102": {
+      "expensive": 3
+    },
+    "codeplus-559": {
+      "expensive": 3
+    },
+    "codeplus-468": {
+      "expensive": 3
+    },
+    "codeplus-138": {
+      "expensive": 3
+    },
+    "codeplus-415": {
+      "expensive": 3
+    }
+  },
+  "truncated_draws_dropped": 1,
+  "cells_redrawn": "both_fail",
+  "n_graded": 425
+}

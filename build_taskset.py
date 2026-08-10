@@ -321,6 +321,47 @@ QUARANTINED = {
     "codeplus-630":
         "expected coordinate ordering is a reference artefact the prompt does not "
         "specify.",
+
+    # --- added 10 August 2026, after the code half was rebuilt to 366 tasks ---
+    #
+    # All nine cleared the bar above: three fresh expensive-rung draws each, p-hat
+    # 0.0 on every one (redraw.wide.both_fail.expensive.json). And all nine were
+    # found the same way - scripts/triage_both_fail.py showed five independent
+    # prompt-conformant candidates disagreeing with the reference on the SAME
+    # hidden inputs, which are the inputs quoted here.
+    "codeplus-593":
+        "'remove LEADING zeroes from an ip address', but the reference strips "
+        "non-leading zeroes too: '0.0.0.0' -> '0...', which is not an ip address.",
+    "codeplus-459":
+        "'remove UPPERCASE substrings', but the reference also strips punctuation: "
+        "'ThiS%^%!s&a(mY)TesTStR%i*ng' -> 'hisamesting'. The prompt says nothing "
+        "about %^%!&()*.",
+    "codeplus-102":
+        "snake_case to camelCase, but the reference preserves leading underscores "
+        "and converts inconsistently: '__12_python__language___' -> "
+        "'__12Python_Language___'. Nothing in the prompt determines that.",
+    "codeplus-806":
+        "'maximum RUN of uppercase characters': the reference scores 'Aaa' as 0, so "
+        "a run of one does not count. The prompt does not say a run needs length 2.",
+    "codeplus-577":
+        "'last digit in factorial of a given number', but evalplus fuzzes floats "
+        "into it: on 1.5869584267664152 the reference returns the input unchanged. "
+        "Factorial of a non-integer is undefined and the prompt never mentions it.",
+    "codeplus-559":
+        "'sum of the largest contiguous sublist' with the empty-sublist convention "
+        "unstated: [] -> 0 and all-negative -> 0, where a non-empty-sublist reading "
+        "gives an error and -1. Both readings fit the prompt.",
+    "codeplus-622":
+        "'median of two sorted lists of SAME SIZE', called with size 0: "
+        "([1], [2], 0) -> 0.5. There is no median of an empty pair of lists.",
+    "codeplus-735":
+        "'toggle bits of the number except the first and last', called with the "
+        "bool True rather than an int: the reference returns 3 where True == 1 "
+        "toggles to 1. The prompt is about a number.",
+    "codeplus-558":
+        "'sum of the per-digit difference between two integers' is undefined for "
+        "operands of different digit lengths: on (12345, 9) the reference gives 8 "
+        "where five independent solutions all give 14.",
 }
 
 # REVERSED 10 August 2026: codeplus-305, "return two words from a list of words
@@ -343,6 +384,21 @@ QUARANTINED = {
 UNQUARANTINED = {
     "codeplus-305": "expensive p-hat 0.5 over 11 greedy draws; cheap 0.0. Hard "
                     "and routable, not unpassable. Reversed 10 August 2026.",
+}
+
+# Tasks that LOOKED unpassable on one draw and are not. Not a quarantine list -
+# nothing is removed - but recorded here because they are the reason the bar
+# asks for p-hat rather than a verdict, and because a future reader looking at
+# the single-draw cross-tab will see them in `both_fail` and wonder.
+#
+# Found 10 August 2026 by redrawing all 24 both_fail tasks three times at the
+# expensive rung, for $0.25. Two of the 24 were passable:
+NOT_ACTUALLY_BOTH_FAIL = {
+    "codeplus-235": "expensive p-hat 1.0 over 3 fresh draws - passes every time. "
+                    "The single greedy draw that put it in both_fail was the "
+                    "outlier, not the rule.",
+    "codeplus-301": "expensive p-hat 0.67 over 3 fresh draws. Flaky at the top "
+                    "rung, not unpassable.",
 }
 
 
