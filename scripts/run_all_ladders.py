@@ -20,14 +20,14 @@ guard compares like with like and there is nothing to clobber.
 WHAT IT DOES
 
     for each ladder:
-        run_eval.py       --out results.<ladder>.jsonl
-        frontier.py       --out frontier.<ladder>.jsonl
-        sweep_degraded.py --out sweep_degraded.<ladder>.jsonl
-        plot.py           --frontier ... --sweep ... --suffix .<ladder>
+        -m llm_routing.run_eval       --out runs/results.<ladder>.jsonl
+        -m llm_routing.frontier       --out runs/frontier.<ladder>.jsonl
+        -m llm_routing.sweep_degraded --out runs/sweep_degraded.<ladder>.jsonl
+        -m llm_routing.plot           --frontier ... --sweep ... --suffix .<ladder>
 
-then copies the canonical ladder's results to the unsuffixed `results.jsonl` and
-`frontier.jsonl`, because README, STATUS, the test suite and `router_agent`
-all read those names.
+then copies the canonical ladder's results to the unsuffixed
+`runs/results.jsonl` and `runs/frontier.jsonl`, because README, STATUS, the test
+suite and `router_agent` all read those names.
 
 EACH LADDER RUNS IN ITS OWN SUBPROCESS. `models.LADDER` is read from the
 environment at import time and baked into module-level constants (`TIERS`,
@@ -74,7 +74,7 @@ def ladders_available():
     Imported lazily and in a subprocess-free way: this only touches LADDERS,
     which does not depend on which ladder is selected.
     """
-    import models
+    from llm_routing import models
     return list(models.LADDERS)
 
 
@@ -131,7 +131,7 @@ def main():
                          "will fail the same way.")
     ap.add_argument("--skip-plots", action="store_true",
                     help="data files only, no SVGs")
-    ap.add_argument("--log", default=str(REPO / "run_all_ladders.log"))
+    ap.add_argument("--log", default=str(REPO / "runs" / "run_all_ladders.log"))
     args = ap.parse_args()
 
     available = ladders_available()
@@ -145,6 +145,7 @@ def main():
         wanted = available
 
     log = Path(args.log)
+    log.parent.mkdir(parents=True, exist_ok=True)
     log.write_text("", encoding="utf-8")
 
     mode = os.environ.get("ROUTER_MODE", "mock")
@@ -160,17 +161,24 @@ def main():
         env = dict(os.environ)
         env["ROUTER_LADDER"] = ladder
 
+        # `-m` rather than a path: the research modules are a package now, and
+        # `python llm_routing/run_eval.py` would put llm_routing/ on sys.path
+        # instead of the repo root, so `from llm_routing import models` would
+        # not resolve. cwd=REPO below is what makes -m find the package with
+        # nothing installed.
         steps = [
-            (["run_eval.py", "--out", f"results.{ladder}.jsonl"], "run_eval"),
-            (["frontier.py", "--out", f"frontier.{ladder}.jsonl"], "frontier"),
-            (["sweep_degraded.py", "--out", f"sweep_degraded.{ladder}.jsonl"],
-             "sweep_degraded"),
+            (["-m", "llm_routing.run_eval",
+              "--out", f"runs/results.{ladder}.jsonl"], "run_eval"),
+            (["-m", "llm_routing.frontier",
+              "--out", f"runs/frontier.{ladder}.jsonl"], "frontier"),
+            (["-m", "llm_routing.sweep_degraded",
+              "--out", f"runs/sweep_degraded.{ladder}.jsonl"], "sweep_degraded"),
         ]
         if not args.skip_plots:
             steps.append((
-                ["plot.py",
-                 "--frontier", f"frontier.{ladder}.jsonl",
-                 "--sweep", f"sweep_degraded.{ladder}.jsonl",
+                ["-m", "llm_routing.plot",
+                 "--frontier", f"runs/frontier.{ladder}.jsonl",
+                 "--sweep", f"runs/sweep_degraded.{ladder}.jsonl",
                  "--suffix", f".{ladder}"],
                 "plot",
             ))
@@ -191,21 +199,22 @@ def main():
                 break
 
     # The canonical ladder also owns the unsuffixed names, because README,
-    # STATUS, tests/ and router_agent/findings.py all read `results.jsonl` and
-    # `frontier.jsonl`. Copy rather than symlink: this runs on Windows, and a
-    # tracked file that is sometimes a link is a portability problem nobody
-    # needs.
+    # STATUS, tests/ and router_agent/findings.py all read `runs/results.jsonl`
+    # and `runs/frontier.jsonl`. Copy rather than symlink: this runs on Windows,
+    # and a tracked file that is sometimes a link is a portability problem
+    # nobody needs.
     if CANONICAL in wanted and not any(l == CANONICAL for l, _ in failed):
         for stem in ("results", "frontier", "sweep_degraded"):
-            src = REPO / f"{stem}.{CANONICAL}.jsonl"
+            src = REPO / "runs" / f"{stem}.{CANONICAL}.jsonl"
             if src.exists():
-                shutil.copyfile(src, REPO / f"{stem}.jsonl")
+                shutil.copyfile(src, REPO / "runs" / f"{stem}.jsonl")
         for stem in ("frontier", "degradation"):
             src = REPO / "figures" / f"{stem}.{CANONICAL}.svg"
             if src.exists():
                 shutil.copyfile(src, REPO / "figures" / f"{stem}.svg")
         print(f"\ncopied {CANONICAL} -> the unsuffixed names "
-              f"(results.jsonl, frontier.jsonl, sweep_degraded.jsonl, figures/)")
+              f"(runs/results.jsonl, runs/frontier.jsonl, "
+              f"runs/sweep_degraded.jsonl, figures/)")
 
     if failed:
         print("\nfailed steps:")
@@ -216,9 +225,10 @@ def main():
 
     print(f"\nall {len(wanted)} ladder(s) complete.")
     print("  paired tests are per-ladder - different ladders are different")
-    print("  models, so run stats.py once per file rather than across them:")
+    print("  models, so run stats once per file rather than across them:")
     for ladder in wanted:
-        print(f"    python stats.py --results results.{ladder}.jsonl")
+        print(f"    python -m llm_routing.stats "
+              f"--results runs/results.{ladder}.jsonl")
     return 0
 
 

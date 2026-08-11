@@ -14,9 +14,9 @@ measures a cheap model's failure rate, and that rate was 0/10 against original
 MBPP, tightening the tests is the cheapest way to make the task set discriminate
 again.
 
-    python3 fetch_mbppplus.py            # writes data/mbppplus.json
-    python3 build_taskset.py
-    python3 sanity_check.py
+    python -m llm_routing.fetch_mbppplus            # writes data/mbppplus.json
+    python -m llm_routing.build_taskset
+    python -m llm_routing.sanity_check
 
 NEEDS THE `datasets` PACKAGE, and only this script does. It is a one-time
 conversion: after it runs, data/mbppplus.json is plain JSON and the rest of the
@@ -40,8 +40,9 @@ import sys
 import tempfile
 from pathlib import Path
 
-HERE = Path(__file__).parent
-OUT = HERE / "data" / "mbppplus.json"
+from llm_routing import paths
+
+OUT = paths.DATA / "mbppplus.json"
 
 # Seconds per validation run. The expanded suites take about 0.1s each; this is
 # headroom for a slow machine rather than a tuned value.
@@ -218,7 +219,7 @@ def _write(out, rows, dropped):
         print("\n  Other causes are possible; the error above is what actually")
         print("  happened, and is the thing to read rather than this explanation.")
 
-    print("\nnext:  python3 build_taskset.py && python3 sanity_check.py")
+    print("\nnext:  python -m llm_routing.build_taskset && python -m llm_routing.sanity_check")
 
 
 if __name__ == "__main__":

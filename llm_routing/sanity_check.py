@@ -7,7 +7,7 @@ any change to graders.py, to build_taskset.py, or to the taskset schema.
 Every count must come out full. Exits non-zero otherwise, so it can be wired
 into a pre-commit hook or CI.
 
-    python3 sanity_check.py
+    python -m llm_routing.sanity_check
 
 THREE checks, and the third exists because the first two are not enough. Feeding
 the ground-truth answer back into \\boxed{} only ever tests grade(GT, GT), which
@@ -26,9 +26,8 @@ import json
 import sys
 from pathlib import Path
 
-from graders import grade
-
-HERE = Path(__file__).parent
+from llm_routing import paths
+from llm_routing.graders import grade
 
 # (ground truth, a DIFFERENTLY FORMATTED but correct answer). Must grade True.
 # Every pair here is a real case observed in the 6 August 2026 probe.
@@ -123,9 +122,9 @@ def math_response(t):
 
 
 def main():
-    path = HERE / "taskset.jsonl"
+    path = paths.TASKSET
     if not path.exists():
-        sys.exit(f"{path.name} not found. Build it first: python3 build_taskset.py")
+        sys.exit(f"{path.name} not found. Build it first: python -m llm_routing.build_taskset")
 
     with path.open(encoding="utf-8") as f:
         tasks = [json.loads(l) for l in f if l.strip()]

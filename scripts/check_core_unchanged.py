@@ -79,9 +79,9 @@ def main() -> int:
                     help="git revision to compare against (default: HEAD)")
     args = ap.parse_args()
 
-    taskset = REPO / "taskset.jsonl"
+    taskset = REPO / "data" / "taskset.jsonl"
     if not taskset.exists():
-        print("taskset.jsonl not found; run: python build_taskset.py",
+        print("taskset.jsonl not found; run: python -m llm_routing.build_taskset",
               file=sys.stderr)
         return 1
     tasks = [json.loads(l) for l in taskset.open(encoding="utf-8") if l.strip()]
@@ -103,14 +103,35 @@ def main() -> int:
                   f"serving-only `code_untested` prompt", file=sys.stderr)
             return 1
 
-    try:
-        original = subprocess.run(
-            ["git", "show", f"{args.ref}:models.py"],
-            cwd=REPO, capture_output=True, check=True, text=True,
-        ).stdout
-    except (subprocess.CalledProcessError, FileNotFoundError) as exc:
-        print(f"could not read models.py at {args.ref}: {exc}", file=sys.stderr)
+    # models.py moved from the repository root into llm_routing/ on
+    # 11 August 2026. Both locations are tried, newest first, so `--ref` still
+    # reaches revisions from either side of that move - which is the whole
+    # point of being able to name a revision.
+    original = None
+    for rel in ("llm_routing/models.py", "models.py"):
+        try:
+            original = subprocess.run(
+                ["git", "show", f"{args.ref}:{rel}"],
+                cwd=REPO, capture_output=True, check=True, text=True,
+            ).stdout
+            break
+        except subprocess.CalledProcessError:
+            continue
+        except FileNotFoundError as exc:
+            print(f"git is not available: {exc}", file=sys.stderr)
+            return 1
+    if original is None:
+        print(f"could not read models.py at {args.ref} from either "
+              f"llm_routing/models.py or models.py", file=sys.stderr)
         return 1
+
+    # A pre-move reference copy opens with a flat `import response_cache`, which
+    # no longer resolves. Alias it to the current module, which is exactly what
+    # that line used to bind to when response_cache.py sat next to models.py.
+    # Nothing in the fingerprint comes from the cache - _mock_call is pure - so
+    # the alias cannot change what is being compared.
+    from llm_routing import response_cache as _rc
+    sys.modules.setdefault("response_cache", _rc)
 
     failures = []
     with tempfile.TemporaryDirectory() as td:
@@ -126,7 +147,7 @@ def main() -> int:
                     del sys.modules[name]
 
             ref_mod = _load(ref_path, f"models_ref_{ladder}")
-            cur_mod = _load(REPO / "models.py", f"models_cur_{ladder}")
+            cur_mod = _load(REPO / "llm_routing" / "models.py", f"models_cur_{ladder}")
 
             a, b = _fingerprint(ref_mod, tasks), _fingerprint(cur_mod, tasks)
             status = "identical" if a == b else "DIVERGED"

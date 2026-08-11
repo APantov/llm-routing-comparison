@@ -111,7 +111,7 @@ The dial is a number `p` between 0 and 1:
 
 Now you get a **curve** instead of two dots, and the curve answers a real
 engineering question: *how bad can my verifier get before cascading stops being
-worth it?* That is `sweep_degraded.py`.
+worth it?* That is `llm_routing/sweep_degraded.py`.
 
 ## 6. The comparison nobody remembers to make
 
@@ -161,7 +161,7 @@ is real code doing real work.
 But it means:
 
 > **Every accuracy percentage this repo prints is currently a restatement of a
-> constant somebody typed into `models.py`.** It is not a measurement of any
+> constant somebody typed into `llm_routing/models.py`.** It is not a measurement of any
 > model. If you edit `MOCK_SKILL` from 0.86 to 0.95, the "results" change, and
 > nothing has been learned.
 
@@ -172,7 +172,7 @@ though "this policy is 89% accurate" is not a real statement about anything.
 
 The repo tries hard to stop you forgetting this. Every run prints a warning block
 at the top **and** the bottom. Every table has `SIMULATED, NOT MEASURED` above it.
-Every output row carries a `"simulated": true` flag. And `results.jsonl` is not
+Every output row carries a `"simulated": true` flag. And `runs/results.jsonl` is not
 committed to the repo, so no made-up percentage ends up published.
 
 ## 8. The three modes
@@ -226,7 +226,7 @@ outside the oracle's choices, so **the cascade could score higher than the
 "ceiling"**. Which it did.
 
 A ceiling that is not a ceiling makes every "fraction of available improvement
-captured" number meaningless. It is fixed now, and `run_eval.py` prints an
+captured" number meaningless. It is fixed now, and `llm_routing/run_eval.py` prints an
 explicit check every run so it cannot come back unnoticed.
 
 ## 10b. The comparison nobody's numbers survive
@@ -237,7 +237,7 @@ The report table shows `cascade` at 90% and `llm_router` at 88%. Two points. On
 the version of this table that existed a week earlier the gap looked like six.
 Either way, it looks like a win.
 
-`stats.py` checks whether that gap is real. The right test here is a **paired**
+`llm_routing/stats.py` checks whether that gap is real. The right test here is a **paired**
 one: every policy answered the same tasks, so instead of comparing two averages
 you look at the tasks where the two policies *disagreed*. On the held-out half
 there were three such tasks — two where the cascade was right and the router
@@ -264,7 +264,7 @@ pay for the model calls once, and every analysis afterwards is free.
 
 ## 10c. Policies are curves, not points
 
-Related, and the reason `frontier.py` exists.
+Related, and the reason `llm_routing/frontier.py` exists.
 
 Every policy here has a dial. The cascade has "how much must the samples agree
 before I trust them". The learned router has "how confident must I be that the
@@ -275,7 +275,7 @@ Which means comparing two policies at one dial setting each is close to
 meaningless. Whoever set the dials picks the winner. "Our router beat the cascade"
 usually just means "our router was set to spend more".
 
-So `frontier.py` sweeps every dial across its whole range and draws each policy as
+So `llm_routing/frontier.py` sweeps every dial across its whole range and draws each policy as
 a **line** on a cost-versus-accuracy chart. Then you can ask the question that
 actually matters: *at my budget, which line is highest?* The answer turns out to be
 different at different budgets, which is exactly why a single table row cannot
@@ -334,7 +334,7 @@ real input ratio is closer to 6.5x.
 
 This works *against* cascading, because escalation means paying that inflated
 input cost on top of the cheap call you already made. It is now modelled
-explicitly in `models.py` and documented next to the price table.
+explicitly in `llm_routing/models.py` and documented next to the price table.
 
 ## 11b. Why half the questions are hidden from the tuning
 
@@ -343,9 +343,9 @@ best on all 100 questions, then report that score, the number is partly measurin
 your own choice rather than the method. This is the classic mistake and it inflates
 results silently.
 
-So `splits.py` cuts the set in half. Thresholds get tuned and quality estimates get
+So `llm_routing/splits.py` cuts the set in half. Thresholds get tuned and quality estimates get
 fitted on one half; the reported numbers come from the other half, which the tuning
-never saw. That is why `run_eval.py` says `n=51` rather than `n=100`.
+never saw. That is why `llm_routing/run_eval.py` says `n=51` rather than `n=100`.
 
 The split is deliberately not a plain coin flip. It is balanced so that both halves
 contain the same mix of easy, medium and hard questions in both subjects — with only
@@ -355,18 +355,18 @@ the two halves would not be comparable at all.
 ## 12. What to run, in order
 
 ```bash
-python3 build_taskset.py     # 1. build the 100 questions from data/
-python3 sanity_check.py      # 2. prove the graders work: must say 40/40 and 60/60
-python3 splits.py            # 3. show the calibration / evaluation split
-python3 run_eval.py          # 4. run every policy, report on the hidden half
-python3 frontier.py          # 5. draw each policy as a curve, not a point
-python3 stats.py             # 6. ask whether any difference is real
-python3 sweep_degraded.py    # 7. the verifier-quality curve (the experiment)
-python3 plot.py              # 8. write figures/*.svg
+python -m llm_routing.build_taskset     # 1. build the 100 questions from data/
+python -m llm_routing.sanity_check      # 2. prove the graders work: must say 40/40 and 60/60
+python -m llm_routing.splits            # 3. show the calibration / evaluation split
+python -m llm_routing.run_eval          # 4. run every policy, report on the hidden half
+python -m llm_routing.frontier          # 5. draw each policy as a curve, not a point
+python -m llm_routing.stats             # 6. ask whether any difference is real
+python -m llm_routing.sweep_degraded    # 7. the verifier-quality curve (the experiment)
+python -m llm_routing.plot              # 8. write figures/*.svg
 ```
 
 Step 2 is the one to care about. If a grader cannot score the *known correct*
-answer, then every number after it is garbage — so `sanity_check.py` exits with
+answer, then every number after it is garbage — so `llm_routing/sanity_check.py` exits with
 an error rather than just printing something and carrying on.
 
 Step 6 is the one to believe. It is the only script that will tell you a difference

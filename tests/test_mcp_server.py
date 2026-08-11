@@ -68,7 +68,7 @@ class TestTools:
         assert d["ratio"]["verdict"] == "route"
 
     async def test_estimate_cost_calls_no_model(self, server):
-        import models
+        from llm_routing import models
         before = models.call_stats["requested"]
         r = await server.call_tool("estimate_cost", {"query": "What is 2+2?"})
         assert not r.is_error
@@ -118,7 +118,7 @@ class TestResources:
         return json.loads(chunks[0].content)
 
     async def test_ladders_resource_lists_every_ladder(self, server):
-        import models
+        from llm_routing import models
         d = await self._read(server, "routing://ladders")
         assert set(d["ladders"]) == set(models.LADDERS)
 

@@ -16,12 +16,12 @@ from router_agent.engine import route
 
 class TestCascadeMechanics:
     def test_cascade_starts_at_the_cheapest_rung(self, cfg):
-        import models
+        from llm_routing import models
         out = route("What is 2+2?", cfg=cfg(policy="cascade"))
         assert out.events[0]["data"]["start_tier"] == models.TIERS[0]
 
     def test_always_expensive_starts_at_the_top(self, cfg):
-        import models
+        from llm_routing import models
         out = route("What is 2+2?", cfg=cfg(policy="always_expensive"))
         assert out.final_tier == models.TIERS[-1]
 

@@ -25,7 +25,7 @@ routing signal and the usable verifier are in different halves" — was argued
 partly from `both_fail` counts that were this artefact.** Code `both_fail` is now
 zero and its rescue rate is 100%.
 
-The general lesson, and the reason `routable.py` now prints a review queue:
+The general lesson, and the reason `llm_routing/routable.py` now prints a review queue:
 **"both rungs failed" reads as "hard" and is equally consistent with "broken".**
 The cross-tab cannot tell, nobody looked for four months, and the two need
 different responses. Any task landing in `both_fail` is unmeasured until someone
@@ -35,7 +35,7 @@ runs a textbook solution against its tests.
 their responses and screened them out at each point of use; that spread five
 broken tasks through the codebase as permanent complexity to preserve $0.1667 of
 API calls no rerun could ever use. `scripts/purge_quarantined.py` removed every
-trace — 115 cache rows, 10 probe rows, 5 RouteLLM scores, 5 `redraw.wide.json`
+trace — 115 cache rows, 10 probe rows, 5 RouteLLM scores, 5 `runs/redraw.wide.json`
 entries — and the filters went with them. Committed spend is now **982 responses,
 $4.2372**. No result moved: the task set had already excluded them.
 
@@ -49,7 +49,7 @@ is the last one holding the purged rows.
 
 > **RESOLVED on the `wide` ladder, 8 August 2026.** This issue was written when
 > the only real run was a degenerate 5-task plumbing check. The cache now holds
-> **982 real responses** for **$4.24**, and `ROUTER_MODE=replay run_eval.py`
+> **982 real responses** for **$4.24**, and `ROUTER_MODE=replay python -m llm_routing.run_eval`
 > scores nine policies on real models with `simulated: false` meaning it. The
 > table is in STATUS.md §1.
 >
@@ -89,9 +89,9 @@ still the right warning.
 ### 1a. Real models have been called once, and the run was degenerate
 
 The plumbing check has been done. On 30 July 2026, `ROUTER_MODE=real
-ROUTER_LADDER=wide run_eval.py --limit 10` produced **47 real model responses**
+ROUTER_LADDER=wide python -m llm_routing.run_eval --limit 10` produced **47 real model responses**
 (cached in `cache/raw_calls.wide.jsonl` 45, `.claude.jsonl` 1, `.deepseek.jsonl` 1)
-and **47 rows in `results.jsonl`** with `"mode": "real"`, `"simulated": false`, for
+and **47 rows in `runs/results.jsonl`** with `"mode": "real"`, `"simulated": false`, for
 **$0.0481**. So the repo is past "nothing has ever been called".
 
 It is not past "there is no result". All policies scored **100% on all five
@@ -104,9 +104,9 @@ The remaining path costs little:
 
 ```bash
 cp .env.example .env      # then paste your key in; .env is gitignored
-# ROUTER_MODE=real python3 run_eval.py --limit 10   # plumbing check — DONE, $0.048
-ROUTER_MODE=real python3 run_eval.py --policy always_cheap --split all  # the gate
-ROUTER_MODE=real python3 run_eval.py              # full run
+# ROUTER_MODE=real python -m llm_routing.run_eval --limit 10   # plumbing check — DONE, $0.048
+ROUTER_MODE=real python -m llm_routing.run_eval --policy always_cheap --split all  # the gate
+ROUTER_MODE=real python -m llm_routing.run_eval              # full run
 ```
 
 Then commit the ladder's cache file (`cache/raw_calls.claude.jsonl`, or whichever
@@ -125,7 +125,7 @@ ladder was run) and everything after that is free and reproducible for anyone, v
 > 95% upper bound of 27.8%. **More tasks cannot fix a ceiling of zero.** Fix the
 > task set first; the two-arm probe that decides it costs $0.44.
 
-This is now measured rather than suspected. `python3 stats.py` runs exact McNemar
+This is now measured rather than suspected. `python -m llm_routing.stats` runs exact McNemar
 tests and paired bootstraps over every pre-registered comparison, and on the
 held-out half **none of them reaches significance**. Not one. The accuracy gaps
 that look decisive in the report table — five or six points between adjacent
@@ -146,7 +146,7 @@ at these discordance rates needs several hundred tasks, not one hundred.
 
 Two things partly mitigate it in the meantime:
 
-- `frontier.py` compares whole curves rather than single points, which pools
+- `llm_routing/frontier.py` compares whole curves rather than single points, which pools
   information across every operating point and is correspondingly less noisy than
   any one row of the table.
 - The degradation sweep averages over 200 corruption draws per level, so its
@@ -155,7 +155,7 @@ Two things partly mitigate it in the meantime:
 ### 3. `routable = 15%` rests on a single draw per task per rung
 
 The two-arm probe of 6 August is the only real accuracy measurement in this
-repository, and every row in `results.probe.jsonl` carries `"calls": ["cheap"]`
+repository, and every row in `runs/results.probe.jsonl` carries `"calls": ["cheap"]`
 or `["expensive"]` — **one draw per (task, tier)**, at temperature 0.
 
 That is the standard protocol, and it has a known bias. *How Much of the Routing
@@ -222,21 +222,21 @@ toward the lower end of the existing 95% CI [9.3%, 23.3%].
 > invariant it was written under. Truncated draws are instead **dropped from
 > p̂'s numerator and denominator**: `math-154` expensive is 0.00 on **9** draws
 > rather than 0.00 on 10, and `math-422` cheap rises 0.50 → 0.56. Both counts
-> are recorded per task in `redraw.wide.json` under `draws_used`, so a reader
+> are recorded per task in `runs/redraw.wide.json` under `draws_used`, so a reader
 > can see which figures rest on fewer draws.
 >
 > `models.is_truncated` is now the single definition of the rule, applied
 > wherever an analysis grades straight off the cache: `redraw_decisive`,
 > `routable.real_verdicts` and `resample_vs_reroute`.
 >
-> Per-task probabilities are in `redraw.wide.json`. Everything replays for free.
+> Per-task probabilities are in `runs/redraw.wide.json`. Everything replays for free.
 
 The full protocol in the paper is k ≥ 20 seed-aligned draws per cell, which was
 unnecessary here: the noise lives in the cells already identified as decisive, so
 redrawing 21 tasks rather than 100 answered it for a fifth of the price.
 
 ```bash
-ROUTER_MODE=real ROUTER_LADDER=wide python3 scripts/redraw_decisive.py --draws 10 --go
+ROUTER_MODE=real ROUTER_LADDER=wide python scripts/redraw_decisive.py --draws 10 --go
 ```
 
 `models.call` already takes a `sample_idx` and the response cache is already
@@ -355,8 +355,8 @@ drop — possibly a lot — on the first real run. Do not quote the mock figure.
 ### 5. Hyperparameters are calibrated, but the calibration is thin
 
 Three numbers are free parameters. Two control the cascade's verifier, one sets
-the learned router's operating point. They live in `policies.py` and
-`routellm_router.py` next to the code they govern, marked `DECISION #2`, `#3`
+the learned router's operating point. They live in `llm_routing/policies.py` and
+`llm_routing/routellm_router.py` next to the code they govern, marked `DECISION #2`, `#3`
 and `#8b`.
 
 | constant | value | what it controls | which way it biases |
@@ -372,17 +372,17 @@ rebuilt at level 5 — at which point it selected everything and the policy stop
 routing. A free parameter that is never re-derived does not merely go stale; it
 can silently become a constant. The policy was deleted (STATUS.md §2.3).
 
-`splits.py` now holds out half the task set, `run_eval.py --split eval` reports on
+`llm_routing/splits.py` now holds out half the task set, `llm_routing/run_eval.py --split eval` reports on
 the held-out half by default, and `cascade_routing`'s quality estimators are fitted
 on the calibration half only. So the worst version of this problem is fixed.
 
 What remains: the constants above were *originally* chosen while looking at
 all 100 tasks, and re-deriving them properly on the calibration half has not been
 done — they are inherited values that the split now merely protects from getting
-worse. `frontier.py` sidesteps the issue for comparison purposes by sweeping each
+worse. `llm_routing/frontier.py` sidesteps the issue for comparison purposes by sweeping each
 knob across its whole range instead of trusting any single setting.
 
-Note that this is a separate problem from the mock constants in `models.py`
+Note that this is a separate problem from the mock constants in `llm_routing/models.py`
 (`MOCK_SKILL`, `MOCK_ROUTER_SKILL`, `MOCK_TOKENS_OUT`, `MOCK_LATENCY_S`). Those are
 not tuned against a result — they *are* the result, in mock mode. See items 3 and 8.
 
@@ -419,7 +419,7 @@ runs with a deliberately uninformative ex-ante term and only the post-hoc half
 working. `EXANTE_FEATURE` is the hook a real estimator would plug into.
 
 The **post-hoc** side is the half this repo does have, on the code domain, and it
-is what `sweep_degraded.py` manipulates.
+is what `llm_routing/sweep_degraded.py` manipulates.
 
 ### 7. Every rung's capability is stipulated in mock mode
 
@@ -481,7 +481,7 @@ cannot have.
 
 That does not sink the idea, and it is worth being precise about why:
 
-- `sweep_degraded.py` is exactly the instrument for this, and now runs on real
+- `llm_routing/sweep_degraded.py` is exactly the instrument for this, and now runs on real
   data. It prices the loss directly — at p=0.50 the cascade still holds
   always-expensive's accuracy 60% cheaper. A deployed verifier is a *degraded*
   verifier, not an absent one, and the sweep says how much degradation is
@@ -516,7 +516,7 @@ It had been taking the fallback. Measured 7 August 2026: of the 240
 self-consistency samples the maths cascade needs across the task set, **240 came
 from the mock cache and 0 from the real one** — the real temperature-0.8
 responses on disk are orphaned at the old `MAX_TOKENS=2048` and never matched.
-The resulting 370-row `results.jsonl`, every row `simulated: false`, reported the
+The resulting 370-row `runs/results.jsonl`, every row `simulated: false`, reported the
 maths cascade at 100% accuracy. That is issue 4 above — "mock mode makes majority
 voting far too strong" — restated as a measurement.
 
@@ -528,7 +528,7 @@ Fixed in three places, because one would not have been enough:
 - **`run_eval.run` measures the flag per row** from `call_stats["served_mock"]`
   deltas across each policy call. One fabricated response anywhere in a row makes
   the row simulated — a cascade that verifies a real cheap answer with five mock
-  samples is reporting the mock's verdict. `frontier.py` takes the conservative
+  samples is reporting the mock's verdict. `llm_routing/frontier.py` takes the conservative
   whole-run version, since a frontier point aggregates every task.
 - **The fallback is off by default**, behind `ROUTER_REPLAY_FALLBACK=1`. A
   missing response now raises `ReplayMiss` and the policy is dropped by name.
@@ -537,7 +537,7 @@ Fixed in three places, because one would not have been enough:
 code.** `ReplayMiss` and `_drop_uncached` were written the same week to catch
 exactly this, and could never fire, because the mock cache satisfied every
 lookup before the miss could happen. The fallback also hid the problem from
-`sanity_check.py`, `check_core_unchanged.py` and all 156 tests, none of which
+`llm_routing/sanity_check.py`, `check_core_unchanged.py` and all 156 tests, none of which
 compare a replayed number against the cache it should have come from.
 
 Two consequences that surfaced immediately once the fallback was off, both
@@ -545,9 +545,9 @@ correct behaviour rather than new bugs:
 
 - `policies.fit_estimators` needs strictly more of the cache than any single
   policy, so it is the first thing to fail on a thin cache. `run_eval` and
-  `frontier.py` now catch `ReplayMiss` there and let `cascade_routing` sit out —
+  `llm_routing/frontier.py` now catch `ReplayMiss` there and let `cascade_routing` sit out —
   the same "sit out rather than guess" rule `routellm` already followed.
-- `frontier.py` drops any family it cannot replay and names it, rather than
+- `llm_routing/frontier.py` drops any family it cannot replay and names it, rather than
   crashing. It still refuses to run if `always_cheap` or `always_expensive` is
   missing, since those two define the cost axis.
 
@@ -626,7 +626,7 @@ policy except the two that calibrate on the task set they are given.
 
 ### 17. Artefacts disagreed about line endings
 
-`taskset.jsonl` was written with CRLF and `results.jsonl` with LF, so the same
+`data/taskset.jsonl` was written with CRLF and `runs/results.jsonl` with LF, so the same
 code produced byte-different files on different machines and no hash-based
 regression gate was possible. Fixed in both places: writers pass `newline=""`, and
 `.gitattributes` stops git renormalising on checkout.
@@ -647,7 +647,7 @@ regression gate was possible. Fixed in both places: writers pass `newline=""`, a
 - **A cache hit still charges the policy full price.** `cost_usd` answers "what
   would this cost in production", and in production there is no cross-policy
   cache. The two figures are reported separately.
-- **`stats.py` compares a short pre-registered list by default.** Every pair is a
+- **`llm_routing/stats.py` compares a short pre-registered list by default.** Every pair is a
   multiple-comparisons problem; mining all 78 pairs for the significant ones is
   how false findings get published. `--all-pairs` exists and prints a warning.
 - **No LLM judge anywhere.** Every verdict is deterministic. This constrains which
@@ -665,7 +665,7 @@ regression gate was possible. Fixed in both places: writers pass `newline=""`, a
   LLMs*, [arXiv:2410.10347](https://arxiv.org/abs/2410.10347) — proves routing and
   cascading are special cases of one strategy, and identifies quality-estimator
   accuracy as the deciding factor. This repo's `cascade_routing` policy implements
-  their greedy variant, and its central claim is what `sweep_degraded.py` tests
+  their greedy variant, and its central claim is what `llm_routing/sweep_degraded.py` tests
   empirically instead of with synthetic noise.
 - LLMRouterBench, [arXiv:2601.07206](https://arxiv.org/abs/2601.07206) — finds that
   under unified evaluation many published routers, including commercial ones, do

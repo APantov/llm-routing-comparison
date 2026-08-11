@@ -19,7 +19,7 @@ measured values.
 
 from __future__ import annotations
 
-import models
+from llm_routing import models
 
 # Mean OUTPUT tokens per answer, measured on the `wide` ladder during the
 # 6 August 2026 two-arm probe (STATUS.md §1, "What the probe cost").

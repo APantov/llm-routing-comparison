@@ -22,9 +22,9 @@ model, and the oracle would bound a set of responses nobody else received.
 Every call returns a ModelResponse carrying tokens, latency and cost. Cost
 accounting is half the point of the project and retrofitting it is painful.
 
-    python3 run_eval.py                              # mock
-    ROUTER_MODE=real   python3 run_eval.py --limit 10
-    ROUTER_MODE=replay python3 run_eval.py
+    python -m llm_routing.run_eval                              # mock
+    ROUTER_MODE=real   python -m llm_routing.run_eval --limit 10
+    ROUTER_MODE=replay python -m llm_routing.run_eval
 """
 
 import hashlib
@@ -35,7 +35,8 @@ import time
 from dataclasses import dataclass, asdict
 from pathlib import Path
 
-import response_cache
+from llm_routing import paths
+from llm_routing import response_cache
 
 
 # ---------------------------------------------------------------------------
@@ -66,7 +67,7 @@ def load_dotenv(path=None):
     Returns the names of the keys it set. NEVER the values - nothing in this repo
     should be able to print a secret by accident.
     """
-    path = Path(path) if path else Path(__file__).parent / ".env"
+    path = Path(path) if path else paths.ENV_FILE
     if not path.exists():
         return []
     loaded = []
@@ -135,9 +136,9 @@ REPLAY_FALLBACK_TO_MOCK = os.environ.get(
 # policy. Any conclusion here is ratio-dependent, and the only way to say that
 # honestly is to be able to change the ratio and re-run:
 #
-#     ROUTER_LADDER=claude   python3 run_eval.py    # 1x / 3x / 5x  (default)
-#     ROUTER_LADDER=deepseek python3 run_eval.py    # 1x / 3.1x, one provider
-#     ROUTER_LADDER=wide     python3 run_eval.py    # 1x / 36x, cross-provider
+#     ROUTER_LADDER=claude   python -m llm_routing.run_eval    # 1x / 3x / 5x  (default)
+#     ROUTER_LADDER=deepseek python -m llm_routing.run_eval    # 1x / 3.1x, one provider
+#     ROUTER_LADDER=wide     python -m llm_routing.run_eval    # 1x / 36x, cross-provider
 #
 # All prices are per million tokens, input / output, at LIST or standard rates.
 # Verified 2026-07-30 against platform.claude.com/docs/en/about-claude/pricing
@@ -774,7 +775,7 @@ def _client(provider: str):
         cfg = PROVIDERS[provider]
         key = os.environ.get(cfg["key_env"])
         if not key:
-            env_file = Path(__file__).parent / ".env"
+            env_file = paths.ENV_FILE
             where = (f"{env_file.name} exists but has no {cfg['key_env']} line"
                      if env_file.exists() else f"no {env_file.name} file found")
             raise SystemExit(
@@ -1042,7 +1043,7 @@ backend_spend_usd = 0.0
 # would abort a free mock run over a large task set for no reason. `real` is the
 # only mode in which this counter corresponds to money.
 #
-#     ROUTER_MAX_SPEND_USD=8 ROUTER_MODE=real python3 run_eval.py
+#     ROUTER_MAX_SPEND_USD=8 ROUTER_MODE=real python -m llm_routing.run_eval
 MAX_SPEND_USD = float(os.environ.get("ROUTER_MAX_SPEND_USD", "5.0"))
 
 
@@ -1137,7 +1138,7 @@ def call(
             f"  key={key}\n"
             f"  Replay never calls a backend. Either the cache is incomplete, or "
             f"a prompt or parameter changed since it was populated.\n"
-            f"  Repopulate with: ROUTER_MODE=real python3 run_eval.py\n"
+            f"  Repopulate with: ROUTER_MODE=real python -m llm_routing.run_eval\n"
             f"  Or serve the gap from the mock cache with "
             f"ROUTER_REPLAY_FALLBACK=1 - which is not a result, and every row "
             f"it touches is stamped simulated: true."

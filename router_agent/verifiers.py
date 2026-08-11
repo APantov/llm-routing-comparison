@@ -41,8 +41,8 @@ from collections import Counter
 from dataclasses import dataclass, field
 from typing import Callable
 
-import models
-from graders import extract_answer
+from llm_routing import models
+from llm_routing.graders import extract_answer
 
 from router_agent import pricing
 from router_agent.config import RouterConfig
@@ -179,7 +179,7 @@ def verify_tests(task, response_text, tier, cfg) -> Check:
     # right grader. `grade_test_program` is the MBPP+ path and expects a
     # complete self-contained program under `test_program`, which a serving
     # caller has no way to supply.
-    from graders import grade_run_asserts
+    from llm_routing.graders import grade_run_asserts
 
     try:
         passed = grade_run_asserts(response_text, task["grader_payload"])

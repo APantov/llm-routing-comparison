@@ -34,16 +34,16 @@ jobs:
         run: python -m pip install numpy
 
       - name: Build the task set
-        run: python build_taskset.py
+        run: python -m llm_routing.build_taskset
 
       - name: Regression gate
         # Exits non-zero if a grader is broken OR too lax. This is the gate
         # that failed to catch a real grader bug in July 2026 by only testing
         # grade(GT, GT); it now checks equivalent formattings and near-misses.
-        run: python sanity_check.py
+        run: python -m llm_routing.sanity_check
 
       - name: Splits are deterministic
-        run: python splits.py
+        run: python -m llm_routing.splits
 
   research-tests:
     name: "research core unit tests (no agent stack installed)"
@@ -68,7 +68,7 @@ jobs:
         run: python -m pip install "pytest>=8" "numpy>=2.0"
 
       - name: Build the task set
-        run: python build_taskset.py
+        run: python -m llm_routing.build_taskset
 
       - name: Unit tests for the research core
         run: python -m pytest tests/test_experiment.py -v
@@ -91,7 +91,7 @@ jobs:
         run: python -m pip install -e ".[dev]" anyio
 
       - name: Build the task set
-        run: python build_taskset.py
+        run: python -m llm_routing.build_taskset
 
       - name: Tests
         run: python -m pytest tests/ -v
@@ -113,7 +113,7 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: python -m pip install -e ".[agent]" numpy
-      - run: python build_taskset.py
+      - run: python -m llm_routing.build_taskset
 
       # The property worth protecting: someone who clones this repository with
       # no account, no key and no money can watch the router escalate over
@@ -143,6 +143,6 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: python -m pip install -e ".[agent,mcp]" numpy
-      - run: python build_taskset.py
+      - run: python -m llm_routing.build_taskset
       - name: Tools, resources and prompts register
         run: python scripts/check_mcp_server.py

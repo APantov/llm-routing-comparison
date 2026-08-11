@@ -42,8 +42,9 @@ REPO = Path(__file__).resolve().parent.parent
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
-import routable as routable_mod                          # noqa: E402
-from build_taskset import QUARANTINED                    # noqa: E402
+from llm_routing import paths                                        # noqa: E402
+from llm_routing import routable as routable_mod                          # noqa: E402
+from llm_routing.build_taskset import QUARANTINED                    # noqa: E402
 from scripts.redraw_decisive import observed_cells, reestimate   # noqa: E402
 
 Q = set(QUARANTINED)
@@ -56,11 +57,11 @@ JSONL_TARGETS = [
     "cache/raw_calls.claude.jsonl",
     "cache/raw_calls.deepseek.jsonl",
     "cache/routellm_scores.jsonl",
-    "results.probe.jsonl",
-    "results.jsonl",
+    "runs/results.probe.jsonl",
+    "runs/results.jsonl",
 ]
 MOCK_CACHES = "cache/*.mock.jsonl"
-REDRAW = "redraw.{ladder}.json"
+REDRAW = "runs/redraw.{ladder}.json"
 
 
 def purge_jsonl(path: Path, go: bool):
@@ -104,7 +105,7 @@ def purge_redraw(path: Path, go: bool, n_total: int):
     p_hat = {k: v for k, v in d.get("p_hat", {}).items() if k not in Q}
     dropped = len(d.get("p_hat", {})) - len(p_hat)
 
-    tasks = routable_mod.load_tasks(REPO / "taskset.jsonl")
+    tasks = routable_mod.load_tasks(paths.TASKSET)
     cells = observed_cells(tasks, d.get("ladder", "wide"))
     routable, both_fail = cells["routable"], cells["both_fail"]
 
@@ -170,7 +171,7 @@ def main():
 
     # n_total is the size of the task set the fraction is expressed over. Read
     # it rather than assumed, so this stays right if the task set changes again.
-    n_total = sum(1 for l in (REPO / "taskset.jsonl").read_text(
+    n_total = sum(1 for l in paths.TASKSET.read_text(
         encoding="utf-8").splitlines() if l.strip())
     r = purge_redraw(REPO / REDRAW.format(ladder=args.ladder), args.go, n_total)
     if isinstance(r, dict) and r.get("stale"):

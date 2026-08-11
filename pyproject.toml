@@ -8,7 +8,7 @@ version = "0.2.0"
 description = "A cost-aware LLM routing service, and the benchmark that decides its policy"
 readme = "README.md"
 # 3.10 or newer, and the version matters more than usual here:
-# graders.grade_run_asserts executes candidate code with [sys.executable, path],
+# llm_routing.graders.grade_run_asserts runs candidate code with [sys.executable, path],
 # so the code grader's verdict depends on which interpreter launched the
 # evaluation. Pin it, and record which one produced any quoted result.
 requires-python = ">=3.10"
@@ -18,8 +18,7 @@ keywords = ["llm", "routing", "cascade", "langgraph", "mcp", "evaluation"]
 
 # NOTHING HERE BY DEFAULT, AND THAT IS THE POINT.
 #
-# The research core (build_taskset, graders, models, policies, run_eval,
-# frontier, stats, plot, sanity_check) is pure standard library in mock mode.
+# The research core (llm_routing/) is pure standard library in mock mode.
 # A bare `pip install .` must not change that: the whole reproducibility claim
 # is that anyone can clone this repo, run it on a bare interpreter with no
 # network and no key, and get the same numbers byte for byte.
@@ -35,12 +34,14 @@ keywords = ["llm", "routing", "cascade", "langgraph", "mcp", "evaluation"]
 #
 #   openai   pulled in only by RouteLLM's `mf` variant, which this project does
 #            not use. `bert` is the variant chosen precisely because it runs
-#            locally with no key - see routellm_router.py for the full table.
-#   scipy    stats.py implements exact McNemar and a paired bootstrap directly.
-#            An exact test on a 2x2 table is a few lines; a dependency that
-#            large should buy more than that.
-#   matplotlib  plot.py writes SVG from the standard library. The figures are
-#            byte-deterministic as a result, which matplotlib's would not be.
+#            locally with no key - see llm_routing/routellm_router.py for the
+#            full table.
+#   scipy    llm_routing/stats.py implements exact McNemar and a paired
+#            bootstrap directly. An exact test on a 2x2 table is a few lines; a
+#            dependency that large should buy more than that.
+#   matplotlib  llm_routing/plot.py writes SVG from the standard library. The
+#            figures are byte-deterministic as a result, which matplotlib's
+#            would not be.
 dependencies = []
 
 [project.optional-dependencies]
@@ -71,15 +72,15 @@ llm-router-mcp = "router_agent.mcp_server:main"
 Homepage = "https://github.com/asen/llm-routing-comparison"
 
 [tool.setuptools]
-# The research core is a flat set of scripts at the repo root, deliberately:
-# each one is runnable on its own and reads top to bottom. Only the agent layer
-# is a package.
-packages = ["router_agent"]
-py-modules = [
-    "build_taskset", "graders", "models", "policies", "response_cache",
-    "splits", "run_eval", "frontier", "stats", "sweep_degraded",
-    "routellm_router", "plot", "routable", "sanity_check",
-]
+# Two packages, one arrow: `router_agent` imports `llm_routing`, never the
+# reverse, and CI has a job whose only purpose is to keep it that way.
+#
+# `llm_routing` was a flat set of modules at the repository root until
+# 11 August 2026. Each is still runnable on its own and still reads top to
+# bottom - `python -m llm_routing.run_eval` - and importantly that still needs
+# no install and no PYTHONPATH, which is what the bare-interpreter CI job
+# checks.
+packages = ["llm_routing", "router_agent"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

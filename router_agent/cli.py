@@ -117,11 +117,13 @@ def _demo(args) -> int:
     import json as _json
     from pathlib import Path
 
-    taskset = Path(__file__).resolve().parent.parent / "taskset.jsonl"
+    from llm_routing import paths
+
+    taskset = paths.TASKSET
     if not taskset.exists():
         print(
-            "taskset.jsonl not found. Build it first:\n"
-            "    python build_taskset.py",
+            "data/taskset.jsonl not found. Build it first:\n"
+            "    python -m llm_routing.build_taskset",
             file=sys.stderr,
         )
         return 1
@@ -147,7 +149,17 @@ def _demo(args) -> int:
     print(DIM("  ladder=wide (DeepSeek v4-flash -> Opus 5)  mode=replay  $0.00 spent"))
     print(DIM(f"  {task['prompt'][:150]}"))
 
-    out = route(task["prompt"], cfg=cfg, domain=wanted)
+    # Hand the code half its asserts. Without them `live.synthesize_task` builds
+    # the serving-only `code_untested` prompt, which no paid run ever recorded,
+    # so replay raised ReplayMiss and `--demo --domain code` crashed - including
+    # in CI, which runs exactly this line. Passing them reproduces the benchmark
+    # prompt byte for byte, which is what the committed responses answer.
+    #
+    # It is also the honest demo. A benchmark code question IS its asserts, and
+    # `scripts/demo.py` trace 3 makes the same point explicitly: the perfect
+    # verifier is available only because the CALLER brought the tests.
+    tests = task.get("grader_payload", {}).get("tests") if wanted == "code" else None
+    out = route(task["prompt"], cfg=cfg, domain=wanted, tests=tests)
     _print_outcome(out, show_answer=not args.quiet)
 
     print(DIM(

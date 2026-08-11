@@ -42,9 +42,10 @@ REPO = Path(__file__).resolve().parent.parent
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
-import models                                    # noqa: E402
-import routable                                  # noqa: E402
-from graders import extract_answer, grade        # noqa: E402
+from llm_routing import models                                    # noqa: E402
+from llm_routing import paths                                     # noqa: E402
+from llm_routing import routable                                  # noqa: E402
+from llm_routing.graders import extract_answer, grade        # noqa: E402
 
 LADDER = "wide"
 KS = (1, 3, 5, 7, 9)
@@ -113,7 +114,7 @@ def best_of_k(task, texts):
 
 
 def main():
-    tasks = {t["id"]: t for t in routable.load_tasks(REPO / "taskset.jsonl")}
+    tasks = {t["id"]: t for t in routable.load_tasks(paths.TASKSET)}
     draws, unit = load_draws(LADDER, tasks)
     verdicts = routable.real_verdicts(list(tasks.values()), LADDER)
 

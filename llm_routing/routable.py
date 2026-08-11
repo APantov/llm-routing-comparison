@@ -19,10 +19,10 @@ accuracy dynamic range of the experiment is
 and if that is two points, no sample size and no router cleverness produces a
 publishable accuracy result on this task set. This script measures it.
 
-    python3 routable.py                       # mock, current ROUTER_LADDER
-    python3 routable.py --ladders all         # mock, all three ladders
-    python3 routable.py --real                # grade the real cached responses
-    python3 routable.py --taskset pool.jsonl  # any candidate task set
+    python -m llm_routing.routable                       # mock, current ROUTER_LADDER
+    python -m llm_routing.routable --ladders all         # mock, all three ladders
+    python -m llm_routing.routable --real                # grade the real cached responses
+    python -m llm_routing.routable --taskset pool.jsonl  # any candidate task set
 
 Mock mode costs nothing. --real reads `cache/raw_calls.<ladder>.jsonl` and grades
 what is already on disk; it never calls a model, so it also costs nothing.
@@ -36,7 +36,7 @@ import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
-HERE = Path(__file__).parent
+from llm_routing import paths
 
 # ---------------------------------------------------------------------------
 # Target band for the routable fraction.
@@ -147,8 +147,8 @@ def mock_verdicts(tasks, ladder):
     os.environ["ROUTER_MODE"] = "mock"
     for mod in ("models", "policies", "response_cache"):
         sys.modules.pop(mod, None)
-    import models
-    from graders import grade
+    from llm_routing import models
+    from llm_routing.graders import grade
 
     out = {}
     for t in tasks:
@@ -164,9 +164,9 @@ def mock_verdicts(tasks, ladder):
 # Real path: grade what the paid run already put on disk. No calls.
 # ---------------------------------------------------------------------------
 def real_verdicts(tasks, ladder):
-    import models
-    import response_cache
-    from graders import grade
+    from llm_routing import models
+    from llm_routing import response_cache
+    from llm_routing.graders import grade
 
     # EVERY file the cache would serve this ladder from, not just its own.
     #
@@ -186,10 +186,10 @@ def real_verdicts(tasks, ladder):
     # below, added when it was grading responses stranded at max_tokens=2048).
     # The rule both fixes point at: if the experiment would not serve it, do not
     # grade it - and if the experiment WOULD serve it, do not miss it.
-    paths = [p for p in (response_cache._sibling_real_paths(ladder)
-                         + [HERE / "cache" / f"raw_calls.{ladder}.jsonl"])
-             if p.exists()]
-    if not paths:
+    cache_files = [p for p in (response_cache._sibling_real_paths(ladder)
+                               + [paths.CACHE / f"raw_calls.{ladder}.jsonl"])
+                   if p.exists()]
+    if not cache_files:
         return {}
     by_id = {t["id"]: t for t in tasks}
     out = defaultdict(dict)
@@ -216,7 +216,7 @@ def real_verdicts(tasks, ladder):
         raise ValueError(f"no rung names for a {len(models.LADDERS[ladder])}-rung ladder")
     tier_of_model = dict(zip(models.LADDERS[ladder], rung_names))
 
-    lines = (line for path in paths for line in open(path, encoding="utf-8"))
+    lines = (line for path in cache_files for line in open(path, encoding="utf-8"))
     for line in lines:
         if not line.strip():
             continue
@@ -348,13 +348,13 @@ def verdict_line(s):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--taskset", default="taskset.jsonl")
+    ap.add_argument("--taskset", default=str(paths.TASKSET))
     ap.add_argument("--ladders", default=os.environ.get("ROUTER_LADDER", "claude"))
     ap.add_argument("--real", action="store_true")
     ap.add_argument("--json", default=None)
     args = ap.parse_args()
 
-    tasks = load_tasks(HERE / args.taskset)
+    tasks = load_tasks(Path(args.taskset))
     ladders = ["claude", "deepseek", "wide"] if args.ladders == "all" else args.ladders.split(",")
 
     dump = {}

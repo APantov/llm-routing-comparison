@@ -2,11 +2,11 @@
 Batch runner. Runs every policy over every task, writes results, prints a report.
 
 Usage:
-    python3 run_eval.py                                # mock mode, no spend
-    python3 run_eval.py --limit 10                      # first 10 tasks only
-    python3 run_eval.py --domain math                   # one domain
-    ROUTER_MODE=real   python3 run_eval.py --limit 10   # 10-task pilot, real calls
-    ROUTER_MODE=replay python3 run_eval.py              # replay a paid run, free
+    python -m llm_routing.run_eval                                # mock mode, no spend
+    python -m llm_routing.run_eval --limit 10                      # first 10 tasks only
+    python -m llm_routing.run_eval --domain math                   # one domain
+    ROUTER_MODE=real   python -m llm_routing.run_eval --limit 10   # 10-task pilot, real calls
+    ROUTER_MODE=replay python -m llm_routing.run_eval              # replay a paid run, free
 
 Start in mock mode. Get the whole pipeline working and the report printing, then
 switch to real. Debugging a broken pipeline while paying per call is miserable.
@@ -22,14 +22,14 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-import models
-import policies
-import response_cache
-import splits
-from policies import POLICIES, POLICY_DOMAINS
+from llm_routing import models
+from llm_routing import paths
+from llm_routing import policies
+from llm_routing import response_cache
+from llm_routing import splits
+from llm_routing.policies import POLICIES, POLICY_DOMAINS
 
-HERE = Path(__file__).parent
-RESULTS = HERE / "results.jsonl"
+RESULTS = paths.RUNS / "results.jsonl"
 
 # Hard spend cap, enforced in code rather than by willpower.
 #
@@ -52,7 +52,7 @@ RESULTS = HERE / "results.jsonl"
 # Override per run rather than editing anything - a cap that is routinely
 # edited is not a cap:
 #
-#     ROUTER_MAX_SPEND_USD=8 ROUTER_MODE=real python3 run_eval.py
+#     ROUTER_MAX_SPEND_USD=8 ROUTER_MODE=real python -m llm_routing.run_eval
 MAX_SPEND_USD = models.MAX_SPEND_USD
 
 # The EXCEPTION is deliberately not aliased here. `models` is reloaded by the
@@ -97,7 +97,7 @@ MOCK_BANNER = """\
   measure any model. Costs are modelled from synthetic token
   counts - nothing was spent and no network call was made.
 
-  For a real result:  ROUTER_MODE=real python3 run_eval.py
+  For a real result:  ROUTER_MODE=real python -m llm_routing.run_eval
 ================================================================"""
 
 REAL_BANNER = """\
@@ -240,7 +240,7 @@ def provenance(simulated=None):
 
 
 def load_tasks(limit=None, domain=None):
-    with open(HERE / "taskset.jsonl", encoding="utf-8") as f:
+    with open(paths.TASKSET, encoding="utf-8") as f:
         tasks = [json.loads(l) for l in f]
     if domain:
         tasks = [t for t in tasks if t["domain"] == domain]
@@ -260,7 +260,7 @@ def applicable(name, task):
     rather than approximated - see policies.py DECISION #8.
     """
     if name == "routellm":
-        import routellm_router
+        from llm_routing import routellm_router
         # BOTH conditions. A cached score for this task is not enough: the
         # threshold is set from the whole task set, so a partially-scored set must
         # keep the policy out entirely rather than let it run uncalibrated on the
@@ -361,7 +361,7 @@ def _drop_uncached(rows, uncached):
         "   These policies make calls the cache was never populated with. That is\n"
         "   expected when the cache came from a run of DIFFERENT policies - the\n"
         "   two-arm probe recorded always_cheap and always_expensive only.\n"
-        "   Record them with:  ROUTER_MODE=real python3 run_eval.py"
+        "   Record them with:  ROUTER_MODE=real python -m llm_routing.run_eval"
         + "".join(f" --policy {n}" for n in sorted(uncached))
         + "\n   Or run everything free and offline with ROUTER_MODE=mock.",
         file=sys.stderr,
@@ -653,7 +653,7 @@ def report(rows):
                   + ("too easy" if fail < FAILURE_RATE_FLOOR else
                      "too hard" if fail > FAILURE_RATE_CEILING else "in band")
                   + ". Run more tasks:")
-            print("    python3 run_eval.py --policy always_cheap --split all")
+            print("    python -m llm_routing.run_eval --policy always_cheap --split all")
 
         # Per domain as well as overall, because the two halves can fail this gate
         # in opposite directions and the aggregate would hide it. The code half is
@@ -775,7 +775,7 @@ def guard_clobber(force: bool):
 
     A real run costs money and cannot be reproduced, because sampling at
     temperature > 0 is stochastic. A mock run is free and takes seconds. Losing
-    the former to the latter by typing `python3 run_eval.py` out of habit is a
+    the former to the latter by typing `python -m llm_routing.run_eval` out of habit is a
     mistake worth making impossible rather than merely unlikely.
     """
     if models.MODE != "mock" or force or not RESULTS.exists():
@@ -800,7 +800,7 @@ def guard_clobber(force: bool):
             f"  {RESULTS.name} holds REAL results, which cost money and cannot be\n"
             f"  reproduced. This is a MOCK run and would overwrite them.\n\n"
             f"  Back them up:   cp {RESULTS.name} results.real.jsonl\n"
-            f"  Or override:    python3 run_eval.py --force\n"
+            f"  Or override:    python -m llm_routing.run_eval --force\n"
         )
 
 
@@ -863,10 +863,10 @@ def guard_regression(rows, force: bool):
         "  Most likely this ladder's cache cannot serve every policy, and they\n"
         "  were dropped mid-run - scroll up for the SKIPPED lines. Regenerating\n"
         "  the file you are about to destroy needs a cache that still covers it.\n\n"
-        "  Keep both:      python3 run_eval.py --out results.<ladder>.jsonl\n"
+        "  Keep both:      python -m llm_routing.run_eval --out results.<ladder>.jsonl\n"
         "                  (the right answer for a ladder change - one file per\n"
         "                   ladder is what scripts/run_all_ladders.py does)\n"
-        "  Write anyway:   python3 run_eval.py --force\n"
+        "  Write anyway:   python -m llm_routing.run_eval --force\n"
     )
 
 
@@ -920,7 +920,7 @@ def main():
                 f"unknown policy: {', '.join(unknown)}\n"
                 f"  available on ladder {models.LADDER!r}: {', '.join(sorted(POLICIES))}"
             )
-        RESULTS = HERE / "results.probe.jsonl"
+        RESULTS = paths.RUNS / "results.probe.jsonl"
         for name in list(POLICIES):
             if name not in selected:
                 del POLICIES[name]
@@ -940,7 +940,7 @@ def main():
                 file=sys.stderr,
             )
         RESULTS = Path(args.out)
-        if RESULTS.parent != HERE and not RESULTS.parent.exists():
+        if not RESULTS.parent.exists():
             sys.exit(f"--out directory does not exist: {RESULTS.parent}")
 
     guard_clobber(args.force)
@@ -1055,7 +1055,7 @@ def main():
     # RouteLLM runs at a FIXED threshold rather than one calibrated to another
     # policy's spend - see routellm_router.py DECISION #8b. With no scores it
     # sits out; it is never approximated.
-    import routellm_router
+    from llm_routing import routellm_router
     if routellm_router.available(tasks):
         th = routellm_router.use_fixed_threshold(tasks)
         realised = {}
@@ -1073,12 +1073,13 @@ def main():
     else:
         print(
             "routellm: SKIPPED - no cached scores. Populate them once with\n"
-            "  python3 routellm_router.py --score      (bert variant, no API key)",
+            "  python -m llm_routing.routellm_router --score      (bert variant, no API key)",
             file=sys.stderr,
         )
 
     rows = run(tasks)
     guard_regression(rows, args.force)
+    paths.ensure_runs()
     write_jsonl(RESULTS, rows)
     report(rows)
     print(f"\nwrote {len(rows)} rows -> {RESULTS}")

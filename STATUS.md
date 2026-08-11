@@ -10,6 +10,16 @@ is now finished, and both have been deleted; what they decided is recorded
 below. The corrections they demanded have been applied to the bodies of the
 documents that made the claims.
 
+**Repository restructured 11 August 2026, and no number below moved.** The 16
+research modules went from the repository root into `llm_routing/`, every
+derived artefact into `runs/`, and the task set into `data/`; commands gained a
+`-m` (`python -m llm_routing.run_eval`). `scripts/check_core_unchanged.py`
+fingerprints every mock response the task set can produce and reports
+byte-identical output on all three ladders either side of the move. One real
+bug was fixed in passing: `build_taskset`'s default built a **96-task** set and
+overwrote the committed 417-task one, so the quickstart destroyed the artefact
+every result here is joined against. The default is now the full pool.
+
 ---
 
 ## 1. What this project measures
@@ -136,7 +146,7 @@ retracted.** It was scheduled to be promoted as a finding; it is backwards.
 
 ## 3. What each policy got right and wrong
 
-`scorecard.py` joins each policy's decision against what the two rungs could
+`llm_routing/scorecard.py` joins each policy's decision against what the two rungs could
 actually do. `wide` ladder, 209 tasks:
 
 | policy | acc | $/task | rescued | no-top | missed | wasted | harmful | prec |
@@ -236,7 +246,7 @@ hard-but-solvable task removes the signal the experiment exists to measure.
 exactly 0.** One greedy draw cannot establish that.
 
 This is not hypothetical. `codeplus-305` was quarantined on 8 August as
-unpassable while `redraw.wide.json` **in the same commit** recorded its
+unpassable while `runs/redraw.wide.json` **in the same commit** recorded its
 expensive rung at p̂ = 0.5. It is a task the cheap rung reliably fails and the
 top rung solves half the time — precisely a *routable* task. It was reversed on
 10 August, and the tripwire that now enforces the bar fires on the historical
@@ -272,18 +282,19 @@ and rejected on measurement; see its docstring.
 
 ```bash
 ROUTER_MODE=replay python scripts/run_all_ladders.py   # all 3 ladders, $0.00
-python stats.py     --results results.wide.jsonl
-python scorecard.py --results results.wide.jsonl
+python -m llm_routing.stats     --results runs/results.wide.jsonl
+python -m llm_routing.scorecard --results runs/results.wide.jsonl
 ```
 
 The published figures were produced by **deleting every derived artefact** and
 regenerating all three ladders from the response cache. 0 calls reached a
 backend; 0 rows are simulated.
 
-Analysis entry points: `run_eval.py` (per-policy run), `frontier.py`
-(cost-quality curves and AUC), `stats.py` (McNemar and paired bootstrap),
-`scorecard.py` (per-policy error attribution), `routable.py` (the cross-tab),
-`sweep_degraded.py` (verifier-degradation curve), `plot.py` (SVGs).
+Analysis entry points, each runnable as `python -m llm_routing.<name>`:
+`run_eval` (per-policy run), `frontier` (cost-quality curves and AUC), `stats`
+(McNemar and paired bootstrap), `scorecard` (per-policy error attribution),
+`routable` (the cross-tab), `sweep_degraded` (verifier-degradation curve),
+`plot` (SVGs).
 
 Paid tools, each of which prints a costed plan and refuses to spend without
 `--go`: `scripts/redraw_decisive.py` (redraw or screen),

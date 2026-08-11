@@ -63,8 +63,9 @@ import os
 import threading
 from pathlib import Path
 
-HERE = Path(__file__).parent
-CACHE_DIR = Path(os.environ.get("ROUTER_CACHE_DIR", HERE / "cache"))
+from llm_routing import paths
+
+CACHE_DIR = Path(os.environ.get("ROUTER_CACHE_DIR", paths.CACHE))
 
 # Real and mock responses live in SEPARATE files even though they could not
 # collide, since `mode` is in the hash. Two practical reasons: the real file is

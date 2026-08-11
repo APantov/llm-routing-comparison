@@ -28,9 +28,10 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-PROBE_PATH = REPO_ROOT / "results.probe.jsonl"
-FRONTIER_PATH = REPO_ROOT / "frontier.jsonl"
+from llm_routing import paths
+
+PROBE_PATH = paths.RUNS / "results.probe.jsonl"
+FRONTIER_PATH = paths.RUNS / "frontier.jsonl"
 
 
 # ---------------------------------------------------------------------------
@@ -50,7 +51,7 @@ def price_ratios(ladder: str) -> dict | None:
     prompt is. That works against escalation, so ignoring it would under-price
     exactly the rung a cascade escalates to.
     """
-    import models
+    from llm_routing import models
 
     ids = models.LADDERS.get(ladder)
     if not ids:
@@ -96,7 +97,7 @@ def realized_ratio(ladder: str, path: Path | None = None) -> dict | None:
     Returns None when no ladder cache exists, which is the normal state for a
     ladder that has never been run for real.
     """
-    path = path or REPO_ROOT / "cache" / f"raw_calls.{ladder}.jsonl"
+    path = path or paths.CACHE / f"raw_calls.{ladder}.jsonl"
     if not path.exists():
         return None
 
@@ -172,7 +173,7 @@ HISTORICAL_AS_OF = "2026-07-30"
 HISTORICAL_NOTE = (
     "quoted from the 30 July 2026 frontier run, which predates the 6 August "
     "task-set rebuild. The sign is reliable; the magnitude is not. Run "
-    "`python frontier.py` on this ladder to derive current figures."
+    "`python -m llm_routing.frontier` on this ladder to derive current figures."
 )
 
 
@@ -222,7 +223,7 @@ def frontier_economics(path: str | None = None) -> dict | None:
     # Imported here rather than at module scope: `frontier` pulls in policies,
     # run_eval and splits, and `findings` is imported by the MCP server on
     # every start. The probe path and the price ratios must stay cheap.
-    import frontier as frontier_mod
+    from llm_routing import frontier as frontier_mod
 
     def points(name):
         return [(p_["cost_per_task"], p_["accuracy"]) for p_ in families[name]]
@@ -313,7 +314,7 @@ def ratio_verdict(ladder: str) -> dict:
                 "economics_source": None,
                 "note": (
                     "no frontier run on disk for this ladder and no historical "
-                    "figure; run `python frontier.py` to derive one"
+                    "figure; run `python -m llm_routing.frontier` to derive one"
                 ),
             })
         else:

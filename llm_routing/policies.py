@@ -50,8 +50,8 @@ DECISION #4 tombstone below: it was not a router, it was a constant.
 from dataclasses import dataclass, field
 from collections import Counter
 
-import models
-from graders import grade, extract_answer
+from llm_routing import models
+from llm_routing.graders import grade, extract_answer
 
 # ---------------------------------------------------------------------------
 # DECISION #2: self-consistency sample count for the math verifier.
@@ -707,7 +707,7 @@ def policy_llm_router(task):
 # ---------------------------------------------------------------------------
 
 def policy_routellm(task):
-    import routellm_router
+    from llm_routing import routellm_router
 
     tier = "expensive" if routellm_router.routes_expensive(task) else "cheap"
     r = models.call(tier, task)

@@ -20,7 +20,7 @@ DETERMINISTIC, and keyed on task id rather than on file position, so the split
 survives a rebuild of taskset.jsonl and does not silently change when the shuffle
 order does.
 
-    python3 splits.py            # show the split and check it is balanced
+    python -m llm_routing.splits            # show the split and check it is balanced
 """
 
 import hashlib
@@ -29,7 +29,7 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-HERE = Path(__file__).parent
+from llm_routing import paths
 
 # Fraction of tasks in the calibration half. A half-and-half split costs the most
 # evaluation power; a 30/70 split keeps more tasks for reporting but calibrates on
@@ -97,9 +97,9 @@ def describe(calibration, evaluation):
 
 
 def main():
-    path = HERE / "taskset.jsonl"
+    path = paths.TASKSET
     if not path.exists():
-        sys.exit(f"{path.name} not found. Build it first: python3 build_taskset.py")
+        sys.exit(f"{path.name} not found. Build it first: python -m llm_routing.build_taskset")
     with path.open(encoding="utf-8") as f:
         tasks = [json.loads(l) for l in f if l.strip()]
 

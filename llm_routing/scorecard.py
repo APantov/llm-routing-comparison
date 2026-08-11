@@ -44,9 +44,9 @@ Two things to read carefully rather than quote:
   it on the wide ladder - so treat the rescue counts as being about this
   measurement rather than about an infinitely repeated one.
 
-    python scorecard.py                                  # results.jsonl
-    python scorecard.py --results results.claude.jsonl
-    python scorecard.py --by-domain --json card.json
+    python -m llm_routing.scorecard                                  # results.jsonl
+    python -m llm_routing.scorecard --results results.claude.jsonl
+    python -m llm_routing.scorecard --by-domain --json card.json
 
 Reads only files already on disk. No API calls, no spend.
 """
@@ -58,8 +58,9 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-HERE = Path(__file__).parent
-RESULTS = HERE / "results.jsonl"
+from llm_routing import paths
+
+RESULTS = paths.RUNS / "results.jsonl"
 
 # The cell a task falls in, from (cheap_ok, expensive_ok). Same four names
 # routable.crosstab uses, deliberately - this is that table, per policy.
@@ -139,7 +140,7 @@ def outcome_of(cell, used_expensive, correct):
 
 def load_results(path):
     if not path.exists():
-        sys.exit(f"{path.name} not found. Generate it first:\n  python run_eval.py")
+        sys.exit(f"{path.name} not found. Generate it first:\n  python -m llm_routing.run_eval")
     with path.open(encoding="utf-8") as f:
         rows = [json.loads(l) for l in f if l.strip()]
     if not rows:
@@ -154,7 +155,7 @@ def cells_from_cache(tasks, ladder):
     that matter: responses stranded under a superseded cache parameter, and
     truncated ones, which are unmeasured rather than wrong.
     """
-    import routable
+    from llm_routing import routable
 
     verdicts = routable.real_verdicts(tasks, ladder)
     out = {}
@@ -263,7 +264,7 @@ def main():
     # ladder a results file was measured on is a property of the file.
     if os.environ.get("ROUTER_LADDER") != ladder:
         os.environ["ROUTER_LADDER"] = ladder
-    import run_eval
+    from llm_routing import run_eval
 
     simulated = any(r.get("simulated", r.get("mode") == "mock") for r in rows)
 
@@ -297,7 +298,7 @@ def main():
             f"{ladder!r} ladder,\n  graded through models.is_reachable. Zero "
             f"classified usually means the cache\n  for this ladder is empty or "
             f"was recorded under superseded parameters.\n"
-            f"  Check:  ROUTER_LADDER={ladder} python routable.py --real"
+            f"  Check:  ROUTER_LADDER={ladder} python -m llm_routing.routable --real"
         )
     win = cellcount["routable"] + cellcount["inverted"]
     print(f"  dynamic range: {win} of {total} tasks ({win/total:.1%}) can "

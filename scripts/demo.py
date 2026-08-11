@@ -106,7 +106,7 @@ SCENARIOS = [
 def main() -> int:
     from router_agent.config import RouterConfig
     from router_agent.engine import route
-    import models
+    from llm_routing import models
 
     mode = os.environ["ROUTER_MODE"]
     print()

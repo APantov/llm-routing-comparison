@@ -15,7 +15,7 @@ rest of this module stays importable without LangGraph installed.
 
 from __future__ import annotations
 
-import models
+from llm_routing import models
 from router_agent import live, pricing, verifiers
 from router_agent.config import RouterConfig
 from router_agent.state import RouteState, event

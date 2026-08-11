@@ -54,8 +54,8 @@ def pytest_collection_modifyitems(config, items):
 # to be cleared or a reloaded ladder would still be routed by a graph bound to
 # the old one.
 _RELOAD_ORDER = [
-    "models",
-    "policies",
+    "llm_routing.models",
+    "llm_routing.policies",
     "router_agent.pricing",
     "router_agent.verifiers",
     "router_agent.nodes",
@@ -81,7 +81,7 @@ def use_ladder(monkeypatch):
     def _apply(name: str):
         monkeypatch.setenv("ROUTER_LADDER", name)
         _reload_stack()
-        import models
+        from llm_routing import models
         assert models.LADDER == name
         return models
 
@@ -120,10 +120,10 @@ def wide_verdicts():
     of it. All three truncations on disk are maths.
     """
     import json
-    import routable
-    path = REPO_ROOT / "taskset.jsonl"
+    from llm_routing import routable
+    path = REPO_ROOT / "data" / "taskset.jsonl"
     if not path.exists():
-        pytest.skip("taskset.jsonl not built; run python build_taskset.py")
+        pytest.skip("taskset.jsonl not built; run python -m llm_routing.build_taskset")
     tasks = [json.loads(l) for l in path.open(encoding="utf-8") if l.strip()]
     return routable.real_verdicts([t for t in tasks if t["domain"] == "math"],
                                   "wide")
@@ -134,13 +134,13 @@ def benchmark_task():
     """A real row from the task set, for replay tests.
 
     Skips rather than fails when the task set has not been built: a fresh
-    clone has no taskset.jsonl until `python build_taskset.py` runs, and a
+    clone has no taskset.jsonl until `python -m llm_routing.build_taskset` runs, and a
     missing artefact is not a broken test.
     """
     import json
-    path = REPO_ROOT / "taskset.jsonl"
+    path = REPO_ROOT / "data" / "taskset.jsonl"
     if not path.exists():
-        pytest.skip("taskset.jsonl not built; run python build_taskset.py")
+        pytest.skip("taskset.jsonl not built; run python -m llm_routing.build_taskset")
     rows = [json.loads(l) for l in path.open(encoding="utf-8") if l.strip()]
     if not rows:
         pytest.skip("taskset.jsonl is empty")

@@ -18,8 +18,8 @@ range, plot accuracy against cost, and compare the resulting CURVES. RouterBench
 area-under-curve summary; Dekoninck et al. (arXiv:2410.10347) report AUC over
 swept lambda for the same reason. This module does that here.
 
-    python3 frontier.py
-    python3 frontier.py --split all --points 15
+    python -m llm_routing.frontier
+    python -m llm_routing.frontier --split all --points 15
 
 WHAT IS COMPUTED
 ----------------
@@ -44,13 +44,13 @@ import argparse
 import sys
 from pathlib import Path
 
-import models
-import policies
-import run_eval
-import splits
+from llm_routing import models
+from llm_routing import policies
+from llm_routing import run_eval
+from llm_routing import paths
+from llm_routing import splits
 
-HERE = Path(__file__).parent
-OUT = HERE / "frontier.jsonl"
+OUT = paths.RUNS / "frontier.jsonl"
 
 
 # ---------------------------------------------------------------------------
@@ -130,7 +130,7 @@ def sweep_cascade(tasks, _n_points):
 
 def sweep_routellm(tasks, n_points):
     """Sweep RouteLLM's score threshold, expressed as a target escalation rate."""
-    import routellm_router
+    from llm_routing import routellm_router
     if not routellm_router.available(tasks):
         return []
     out = []
@@ -321,7 +321,7 @@ def main():
                 f"frontier: {axis} cannot be replayed from this cache, and it "
                 f"defines the cost axis every curve is integrated over. There is "
                 f"no frontier to draw.\n"
-                f"  Record it with: ROUTER_MODE=real python3 run_eval.py "
+                f"  Record it with: ROUTER_MODE=real python -m llm_routing.run_eval "
                 f"--policy {axis} --split all"
             )
 
@@ -454,6 +454,7 @@ def main():
     for name, r in fixed.items():
         rows_out.append({"family": name, "knob": None, "value": None, **r,
                          "n": len(tasks), "split": args.split, **prov})
+    paths.ensure_runs()
     run_eval.write_jsonl(OUT, rows_out)
 
     st = models.call_stats

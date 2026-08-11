@@ -16,12 +16,14 @@ That asymmetry is the point of the experiment rather than an accident of dataset
 choice. It is the only reason the two halves of the task set are comparable on
 anything interesting.
 
-Output is taskset.jsonl, written with LF endings on every platform so the file
-is byte-identical wherever it is built.
+Output is data/taskset.jsonl, written with LF endings on every platform so the
+file is byte-identical wherever it is built. The defaults reproduce the
+committed 417-task set exactly, which is the point: the quickstart must not
+silently replace the artefact every published number is joined against.
 
-    python3 build_taskset.py                            # the defaults above
-    python3 build_taskset.py --min-math-level 3         # the easier maths half
-    python3 build_taskset.py --n-code 370               # the whole MBPP+ pool
+    python -m llm_routing.build_taskset                       # the committed 417
+    python -m llm_routing.build_taskset --min-math-level 3    # easier maths half
+    python -m llm_routing.build_taskset --n-code 40           # a small code sample
 
 BOTH DEFAULTS WERE HARDENED ON 6 AUGUST 2026, for one reason: the cheap rung
 solved 10 out of 10 on the original set, which leaves a router nothing to decide.
@@ -37,12 +39,34 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-DATA = Path(__file__).parent / "data"
-OUT = Path(__file__).parent / "taskset.jsonl"
+from llm_routing import paths
+
+DATA = paths.DATA
+OUT = paths.TASKSET
 
 SEED = 20260728
 N_MATH = 60
-N_CODE = 40
+
+# 40 -> 370 on 11 August 2026, and this was a BUG FIX rather than a change of
+# design.
+#
+# The committed data/taskset.jsonl holds 417 tasks - 60 maths and 357 code -
+# and every number in STATUS.md is measured over it. The default here was 40,
+# so `python -m llm_routing.build_taskset`, the command README and CI both
+# give, OVERWROTE that file with a 96-task set sampled under a different draw.
+# A reader following the quickstart destroyed the artefact the results are
+# joined against, and the next `stats` run silently reported on whichever 96
+# tasks survived the join.
+#
+# 370 is the whole MBPP+ pool: the sample is `min(n, len(pool))`, so anything
+# at or above the pool size selects all of it, 13 are then quarantined, and the
+# result reproduces the committed file byte for byte. Verified by rebuilding
+# over it and diffing.
+#
+# The number that matters is therefore not 370 but "all of them". It is spelled
+# as a count because --n-code takes one, and it is the default because a
+# quickstart that quietly changes the data is worse than no quickstart.
+N_CODE = 370
 
 # GSM8K was rejected as the math source: current cheap models score in the low
 # 90s on it, which leaves a cascade almost nothing to route. MATH500 restricted
@@ -132,7 +156,7 @@ def load_mbppplus():
     if not path.exists():
         raise SystemExit(
             f"\n{path} not found.\n"
-            f"  Build it once with:  python3 fetch_mbppplus.py\n"
+            f"  Build it once with:  python -m llm_routing.fetch_mbppplus\n"
             f"  (needs `pip install datasets`; the rest of the repo does not)\n"
         )
     with open(path, encoding="utf-8") as f:

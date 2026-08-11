@@ -31,9 +31,9 @@ Reporting an interval matters more than reporting a p-value: "between -1 and +9
 points" and "+4 points, p=0.09" are the same finding, but only the first makes the
 uncertainty impossible to overlook.
 
-    python3 stats.py                          # every pair worth comparing
-    python3 stats.py --vs cascade             # everything against one policy
-    python3 stats.py --bootstrap 20000
+    python -m llm_routing.stats                          # every pair worth comparing
+    python -m llm_routing.stats --vs cascade             # everything against one policy
+    python -m llm_routing.stats --bootstrap 20000
 """
 
 import argparse
@@ -44,8 +44,9 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-HERE = Path(__file__).parent
-RESULTS = HERE / "results.jsonl"
+from llm_routing import paths
+
+RESULTS = paths.RUNS / "results.jsonl"
 
 # Resamples for the bootstrap. 10k is enough for a 95% interval to be stable to
 # about a tenth of a point, and it costs no model calls at all - this module reads
@@ -95,7 +96,7 @@ def load(path=RESULTS):
     if not path.exists():
         sys.exit(
             f"{path.name} not found. Generate it first:\n"
-            f"  python3 run_eval.py"
+            f"  python -m llm_routing.run_eval"
         )
     with path.open(encoding="utf-8") as f:
         rows = [json.loads(l) for l in f if l.strip()]

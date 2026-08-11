@@ -68,9 +68,9 @@ If every task is already scored, this module never imports routellm, never
 touches the network, and never loads a model.
 
 
-    python3 routellm_router.py --score      # populate the cache (needs the deps)
-    python3 routellm_router.py              # show calibration + routing decisions
-    python3 run_eval.py                     # picks the policy up automatically
+    python -m llm_routing.routellm_router --score      # populate the cache (needs the deps)
+    python -m llm_routing.routellm_router              # show calibration + routing decisions
+    python -m llm_routing.run_eval                     # picks the policy up automatically
 """
 
 import argparse
@@ -80,10 +80,10 @@ import os
 import sys
 from pathlib import Path
 
-import models
+from llm_routing import models
+from llm_routing import paths
 
-HERE = Path(__file__).parent
-SCORES_PATH = Path(os.environ.get("ROUTELLM_SCORES_PATH", HERE / "cache" / "routellm_scores.jsonl"))
+SCORES_PATH = Path(os.environ.get("ROUTELLM_SCORES_PATH", paths.CACHE / "routellm_scores.jsonl"))
 
 # Preference order. bert first because it needs no key and no per-query spend.
 VARIANTS = {
@@ -166,7 +166,7 @@ def score_of(task, variant=None):
     if variant is None:
         raise RuntimeError(
             "routellm_router: no cached scores.\n"
-            "  Populate them once with:  python3 routellm_router.py --score\n"
+            "  Populate them once with:  python -m llm_routing.routellm_router --score\n"
             "  This module never invents a score - a router that falls back to a\n"
             "  coin flip when its model is missing is a coin flip, not a router."
         )
@@ -175,7 +175,7 @@ def score_of(task, variant=None):
     if rec is None:
         raise KeyError(
             f"routellm_router: {task['id']} has no cached score for variant "
-            f"{variant!r}. Re-run: python3 routellm_router.py --score"
+            f"{variant!r}. Re-run: python -m llm_routing.routellm_router --score"
         )
     return rec["strong_win_rate"]
 
@@ -197,7 +197,7 @@ def _load_router(variant):
                 f"  text-embedding-3-small and OPENAI_API_KEY is not set.\n\n"
                 f"  Either set it:      export OPENAI_API_KEY=...\n"
                 f"  or use the self-contained router, which needs no key at all:\n"
-                f"                      python3 routellm_router.py --score --variant bert\n"
+                f"                      python -m llm_routing.routellm_router --score --variant bert\n"
             )
     else:
         # See THE IMPORT TRAP above. routellm's package-level import chain
@@ -385,7 +385,7 @@ def main():
     ap.add_argument("--force", action="store_true", help="rescore even if cached")
     args = ap.parse_args()
 
-    import run_eval
+    from llm_routing import run_eval
 
     tasks = run_eval.load_tasks()
 
@@ -395,8 +395,8 @@ def main():
     variant = cached_variant()
     if variant is None:
         print("\nno cached scores yet. Populate them with:")
-        print("  python3 routellm_router.py --score            # bert, no API key")
-        print("  python3 routellm_router.py --score --variant mf   # needs OPENAI_API_KEY")
+        print("  python -m llm_routing.routellm_router --score            # bert, no API key")
+        print("  python -m llm_routing.routellm_router --score --variant mf   # needs OPENAI_API_KEY")
         return
 
     th = use_fixed_threshold(tasks)

@@ -50,7 +50,7 @@ CODE_TIMEOUT_S = 10
 # clock or calling random() would have its flakiness hidden by this memo rather
 # than surfaced, so the memo can be switched off:
 #
-#     ROUTER_GRADE_MEMO=0 python3 run_eval.py
+#     ROUTER_GRADE_MEMO=0 python -m llm_routing.run_eval
 # ---------------------------------------------------------------------------
 MEMO_ENABLED = os.environ.get("ROUTER_GRADE_MEMO", "1") not in ("0", "false", "no")
 _memo = {}

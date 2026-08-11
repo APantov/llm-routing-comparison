@@ -75,7 +75,7 @@ class TestProbe:
         counted straight into every figure the agent layer serves, which is why
         the check lives here rather than in the loader.
         """
-        from build_taskset import QUARANTINED
+        from llm_routing.build_taskset import QUARANTINED
 
         raw = [
             json.loads(line)

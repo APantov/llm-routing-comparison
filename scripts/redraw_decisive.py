@@ -71,11 +71,12 @@ REPO = Path(__file__).resolve().parent.parent
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
-import models          # noqa: E402
-import routable        # noqa: E402
-from graders import grade  # noqa: E402
+from llm_routing import models          # noqa: E402
+from llm_routing import paths           # noqa: E402
+from llm_routing import routable        # noqa: E402
+from llm_routing.graders import grade  # noqa: E402
 
-TASKSET = REPO / "taskset.jsonl"
+TASKSET = paths.TASKSET
 
 # The cap itself lives in models.call, next to the one line that can charge a
 # card, so this script does not implement one - it only chooses the number.
@@ -147,12 +148,12 @@ def mean_call_cost(ladder, task_ids=None, domain=None):
 # to "every rerun, every ladder, every figure" - a screener that re-bought the
 # five unpassable tasks would be the first thing to break it.
 def _pool_mbppplus(min_math_level):
-    import build_taskset
+    from llm_routing import build_taskset
     return build_taskset.load_mbppplus(), "code"
 
 
 def _pool_math500(min_math_level):
-    import build_taskset
+    from llm_routing import build_taskset
     return build_taskset.load_math500(min_math_level), "math"
 
 
@@ -349,7 +350,7 @@ def main():
 
     if args.pool == "probe":
         if not TASKSET.exists():
-            sys.exit("taskset.jsonl not built. Run: python3 build_taskset.py")
+            sys.exit("taskset.jsonl not built. Run: python -m llm_routing.build_taskset")
         tasks = routable.load_tasks(TASKSET)
         cells = observed_cells(tasks, ladder)
         n_graded = sum(len(v) for v in cells.values())
@@ -358,7 +359,7 @@ def main():
                 f"No two-arm data for ladder {ladder!r}.\n"
                 f"  cache/raw_calls.{ladder}.jsonl has no gradeable cheap+expensive pairs.\n"
                 f"  Run the probe first:\n"
-                f"    ROUTER_MODE=real python3 run_eval.py "
+                f"    ROUTER_MODE=real python -m llm_routing.run_eval "
                 f"--policy always_cheap --policy always_expensive --split all\n"
                 f"  Or screen a raw pool instead:  --pool mbppplus --tier cheap"
             )
@@ -372,7 +373,7 @@ def main():
         unit = mean_call_cost(ladder, {t["id"] for t in targets})
         basis = "mean greedy call cost on THESE tasks, not the task set average"
     else:
-        import build_taskset
+        from llm_routing import build_taskset
         pool, domain = POOLS[args.pool](args.min_math_level)
         targets = build_taskset.drop_quarantined(pool)
         if args.limit is not None:
@@ -482,7 +483,7 @@ def main():
             print(f"\n  One rung only, so this says which tasks the {tiers[0]} "
                   f"rung reliably\n  fails - not which are routable. That needs "
                   f"the other rung.")
-        path = REPO / f"screen.{ladder}.{args.pool}.json"
+        path = paths.ensure_runs() / f"screen.{ladder}.{args.pool}.json"
         path.write_text(json.dumps(
             {**common, "pool": args.pool, "domain": domain,
              "min_math_level": args.min_math_level, "limit": args.limit,
@@ -502,7 +503,7 @@ def main():
         # lets the narrower one silently overwrite the broader one.
         stem = (f"redraw.{ladder}.{tiers[0]}" if args.cells == "decisive"
                 else f"redraw.{ladder}.{args.cells}.{tiers[0]}")
-        path = REPO / f"{stem}.json"
+        path = paths.ensure_runs() / f"{stem}.json"
         path.write_text(json.dumps(
             {**common, "cells_redrawn": args.cells, "n_graded": n_graded},
             indent=2), encoding="utf-8")
@@ -547,7 +548,7 @@ def main():
     # Both rungs were drawn, so this IS a correction to the routable fraction
     # and keeps the name downstream readers expect. The single-rung case above
     # returns before here and names itself after the cells it drew.
-    path = REPO / f"redraw.{ladder}.json"
+    path = paths.ensure_runs() / f"redraw.{ladder}.json"
     path.write_text(json.dumps(
         {**common, "cells_redrawn": args.cells,
          "n_graded": n_graded, **out}, indent=2), encoding="utf-8")

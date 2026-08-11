@@ -65,16 +65,17 @@ REPO = Path(__file__).resolve().parent.parent
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
-import models            # noqa: E402
-import policies          # noqa: E402
-import response_cache    # noqa: E402
+from llm_routing import models            # noqa: E402
+from llm_routing import paths             # noqa: E402
+from llm_routing import policies          # noqa: E402
+from llm_routing import response_cache    # noqa: E402
 
-TASKSET = REPO / "taskset.jsonl"
+TASKSET = paths.TASKSET
 
 
 def load_tasks():
     if not TASKSET.exists():
-        sys.exit("taskset.jsonl not built. Run: python3 build_taskset.py")
+        sys.exit("taskset.jsonl not built. Run: python -m llm_routing.build_taskset")
     return [json.loads(l) for l in TASKSET.open(encoding="utf-8") if l.strip()]
 
 
@@ -246,7 +247,7 @@ def main():
         print("   Raising models.MAX_TOKENS re-charges every cached response "
               "(STATUS.md section 7 (standing invariants)). Exclude the task instead.")
     print("\nEverything replays free from here:")
-    print(f"  ROUTER_MODE=replay ROUTER_LADDER={ladder} python3 run_eval.py")
+    print(f"  ROUTER_MODE=replay ROUTER_LADDER={ladder} python -m llm_routing.run_eval")
 
 
 if __name__ == "__main__":

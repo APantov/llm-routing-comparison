@@ -30,14 +30,14 @@ import math
 
 import pytest
 
-import frontier
-import graders
-import models
-import policies
-import response_cache
-import run_eval
-import splits
-import stats
+from llm_routing import frontier
+from llm_routing import graders
+from llm_routing import models
+from llm_routing import policies
+from llm_routing import response_cache
+from llm_routing import run_eval
+from llm_routing import splits
+from llm_routing import stats
 
 
 # ---------------------------------------------------------------------------
@@ -399,14 +399,15 @@ class TestQuarantine:
 
     def test_no_artefact_mentions_them(self):
         """The whole rule, in one assertion, over every file that stores a task id."""
-        import build_taskset
+        from llm_routing import build_taskset
 
         quarantined = set(build_taskset.QUARANTINED)
         targets = [
-            "taskset.jsonl", "results.jsonl", "results.probe.jsonl",
+            "data/taskset.jsonl", "runs/results.jsonl",
+            "runs/results.probe.jsonl",
             "cache/raw_calls.wide.jsonl", "cache/raw_calls.claude.jsonl",
             "cache/raw_calls.deepseek.jsonl", "cache/routellm_scores.jsonl",
-            "redraw.wide.json",
+            "runs/redraw.wide.json",
         ]
         offenders = {}
         for rel in targets:
@@ -425,7 +426,7 @@ class TestQuarantine:
         )
 
     def test_rebuild_never_reintroduces_them(self):
-        import build_taskset
+        from llm_routing import build_taskset
 
         pool = build_taskset.load_mbppplus()
         assert set(build_taskset.QUARANTINED) <= {t["id"] for t in pool}, (
@@ -440,7 +441,7 @@ class TestQuarantine:
         'both models failed' is exactly the reasoning that got these five
         mistaken for hard tasks in the first place - and the responses that
         would let someone re-derive it have now been deleted."""
-        import build_taskset
+        from llm_routing import build_taskset
 
         for task_id, reason in build_taskset.QUARANTINED.items():
             assert len(reason) > 40, f"{task_id} has no real evidence recorded"
@@ -460,12 +461,12 @@ class TestQuarantine:
         """
         import json
 
-        import build_taskset
+        from llm_routing import build_taskset
 
         quarantined = set(build_taskset.QUARANTINED)
         offenders = {}
-        for name in ("redraw.wide.json", "redraw.claude.json",
-                     "redraw.deepseek.json"):
+        for name in ("runs/redraw.wide.json", "runs/redraw.claude.json",
+                     "runs/redraw.deepseek.json"):
             path = REPO_ROOT / name
             if not path.exists():
                 continue
@@ -488,7 +489,7 @@ class TestQuarantine:
         is a quarantine decision. Otherwise the next reader sees a task that was
         removed and then silently restored, with no way to tell which call was
         the considered one."""
-        import build_taskset
+        from llm_routing import build_taskset
 
         for task_id, reason in build_taskset.UNQUARANTINED.items():
             assert task_id not in build_taskset.QUARANTINED, (
@@ -851,7 +852,7 @@ class TestRoutableReestimate:
         opportunities rather than pricing the noise in them, which is the exact
         failure this script exists to prevent.
         """
-        path = REPO_ROOT / "redraw.wide.json"
+        path = REPO_ROOT / "runs" / "redraw.wide.json"
         if not path.exists():
             pytest.skip("redraw.wide.json not present; run scripts/redraw_decisive.py")
         import json
@@ -880,7 +881,7 @@ class TestRoutableReestimate:
         called it routable, while ten fresh cheap draws solved it 10 times out
         of 10. Phantoms are why `observed` is not the number to quote.
         """
-        path = REPO_ROOT / "redraw.wide.json"
+        path = REPO_ROOT / "runs" / "redraw.wide.json"
         if not path.exists():
             pytest.skip("redraw.wide.json not present; run scripts/redraw_decisive.py")
         import json
@@ -902,7 +903,7 @@ class TestRoutableReestimate:
         Dropping it must remove both - and the bookkeeping has to agree: every
         draw missing from `draws_used` is one the run reported dropping.
         """
-        path = REPO_ROOT / "redraw.wide.json"
+        path = REPO_ROOT / "runs" / "redraw.wide.json"
         if not path.exists():
             pytest.skip("redraw.wide.json not present; run scripts/redraw_decisive.py")
         import json
@@ -999,7 +1000,7 @@ class TestReachability:
         rows are real, paid for, gradeable, and permanently unservable.
         """
         import json
-        import response_cache
+        from llm_routing import response_cache
         task = next(t for t in benchmark_task if t["id"] == "math-96")
         prompt = models.build_prompt(task, "answer")
         old = response_cache.make_key(
@@ -1110,25 +1111,29 @@ class TestLadderScopedOutputs:
     """
 
     WRITERS = [
-        ("run_eval.py", "--out"),
-        ("frontier.py", "--out"),
-        ("sweep_degraded.py", "--out"),
-        ("stats.py", "--results"),
-        ("plot.py", "--frontier"),
+        ("run_eval", "--out"),
+        ("frontier", "--out"),
+        ("sweep_degraded", "--out"),
+        ("stats", "--results"),
+        ("plot", "--frontier"),
     ]
 
-    @pytest.mark.parametrize("script,flag", WRITERS)
-    def test_it_accepts_an_output_override(self, script, flag):
+    @pytest.mark.parametrize("module,flag", WRITERS)
+    def test_it_accepts_an_output_override(self, module, flag):
         import subprocess
         import sys
 
+        # `-m` from the repo root, which is also how run_all_ladders.py invokes
+        # them. Running the file by path would put llm_routing/ on sys.path
+        # instead of the root and `from llm_routing import models` would fail -
+        # so this doubles as a check that the package entry points work.
         proc = subprocess.run(
-            [sys.executable, str(REPO_ROOT / script), "--help"],
+            [sys.executable, "-m", f"llm_routing.{module}", "--help"],
             capture_output=True, text=True, cwd=REPO_ROOT,
         )
-        assert proc.returncode == 0, f"{script} --help failed:\n{proc.stderr}"
+        assert proc.returncode == 0, f"{module} --help failed:\n{proc.stderr}"
         assert flag in proc.stdout, (
-            f"{script} has no {flag}, so every ladder writes to the same file "
+            f"{module} has no {flag}, so every ladder writes to the same file "
             f"and the second run destroys the first. See "
             f"scripts/run_all_ladders.py."
         )
@@ -1140,7 +1145,7 @@ class TestLadderScopedOutputs:
         that quietly skipped it would leave one policy permanently unmeasured
         while every summary still said "all policies".
         """
-        import models
+        from llm_routing import models
 
         src = (REPO_ROOT / "scripts" / "run_all_ladders.py").read_text(
             encoding="utf-8")
@@ -1169,7 +1174,7 @@ class TestScorecard:
     """
 
     def test_the_outcome_buckets_partition_every_task(self):
-        import scorecard
+        from llm_routing import scorecard
 
         seen = set()
         for cell in ("both_ok", "routable", "both_fail", "inverted"):
@@ -1186,7 +1191,7 @@ class TestScorecard:
         """WASTEFUL is about money and CORRECT_OUTCOMES about answers, so
         `wasted_escalation` belongs to both. That is the distinction the
         reconciliation check exists to protect."""
-        import scorecard
+        from llm_routing import scorecard
 
         assert "wasted_escalation" in scorecard.CORRECT_OUTCOMES
         assert "wasted_escalation" in scorecard.WASTEFUL
@@ -1202,7 +1207,7 @@ class TestScorecard:
         the MIDDLE rung does it. The bucket is named for what did not happen,
         because naming it for one of the two mechanisms was wrong the first time.
         """
-        import scorecard
+        from llm_routing import scorecard
 
         name, mistake = scorecard.outcome_of("routable", False, correct=True)
         assert name == "rescued_without_top_rung" and not mistake
@@ -1218,7 +1223,7 @@ class TestScorecard:
         (cell, action, correct) combination, so a bucket that stops implying its
         own correctness fails here in milliseconds rather than in three minutes.
         """
-        import scorecard
+        from llm_routing import scorecard
 
         rows, cells, expected_correct = [], {}, 0
         i = 0
@@ -1265,12 +1270,12 @@ class TestScorecard:
         import subprocess
         import sys
 
-        if not (REPO_ROOT / "results.jsonl").exists():
+        if not (REPO_ROOT / "runs" / "results.jsonl").exists():
             pytest.skip("no results.jsonl")
         out = REPO_ROOT / "tests" / "_scorecard_tmp.json"
         try:
             proc = subprocess.run(
-                [sys.executable, str(REPO_ROOT / "scorecard.py"),
+                [sys.executable, "-m", "llm_routing.scorecard",
                  "--json", str(out)],
                 capture_output=True, text=True, cwd=REPO_ROOT,
             )
@@ -1288,7 +1293,7 @@ class TestScorecard:
 
 
 def scorecard_correct():
-    import scorecard
+    from llm_routing import scorecard
     return scorecard.CORRECT_OUTCOMES
 
 
@@ -1306,7 +1311,7 @@ class TestScorecardLadder:
     """
 
     def test_it_reads_the_ladder_from_the_results_file(self):
-        src = (REPO_ROOT / "scorecard.py").read_text(encoding="utf-8")
+        src = (REPO_ROOT / "llm_routing" / "scorecard.py").read_text(encoding="utf-8")
         set_at = src.index('os.environ["ROUTER_LADDER"] = ladder')
         import_at = src.index("import run_eval", set_at - 2000)
         assert set_at < import_at, (
@@ -1316,7 +1321,7 @@ class TestScorecardLadder:
 
     def test_an_empty_crosstab_refuses_rather_than_reports(self):
         """Zero classified tasks must stop the run, not produce a table."""
-        src = (REPO_ROOT / "scorecard.py").read_text(encoding="utf-8")
+        src = (REPO_ROOT / "llm_routing" / "scorecard.py").read_text(encoding="utf-8")
         assert "No task could be classified" in src
         i = src.index("if not total:")
         j = src.index("dynamic range:")
@@ -1342,7 +1347,7 @@ class TestCrossLadderVerdicts:
     """
 
     def test_it_reads_every_file_the_cache_would_serve(self):
-        src = (REPO_ROOT / "routable.py").read_text(encoding="utf-8")
+        src = (REPO_ROOT / "llm_routing" / "routable.py").read_text(encoding="utf-8")
         assert "_sibling_real_paths" in src, (
             "real_verdicts must consult the same sibling caches "
             "response_cache.configure() does, or it sees fewer responses than "
@@ -1350,7 +1355,7 @@ class TestCrossLadderVerdicts:
         )
 
     def test_it_matches_rungs_by_model_not_by_recorded_tier(self):
-        src = (REPO_ROOT / "routable.py").read_text(encoding="utf-8")
+        src = (REPO_ROOT / "llm_routing" / "routable.py").read_text(encoding="utf-8")
         assert "tier_of_model" in src
         body = src[src.index("def real_verdicts"):src.index("def report(")]
         assert 'd["tier"]' not in body, (

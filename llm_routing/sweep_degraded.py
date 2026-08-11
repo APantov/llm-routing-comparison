@@ -32,20 +32,20 @@ cheap and expensive responses. The sweep makes zero additional model calls after
 the first point, in mock mode and in real mode alike. That property is the entire
 reason the cache had to exist before any money was spent.
 
-    python3 sweep_degraded.py                      # mock
-    ROUTER_MODE=replay python3 sweep_degraded.py   # from a paid run, free
+    python -m llm_routing.sweep_degraded                      # mock
+    ROUTER_MODE=replay python -m llm_routing.sweep_degraded   # from a paid run, free
 """
 
 import argparse
 import sys
 from pathlib import Path
 
-import models
-import policies
-import run_eval
+from llm_routing import models
+from llm_routing import paths
+from llm_routing import policies
+from llm_routing import run_eval
 
-HERE = Path(__file__).parent
-OUT = HERE / "sweep_degraded.jsonl"
+OUT = paths.RUNS / "sweep_degraded.jsonl"
 
 # The corruption levels. Spaced to resolve the low end, because that is where the
 # break-even lives: a verifier does not have to be very good before cascading
@@ -182,6 +182,7 @@ def main():
     policies.VERIFIER_CORRUPTION = 0.0
     policies.VERIFIER_CORRUPTION_SEED = 0
 
+    paths.ensure_runs()
     run_eval.write_jsonl(OUT, all_rows)
 
     tag = run_eval.tag()

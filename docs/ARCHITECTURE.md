@@ -33,14 +33,14 @@ Two halves that share one substrate.
 │   replay                                                           │
 │                                                                    │
 │   policies.py → run_eval.py → frontier.py / stats.py               │
-│   10 policies    100 tasks     curves, McNemar, bootstrap          │
+│   10 policies    417 tasks     curves, McNemar, bootstrap          │
 │                                                                    │
-└─────────────────────── the experiment ─────────────────────────────┘
+└────────────────── the experiment: llm_routing/ ────────────────────┘
 ```
 
 The product does not open its own HTTP connections, keep its own price table,
 or define its own notion of a model tier. It calls `models.call`, exactly as
-`policies.py` does. Three properties follow, and none of them are obtainable
+`llm_routing/policies.py` does. Three properties follow, and none of them are obtainable
 by a serving layer that reimplements its own client:
 
 | property | why it follows |
@@ -149,7 +149,7 @@ a cascade needs no difficulty label because it finds out by trying.
 | `verify_code` — run the asserts | perfect | **no** | free and exact only because MBPP+ *ships* the tests; a served query carries none |
 
 This is the largest gap between the experiment and the product, and the
-repository already contains the experiment that prices it: `sweep_degraded.py`
+repository already contains the experiment that prices it: `llm_routing/sweep_degraded.py`
 corrupts `verify_code` by a controlled amount *inside the code domain* —
 holding models, prompts, domain and grader fixed — and measures how cascade
 quality falls as verifier quality does. Losing the real tests in production is
@@ -178,14 +178,14 @@ it is invisible.
 
 ## The one change the agent layer made to the research core
 
-`models.py` gained a `general` domain prompt, a `code_untested` prompt, and a
+`llm_routing/models.py` gained a `general` domain prompt, a `code_untested` prompt, and a
 branch in `_mock_call` for live queries with no ground truth to perturb.
 
-The claim is that none of it is reachable from `build_taskset.py` output.
+The claim is that none of it is reachable from `llm_routing/build_taskset.py` output.
 `scripts/check_core_unchanged.py` **proves** it rather than asserting it: it
 fingerprints every mock response the task set can produce — 100 tasks × 3
 ladders × 4 sample indices × 2 temperatures, plus both prompt kinds — and
-compares against `models.py` at a git revision.
+compares against `llm_routing/models.py` at a git revision.
 
 ```
   claude    identical  6a463523b63ce57a

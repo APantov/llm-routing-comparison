@@ -256,7 +256,7 @@ def explain_routing(ladder: str | None = None) -> dict[str, Any]:
     mime_type="application/json",
 )
 def ladders_resource() -> str:
-    import models
+    from llm_routing import models
     from router_agent import findings
 
     out = {}

@@ -249,7 +249,7 @@ def all_candidates(tasks, ladder):
     repeat draws are genuinely different solutions rather than one solution
     counted three times.
     """
-    import models
+    from llm_routing import models
 
     path = REPO / "cache" / f"raw_calls.{ladder}.jsonl"
     if not path.exists():
@@ -393,9 +393,9 @@ def main():
     ap.add_argument("--limit", type=int, default=None)
     args = ap.parse_args()
 
-    import models
-    import run_eval
-    from graders import grade
+    from llm_routing import models
+    from llm_routing import run_eval
+    from llm_routing.graders import grade
 
     tasks = run_eval.load_tasks(domain="code")
     pool = load_pool()

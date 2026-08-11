@@ -21,14 +21,17 @@ Everything else is machinery for making that comparison *fair*.
 
 ## 2. The files, in the order data flows through them
 
+Every module named below lives in `llm_routing/`, and is runnable on its own
+with `python -m llm_routing.<name>`.
+
 ```
-data/                    raw downloaded datasets (MATH500, MBPP)
+data/                    raw downloaded datasets (MATH-500, MBPP+)
     |
     v
-build_taskset.py         pick 100, normalise into one schema
+build_taskset.py         pick 417, normalise into one schema
     |
     v
-taskset.jsonl            <-- the 100 questions, the input to everything
+data/taskset.jsonl       <-- the 417 questions, the input to everything
     |
     v
 splits.py                cut in half: calibration / evaluation
@@ -37,46 +40,47 @@ splits.py                cut in half: calibration / evaluation
 run_eval.py              THE CONDUCTOR. for each task, for each policy:
     |                        |
     |                        v
-    |                    policies.py      decides WHICH model(s) to call
+    |                    policies.py        decides WHICH model(s) to call
     |                        |
     |                        v
-    |                    models.py        makes the call (or fakes it)
+    |                    models.py          makes the call (or fakes it)
     |                        |
     |                        v
     |                    response_cache.py  has this exact call been made before?
     |                        |
     |                        v
-    |                    graders.py       was the answer right?
+    |                    graders.py         was the answer right?
     v
-results.jsonl            <-- one row per (task, policy)
+runs/results.jsonl       <-- one row per (task, policy)
     |
-    +---> stats.py       are the differences real, or noise?
-    +---> frontier.py    sweep every knob, compare curves not points
+    +---> stats.py            are the differences real, or noise?
+    +---> frontier.py         sweep every knob, compare curves not points
     +---> sweep_degraded.py   the actual experiment
-    +---> plot.py        figures/*.svg
+    +---> scorecard.py        what each policy got right and wrong, and why
+    +---> plot.py             figures/*.svg
 ```
 
 ### What each file owns, and nothing else
 
 | file | owns | does NOT own |
 |---|---|---|
-| `build_taskset.py` | picking and normalising questions | anything about models or policies |
-| `graders.py` | "is this answer correct?" | anything about cost |
-| `models.py` | prices, model IDs, API contracts, the mock | what a policy decides |
-| `response_cache.py` | "have I seen this exact call?" | what a call costs a policy |
-| `policies.py` | every routing strategy and verifier | how models are called |
-| `splits.py` | which tasks are for tuning vs reporting | anything else |
-| `run_eval.py` | running everything, the report | any decision a policy makes |
-| `stats.py` | significance testing | producing results |
-| `frontier.py` | sweeping knobs, cost-quality curves | single operating points |
-| `sweep_degraded.py` | the verifier-degradation experiment | anything not about verifiers |
-| `plot.py` | SVG figures | computing anything |
-| `sanity_check.py` | proving the graders work | everything else |
+| `llm_routing/build_taskset.py` | picking and normalising questions | anything about models or policies |
+| `llm_routing/graders.py` | "is this answer correct?" | anything about cost |
+| `llm_routing/models.py` | prices, model IDs, API contracts, the mock | what a policy decides |
+| `llm_routing/response_cache.py` | "have I seen this exact call?" | what a call costs a policy |
+| `llm_routing/policies.py` | every routing strategy and verifier | how models are called |
+| `llm_routing/splits.py` | which tasks are for tuning vs reporting | anything else |
+| `llm_routing/run_eval.py` | running everything, the report | any decision a policy makes |
+| `llm_routing/stats.py` | significance testing | producing results |
+| `llm_routing/frontier.py` | sweeping knobs, cost-quality curves | single operating points |
+| `llm_routing/sweep_degraded.py` | the verifier-degradation experiment | anything not about verifiers |
+| `llm_routing/plot.py` | SVG figures | computing anything |
+| `llm_routing/sanity_check.py` | proving the graders work | everything else |
 
 The rule the whole layout follows: **a policy never knows what mode it is in.**
-`policies.py` calls `models.call("cheap", task)` and gets a reply. Whether that
+`llm_routing/policies.py` calls `models.call("cheap", task)` and gets a reply. Whether that
 reply came from a real API, a hash function, or a file on disk is entirely
-`models.py`'s business. That is why the same policy code produces the mock run and
+`llm_routing/models.py`'s business. That is why the same policy code produces the mock run and
 the paid run with no branching.
 
 ---
@@ -85,7 +89,7 @@ the paid run with no branching.
 
 Everything in the repo is one of these four shapes.
 
-### A task (a row of `taskset.jsonl`)
+### A task (a row of `data/taskset.jsonl`)
 
 Real example, exactly as stored:
 
@@ -112,7 +116,7 @@ Three fields deserve attention because they are where cheating would happen:
   exists for sampling and for driving the mock. Keeping it out of
   `predict_features` is what stops that leak.
 - **`_ref_code`** is the known-good answer. Used only by the mock (it needs
-  something that genuinely passes the tests) and by `sanity_check.py`. A real
+  something that genuinely passes the tests) and by `llm_routing/sanity_check.py`. A real
   model never sees it.
 
 ### A model response (`models.ModelResponse`)
@@ -223,7 +227,7 @@ not deterministic. Then when two policies disagree you cannot tell whether their
 *strategies* differ or whether they got different dice rolls.
 
 So the first answer is stored and everyone gets that one. Every policy is judged on
-identical model output. That is what makes the paired statistics in `stats.py`
+identical model output. That is what makes the paired statistics in `llm_routing/stats.py`
 valid at all.
 
 **But a cache hit still charges the policy full price.** In production you run one
@@ -257,14 +261,14 @@ supposed maximum**. `run_eval` now prints an explicit bound check every run.
 ### 5.4 Half the tasks are hidden from the tuning
 
 Pick a threshold by trying several on all 100 tasks, then report the best score,
-and the number partly measures your own choice. `splits.py` holds out half;
+and the number partly measures your own choice. `llm_routing/splits.py` holds out half;
 thresholds and quality estimates are fitted on the other half. That is why runs
 report `n=51` and not `n=100`.
 
 ### 5.5 Policies are curves, not points
 
 Every policy has a knob that trades accuracy for money. Comparing two policies at
-one setting each lets whoever set the knobs pick the winner. `frontier.py` sweeps
+one setting each lets whoever set the knobs pick the winner. `llm_routing/frontier.py` sweeps
 every knob across its full range and compares the resulting curves.
 
 ---
@@ -275,28 +279,28 @@ Each is marked `DECISION #n` in the source, next to the code it controls.
 
 | # | what | file |
 |---|---|---|
-| 1 | the model ladder and its prices | `models.py` |
-| 2 | self-consistency sample count (k=5) | `policies.py` |
-| 3 | agreement threshold (0.8) | `policies.py` |
-| 4 | ~~the predictive heuristic~~ retracted, tombstoned | `policies.py` |
-| 5 | verifier corruption rate — **the manipulated variable** | `policies.py` |
-| 6 | random baseline seed | `policies.py` |
-| 7 | LLM-as-router | `policies.py` |
-| 8 | RouteLLM variant and threshold | `routellm_router.py` |
-| 9 | cascade routing λ | `policies.py` |
+| 1 | the model ladder and its prices | `llm_routing/models.py` |
+| 2 | self-consistency sample count (k=5) | `llm_routing/policies.py` |
+| 3 | agreement threshold (0.8) | `llm_routing/policies.py` |
+| 4 | ~~the predictive heuristic~~ retracted, tombstoned | `llm_routing/policies.py` |
+| 5 | verifier corruption rate — **the manipulated variable** | `llm_routing/policies.py` |
+| 6 | random baseline seed | `llm_routing/policies.py` |
+| 7 | LLM-as-router | `llm_routing/policies.py` |
+| 8 | RouteLLM variant and threshold | `llm_routing/routellm_router.py` |
+| 9 | cascade routing λ | `llm_routing/policies.py` |
 
 ---
 
 ## 7. Reading order, if you want to read the source
 
-1. **`build_taskset.py`** (206 lines) — simplest. Shows you what a task is.
-2. **`graders.py`** (200) — self-contained. "Is this answer right?"
-3. **`models.py`**, just `MODEL_SPECS` and `LADDERS` at the top — the price tables.
-4. **`policies.py`**, just `policy_always` then `_cascade` — the two ends of the
+1. **`llm_routing/build_taskset.py`** (206 lines) — simplest. Shows you what a task is.
+2. **`llm_routing/graders.py`** (200) — self-contained. "Is this answer right?"
+3. **`llm_routing/models.py`**, just `MODEL_SPECS` and `LADDERS` at the top — the price tables.
+4. **`llm_routing/policies.py`**, just `policy_always` then `_cascade` — the two ends of the
    spectrum. Skip `cascade_routing` on a first pass; it is the most involved.
-5. **`run_eval.py`**, just `run()` and `report()` — the loop and the table.
+5. **`llm_routing/run_eval.py`**, just `run()` and `report()` — the loop and the table.
 
-Skip on a first pass: `frontier.py`, `stats.py`, `plot.py`, `routellm_router.py`.
+Skip on a first pass: `llm_routing/frontier.py`, `llm_routing/stats.py`, `llm_routing/plot.py`, `llm_routing/routellm_router.py`.
 They are analysis and reporting, and none of them changes what a policy does.
 
 ---

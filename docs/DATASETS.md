@@ -42,9 +42,9 @@ Wired up and verified on 31 July 2026. Two commands:
 
 ```bash
 pip install datasets numpy
-python3 fetch_mbppplus.py                       # writes data/mbppplus.json
-python3 build_taskset.py                        # MBPP+ is the only code source
-python3 sanity_check.py                         # must still be full marks
+python -m llm_routing.fetch_mbppplus                       # writes data/mbppplus.json
+python -m llm_routing.build_taskset                        # MBPP+ is the only code source
+python -m llm_routing.sanity_check                         # must still be full marks
 ```
 
 MBPP+ became the default on 6 August 2026 and the **only** code source on
@@ -70,13 +70,13 @@ to exact `==`, so the verdict turns on whether your libm matches the machine the
 expectations were generated on. Task 590 (`polar_rect`, expected value
 `(tuple, complex)`) passes on Linux and fails on Windows.
 
-`fetch_mbppplus.py` therefore validates every reference solution against its own
+`llm_routing/fetch_mbppplus.py` therefore validates every reference solution against its own
 expanded suite **on the machine that will run the evaluation**, and drops the
-failures with a reason. Without that, `sanity_check.py` refuses to proceed - which
+failures with a reason. Without that, `llm_routing/sanity_check.py` refuses to proceed - which
 is correct but late. Re-validate an existing download without re-downloading:
 
 ```bash
-python3 fetch_mbppplus.py --validate-only
+python -m llm_routing.fetch_mbppplus --validate-only
 ```
 
 Dropping is not tidying. The mock emits the reference as its "correct" answer, so
@@ -123,7 +123,7 @@ also large. Only worth it if both options above fail.
 
 ### MATH-500 level 5 — costs nothing to try
 
-Already on disk. `MIN_MATH_LEVEL = 5` in `build_taskset.py` and rebuild. 134
+Already on disk. `MIN_MATH_LEVEL = 5` in `llm_routing/build_taskset.py` and rebuild. 134
 problems available, against the 60 currently sampled across levels 3–5.
 
 This is the first thing to try because it is one constant and zero download. If
@@ -147,7 +147,7 @@ Two things to know before committing:
   `1 + \left\lceil \frac{n}{2} \right\rceil`. Exact match on those is fragile in
   a way MATH500's mostly-numeric answers are not. Filter to answers that
   normalise cleanly, or expect a grader false-negative rate that would read as a
-  capability result. `sanity_check.py` is the tool for this — it will show you
+  capability result. `llm_routing/sanity_check.py` is the tool for this — it will show you
   immediately how many ground-truth answers the grader cannot match.
 
 ### AIME 2025 — a useful spike, not a base
@@ -167,7 +167,7 @@ If that alone lifts the failure rate into 20–55%, stop — you have a working 
 set for the cost of one edit.
 
 **Step 2, cheap — already implemented, and now the only code source.**
-`python3 fetch_mbppplus.py` then `python3 build_taskset.py`. Same problems, far
+`python -m llm_routing.fetch_mbppplus` then `python -m llm_routing.build_taskset`. Same problems, far
 stricter marking. Probe again.
 
 **Step 3, only if needed.** Omni-MATH filtered to `difficulty >= 7` and to answers
@@ -183,9 +183,9 @@ whole `cascade_degraded` design exists to avoid.
 
 ## What to re-check after any swap
 
-1. `python3 sanity_check.py` — the graders must still score reference answers at
+1. `python -m llm_routing.sanity_check` — the graders must still score reference answers at
    full marks. On a new math set this is the step that catches unmatched answer
    formats, and it exits non-zero so it cannot be skipped by accident.
-2. `python3 run_eval.py --policy always_cheap --split all` in real mode — the
+2. `python -m llm_routing.run_eval --policy always_cheap --split all` in real mode — the
    probe, with its per-domain and per-difficulty-band breakdown.
 3. Only then, the full run.

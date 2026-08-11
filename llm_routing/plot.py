@@ -15,8 +15,8 @@ Two figures:
   degradation.svg accuracy and escalation rate against verifier corruption, with
                   error bars over the repeat draws. The experiment.
 
-    python3 sweep_degraded.py && python3 frontier.py   # produce the data
-    python3 plot.py                                    # draw both
+    python -m llm_routing.sweep_degraded && python -m llm_routing.frontier   # produce the data
+    python -m llm_routing.plot                                    # draw both
 """
 
 import argparse
@@ -24,7 +24,7 @@ import json
 import sys
 from pathlib import Path
 
-HERE = Path(__file__).parent
+from llm_routing import paths
 
 W, H = 760, 470
 PAD_L, PAD_R, PAD_T, PAD_B = 78, 168, 46, 62
@@ -177,10 +177,10 @@ def _mark(rows):
 
 
 def plot_frontier(out, src=None):
-    src = src or HERE / "frontier.jsonl"
+    src = src or paths.RUNS / "frontier.jsonl"
     rows = _read(src)
     if not rows:
-        print(f"  {src.name} not found - run: python3 frontier.py", file=sys.stderr)
+        print(f"  {src.name} not found - run: python -m llm_routing.frontier", file=sys.stderr)
         return False
 
     fams = {}
@@ -231,10 +231,10 @@ def plot_frontier(out, src=None):
 
 
 def plot_degradation(out, src=None):
-    src = src or HERE / "sweep_degraded.jsonl"
+    src = src or paths.RUNS / "sweep_degraded.jsonl"
     rows = _read(src)
     if not rows:
-        print(f"  {src.name} not found - run: python3 sweep_degraded.py",
+        print(f"  {src.name} not found - run: python -m llm_routing.sweep_degraded",
               file=sys.stderr)
         return False
 
@@ -275,7 +275,7 @@ def plot_degradation(out, src=None):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--outdir", default=str(HERE / "figures"))
+    ap.add_argument("--outdir", default=str(paths.FIGURES))
     ap.add_argument("--frontier", metavar="PATH", default=None,
                     help="read this frontier file instead of frontier.jsonl")
     ap.add_argument("--sweep", metavar="PATH", default=None,
