@@ -74,3 +74,6 @@ cache/*.bak
 .DS_Store
 Thumbs.db
 *.swp
+
+# Personal prep notes, never published.
+BRIEFING.local.md

@@ -12,10 +12,10 @@ The interesting outcome is the unflattering one. RouteLLM's routers were trained
 on human preference between GPT-4-class and Mixtral-class models on open-ended
 chat. This applies them to DeepSeek v4-flash vs Opus 5 on objectively-graded
 competition maths and MBPP+. That is squarely out of distribution, and the
-prediction has now been checked: across all 100 tasks the router's scores span
-[0.509, 0.898] and NEVER fall below 0.5, so it never once judges the weak model
-favoured. At the semantically natural threshold it degenerates into
-always_expensive. Preference-trained routers transfer poorly to objectively
+prediction has now been checked: across all 417 tasks the router's scores span
+[0.499, 0.899] with a median of 0.790, and exactly ONE task falls below 0.5. So
+on 416 of 417 it judges the strong model favoured, and at the semantically
+natural threshold it degenerates into always_expensive. Preference-trained routers transfer poorly to objectively
 graded reasoning, because preference is not correctness - and the failure is
 visible in the score distribution before any accuracy is measured. See
 DECISION #8b for what threshold is used instead, and why.
@@ -276,10 +276,16 @@ THRESHOLDS = {}
 #
 # WHY NOT 0.5. `calculate_strong_win_rate` returns P(the strong model wins), so
 # 0.5 is the semantically natural cut: escalate when the strong model is more
-# likely than not to win. On this task set it routes EVERYTHING expensive. The
-# scores never fall below 0.509 - measured across all 100 tasks the range is
-# [0.509, 0.898], median 0.783. The router never once says the weak model is
-# favoured.
+# likely than not to win. On this task set it routes all but one task expensive.
+# Measured across all 417 tasks the range is [0.499, 0.899], median 0.790, and
+# exactly ONE task scores below 0.5 (at 0.499). The router effectively never
+# says the weak model is favoured, so at 0.5 this is always_expensive with an
+# extra step.
+#
+# The figures above were [0.509, 0.898] over 100 tasks before the 6 August 2026
+# rebuild grew the set to 417. Re-measured rather than carried over: the old
+# range supported the strictly stronger claim that no task ever falls below
+# 0.5, and that claim is now false by one task.
 #
 # That is a finding rather than an inconvenience, and it is the out-of-
 # distribution behaviour this module's docstring predicted: bert_gpt4_augmented

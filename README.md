@@ -1,5 +1,3 @@
-[![CI](https://github.com/APantov/llm-routing-comparison/actions/workflows/ci.yml/badge.svg)](https://github.com/APantov/llm-routing-comparison/actions/workflows/ci.yml)
-
 # LLM Routing: a measured benchmark, and the router it argues for
 
 **A cost-aware LLM routing service (LangGraph + MCP), and the 417-task benchmark

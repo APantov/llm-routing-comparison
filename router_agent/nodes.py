@@ -120,9 +120,13 @@ def verify(state: RouteState) -> dict:
     """Ask the verifier whether the current answer is good enough to return.
 
     The cost this node reports is the cascade's fixed overhead: it is paid on
-    every query, including the ones that were always going to be accepted. That
-    is the term which makes cascading lose below a ~3x price ratio, so it is
+    every query, including the ones that were always going to be accepted.
+    That term - not the price ratio between the rungs - is what decides
+    whether cascading is cheaper on a given ladder, which is why it is
     accounted separately from the answer call rather than folded into it.
+    On `claude` it is what makes the cascade 11.7% DEARER at matched
+    accuracy despite a 6.5x ratio; on `deepseek` at 3.11x it is small
+    enough that the cascade still comes out 4.4% cheaper.
     """
     cfg = _cfg(state)
     tier = _tier_at(state["rung_index"])

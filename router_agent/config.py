@@ -72,11 +72,25 @@ class RouterConfig:
 
     policy: Policy = "cascade"
     """
-    `cascade` by default, and the benchmark is why. On the two ladders with a
-    price ratio above ~3x it is both cheaper and more accurate than paying for
-    the top rung every time (claude 12% cheaper, wide 74% cheaper at matched
-    accuracy). Below that ratio it loses - see findings.ratio_verdict, which
-    will tell you so for the ladder you actually loaded.
+    `cascade` by default, and the benchmark is why: it is the most accurate
+    policy measured on every ladder, and on two of three it is also cheaper at
+    matched accuracy.
+
+    It is NOT unconditionally cheaper, and the default does not pretend
+    otherwise. Measured, cascade against always-best at matched accuracy:
+
+        deepseek   3.11x ratio     -4.4%   cheaper
+        claude      6.5x ratio    +11.7%   DEARER
+        wide       46.4x ratio    -83.1%   much cheaper
+
+    Note the middle row, and note that it is not ordered by price ratio. What
+    decides the sign is what verification costs on the ladder, not the price
+    gap - on `claude` the cheap rung is haiku and the maths half draws five
+    samples from it. A rule of the form "cascade above ~3x" gets `claude` and
+    `deepseek` backwards, which is why no such rule appears anywhere in this
+    package. Call findings.ratio_verdict for the ladder actually loaded; it
+    reads that ladder's committed frontier and declines to guess when it has
+    none.
     """
 
     verifier: Verifier = "auto"

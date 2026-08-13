@@ -2,7 +2,7 @@
 
 Every threshold in this project is a free parameter: the agreement threshold,
 RouteLLM's score threshold, the random baseline's rate, cascade_routing's quality
-estimates. Fitting those on the same 100 tasks the results are then reported on
+estimates. Fitting those on the same 417 tasks the results are then reported on
 makes the results a measure of the fitting, not of the method. That is the
 textbook version of the mistake, and an evaluation repo has no excuse for it.
 

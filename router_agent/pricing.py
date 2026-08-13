@@ -92,8 +92,9 @@ def estimate_verification_cost(task: dict, tier: str, verifier: str, k: int) -> 
 
     This is the cost a comparison against predictive routing must not forget.
     A cascade pays it on every query, including the ones it was always going to
-    accept - it is the fixed cost that makes cascading lose below a ~3x price
-    ratio.
+    accept. It is the fixed cost that decides whether cascading is cheaper on
+    a ladder - the price ratio does not, and the measured ladders are not
+    monotonic in it (see findings.ratio_verdict).
     """
     if verifier == "self_consistency":
         if not models.MODELS[tier]["accepts_temperature"]:

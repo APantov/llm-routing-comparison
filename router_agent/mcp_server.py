@@ -57,8 +57,10 @@ Two things to understand before reading its output:
   actually left the account.
 
 Call `explain_routing` first if you are choosing a policy. Whether cascading is
-the right architecture depends on the price ratio of the ladder you loaded, and
-on that ladder it may be the wrong answer.
+the right architecture is a measured property of the ladder you loaded, and on
+that ladder it may be the wrong answer. Do not infer it from the price ratio
+between the rungs: the three measured ladders are non-monotonic in that ratio,
+so a threshold rule gets two of the three backwards.
 """
 
 mcp = MCPServer(
@@ -132,7 +134,7 @@ def route_query(
             "error": "no_cached_response",
             "detail": (
                 "This server is in replay mode, which can only serve prompts "
-                "that were actually paid for (the 100 benchmark tasks). Set "
+                "that were actually paid for (the 417 benchmark tasks). Set "
                 "ROUTER_MODE=real with an API key to serve arbitrary queries."
             ),
             "raw": str(exc)[:300],
@@ -219,8 +221,9 @@ def compare_policies(
         "cheapest_policy": cheapest["policy"] if cheapest else None,
         "caveat": (
             "One query is an anecdote, not a measurement. The repository's "
-            "conclusions come from 100 tasks with paired significance tests; "
-            "a single comparison can go either way by chance."
+            "conclusions come from 417 tasks - 209 of them held out for "
+            "evaluation - with paired significance tests; a single comparison "
+            "can go either way by chance."
         ),
     }
 
@@ -228,12 +231,15 @@ def compare_policies(
 @mcp.tool(
     description=(
         "Explain when cascade routing beats predictive routing, using this "
-        "repository's measurements. Call this BEFORE choosing a policy: the "
-        "answer depends on the price ratio between the ladder's rungs, and "
-        "below roughly 3x the cascade costs MORE than simply always using the "
-        "best model. Returns the measured verdict for a ladder, the two-arm "
-        "probe cross-tab, and how much of the benchmark is real versus "
-        "simulated."
+        "repository's measurements. Call this BEFORE choosing a policy: "
+        "whether cascading is cheaper is a property of the specific ladder, "
+        "and it is NOT predictable from the price ratio between the rungs - "
+        "the measured ladders are non-monotonic in it, so a ratio threshold "
+        "gets two of three backwards. The deciding term is what verification "
+        "costs on that ladder. Returns the measured verdict for a ladder, the "
+        "two-arm probe cross-tab, and how much of the benchmark is real versus "
+        "simulated. A ladder with no frontier run gets no verdict rather than "
+        "a guess."
     ),
 )
 def explain_routing(ladder: str | None = None) -> dict[str, Any]:
@@ -356,7 +362,19 @@ def policies_resource() -> str:
             "does": "answer at the cheapest rung, verify, escalate on failure",
             "pays": "the cheap call and verification on EVERY query",
             "buys": "the chance to skip an expensive call",
-            "wins_when": "the price ratio between rungs is above roughly 3x",
+            "wins_when": (
+                "the top rung is genuinely better than the bottom one AND "
+                "verification is cheap on this ladder. Measured most accurate "
+                "on all three ladders; cheaper at matched accuracy on two of "
+                "three (deepseek -4.4%, wide -83.1%, claude +11.7% DEARER)."
+            ),
+            "not_predictable_from_price_ratio": (
+                "The measured ladders are non-monotonic in the price ratio: "
+                "claude has the higher ratio of the two close ladders and is "
+                "the one where cascading costs more, because verification is "
+                "expensive there. Call explain_routing for the loaded ladder "
+                "rather than applying a ratio threshold."
+            ),
         },
         "predictive": {
             "does": "guess difficulty from the query text, commit to one rung",
@@ -407,10 +425,14 @@ Monthly volume: {monthly_queries or "(unknown)"}
 Work through this in order, using the `llm-routing` MCP server:
 
 1. Call `explain_routing` to get the measured verdict for the ladder in use.
-   The decisive quantity is the PRICE RATIO between the cheapest and most
-   expensive rung. Below roughly 3x, a cascade costs more than simply always
-   using the best model, because it pays for the cheap call and for
-   verification on every query and those fixed costs swamp the saving.
+   Do NOT reason from the price ratio between the rungs: this repository set
+   out to find a ratio threshold and measured that none exists. The ladder
+   with the higher ratio of the two close ones (`claude`, 6.5x) is the one
+   where cascading costs MORE, while the lower-ratio `deepseek` at 3.11x comes
+   out cheaper. The deciding term is what VERIFICATION costs on the ladder -
+   a cascade pays for the cheap call and for verification on every query,
+   including the ones it was always going to accept, and on `claude` that
+   means five samples from the cheap rung on every maths query.
 
 2. Read `routing://findings/probe`. If the `routable` fraction is near zero,
    the cheap and expensive models succeed and fail on the same queries and NO

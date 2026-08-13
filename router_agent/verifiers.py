@@ -352,8 +352,8 @@ def select(task: dict, cfg: RouterConfig) -> str:
             cost while giving them none of its benefit - and since the cost
             comparison between cascading and routing is the entire subject of
             this repository, that would invalidate the one number that matters.
-            This is the term that makes a cascade lose below a ~3x price ratio;
-            it belongs only to policies that can act on it.
+            This is the fixed term that decides whether a cascade is cheaper
+            on a given ladder; it belongs only to policies that can act on it.
         code + caller tests + execution allowed -> tests
             The perfect verifier. Take it whenever it is on offer.
         code + tests but execution disabled     -> self_consistency

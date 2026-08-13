@@ -311,7 +311,7 @@ def main(argv: list[str] | None = None) -> int:
         print(
             RED("replay mode has no cached response for this query.\n") +
             "Replay can only serve prompts that were actually paid for - the "
-            "100 benchmark\ntasks. Try:\n"
+            "417 benchmark\ntasks. Try:\n"
             "    llm-router --demo                (a benchmark task, $0)\n"
             "    ROUTER_MODE=real llm-router ...  (your own query, costs money)\n"
             f"\ndetail: {str(exc)[:300]}",
