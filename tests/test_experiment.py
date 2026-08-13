@@ -398,31 +398,77 @@ class TestQuarantine:
     """
 
     def test_no_artefact_mentions_them(self):
-        """The whole rule, in one assertion, over every file that stores a task id."""
+        """The whole rule, in one assertion, over every file that stores a task id.
+
+        DISCOVERED, not listed. This used to be a hardcoded set of paths, and it
+        silently lost most of its coverage when the 11 August 2026 restructure
+        renamed `runs/results.jsonl` to one file per ladder: the missing path hit
+        the `exists()` guard, and the three files that replaced it were never
+        added. The tripwire went on passing while inspecting nothing that
+        mattered.
+
+        Globbing means a new ladder or a new analysis output is covered the day
+        it appears. `required` below is the floor that stops an empty glob - a
+        wrong directory, a renamed suffix - from making this vacuous again.
+        """
         from llm_routing import build_taskset
 
         quarantined = set(build_taskset.QUARANTINED)
-        targets = [
-            "data/taskset.jsonl", "runs/results.jsonl",
-            "runs/results.probe.jsonl",
+
+        # The three files that MUST name them. These are not measurements - they
+        # are the adjudication itself: the paid redraw that established every
+        # rung's p̂ is 0, the pool screen, and the triage evidence. Purging these
+        # would delete the justification for the quarantine and leave 13 tasks
+        # removed on no recorded grounds, so they are asserted present below
+        # rather than merely skipped.
+        EVIDENCE = {
+            "runs/redraw.wide.both_fail.expensive.json",
+            "runs/screen.wide.mbppplus.json",
+            "runs/triage.wide.json",
+        }
+
+        targets = sorted(
+            {p for pattern in ("runs/*.jsonl", "runs/*.json",
+                               "cache/*.jsonl", "data/taskset.jsonl")
+             for p in REPO_ROOT.glob(pattern)
+             if not p.name.endswith(".mock.jsonl")}
+        )
+        found = {p.relative_to(REPO_ROOT).as_posix() for p in targets}
+
+        required = {
+            "data/taskset.jsonl", "runs/results.probe.jsonl",
             "cache/raw_calls.wide.jsonl", "cache/raw_calls.claude.jsonl",
-            "cache/raw_calls.deepseek.jsonl", "cache/routellm_scores.jsonl",
-            "runs/redraw.wide.json",
-        ]
-        offenders = {}
-        for rel in targets:
-            path = REPO_ROOT / rel
-            if not path.exists():
-                continue
-            text = path.read_text(encoding="utf-8")
+            "cache/raw_calls.deepseek.jsonl",
+        } | {f"runs/results.{lad}.jsonl"
+             for lad in ("wide", "claude", "deepseek")} | EVIDENCE
+        missing = sorted(required - found)
+        assert not missing, (
+            f"the quarantine tripwire is not inspecting {missing}. Either the "
+            f"artefact is genuinely absent from this checkout, or the glob above "
+            f"stopped matching it - and a tripwire that inspects nothing passes."
+        )
+
+        offenders, evidence_seen = {}, {}
+        for path in targets:
+            rel = path.relative_to(REPO_ROOT).as_posix()
+            text = path.read_text(encoding="utf-8", errors="replace")
             hits = sorted(q for q in quarantined if q in text)
-            if hits:
+            if rel in EVIDENCE:
+                evidence_seen[rel] = hits
+            elif hits:
                 offenders[rel] = hits
+
         assert not offenders, (
             f"quarantined tasks are back in {offenders}.\n"
             f"They are unpassable, not hard, and nothing filters them any more. "
             f"Re-run `python scripts/purge_quarantined.py --go`, and work out "
             f"what put them back before trusting any number from this run."
+        )
+        blank = sorted(k for k, v in evidence_seen.items() if not v)
+        assert not blank, (
+            f"{blank} no longer names any quarantined task. These files are the "
+            f"evidence for the quarantine; without them 13 tasks are deleted on "
+            f"no recorded grounds. Restore them rather than relaxing this."
         )
 
     def test_rebuild_never_reintroduces_them(self):
@@ -573,7 +619,7 @@ class TestReplayMiss:
 # self-consistency samples into a results.jsonl whose every row said
 # `simulated: false`, because the flag was derived from the run MODE and from
 # whether the real cache FILE existed - neither of which is a fact about any
-# response. See NOTES.md issue 19.
+# response. See docs/LIMITATIONS.md.
 #
 # The bug survived 156 tests, sanity_check.py and check_core_unchanged.py,
 # because nothing compared a served response against the cache it came from.
@@ -728,7 +774,7 @@ class TestSpendCap:
         assert models.backend_spend_usd == 0.0
 
     def test_run_eval_still_exposes_the_name(self):
-        """STATUS.md and README point readers at run_eval.MAX_SPEND_USD."""
+        """the README and docs/RESULTS.md point readers at run_eval.MAX_SPEND_USD."""
         assert run_eval.MAX_SPEND_USD == models.MAX_SPEND_USD
 
     def test_the_exception_is_not_aliased_at_import(self):
@@ -1265,18 +1311,25 @@ class TestScorecard:
         Marked slow because it grades every code task through a subprocess -
         3 seconds at 95 tasks, 168 at 426. The fast test above covers the
         arithmetic; this covers the join against the real cross-tab.
+
+        Named per ladder rather than defaulting. This test used to gate on a
+        fixed `runs/results.jsonl`, which the 11 August 2026 restructure deleted
+        and which will not come back - so it silently skipped even under
+        `pytest -m slow`, and the only end-to-end reconciliation against real
+        data stopped running while still being advertised.
         """
         import json
         import subprocess
         import sys
 
-        if not (REPO_ROOT / "runs" / "results.jsonl").exists():
-            pytest.skip("no results.jsonl")
+        results = REPO_ROOT / "runs" / "results.wide.jsonl"
+        if not results.exists():
+            pytest.skip("no runs/results.wide.jsonl in this checkout")
         out = REPO_ROOT / "tests" / "_scorecard_tmp.json"
         try:
             proc = subprocess.run(
                 [sys.executable, "-m", "llm_routing.scorecard",
-                 "--json", str(out)],
+                 "--results", str(results), "--json", str(out)],
                 capture_output=True, text=True, cwd=REPO_ROOT,
             )
             assert proc.returncode == 0, proc.stderr
@@ -1371,4 +1424,37 @@ class TestCrossLadderVerdicts:
         assert len(set(ids)) == len(ids), (
             f"{ladder} maps two rungs to one model id, so a response could not "
             f"be attributed to a rung unambiguously"
+        )
+
+
+class TestPathsDefaultLadder:
+    """`paths.default_ladder` duplicates `models.LADDER`, so keep them in step.
+
+    The duplication is deliberate and documented in `paths`: `scorecard` reads
+    the ladder out of a results file and sets ROUTER_LADDER *before* the first
+    `models` import, because `models` builds its price table at module scope. It
+    therefore cannot ask `models` what the default is while it is still working
+    out which file to open.
+
+    A silent divergence would send `stats` and `scorecard` at a different
+    ladder's results than `run_eval` just wrote, which is the exact class of bug
+    the per-ladder filenames exist to prevent.
+    """
+
+    def test_it_agrees_with_models(self, use_ladder):
+        from llm_routing import paths
+
+        for ladder in ("wide", "claude", "deepseek"):
+            m = use_ladder(ladder)
+            assert paths.default_ladder() == m.LADDER
+
+    def test_it_falls_back_to_the_same_default(self, monkeypatch):
+        from llm_routing import paths
+
+        monkeypatch.delenv("ROUTER_LADDER", raising=False)
+        src = (REPO_ROOT / "llm_routing" / "models.py").read_text(encoding="utf-8")
+        line = next(l for l in src.splitlines() if l.startswith("LADDER = "))
+        assert f'"{paths.default_ladder()}"' in line, (
+            "paths.default_ladder and models.LADDER disagree about the default "
+            "ladder; they are duplicated on purpose and must be changed together"
         )

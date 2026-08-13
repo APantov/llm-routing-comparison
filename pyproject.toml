@@ -13,7 +13,7 @@ readme = "README.md"
 # evaluation. Pin it, and record which one produced any quoted result.
 requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{ name = "Asen" }]
+authors = [{ name = "Asen Pantov" }]
 keywords = ["llm", "routing", "cascade", "langgraph", "mcp", "evaluation"]
 
 # NOTHING HERE BY DEFAULT, AND THAT IS THE POINT.
@@ -69,7 +69,7 @@ llm-router = "router_agent.cli:main"
 llm-router-mcp = "router_agent.mcp_server:main"
 
 [project.urls]
-Homepage = "https://github.com/asen/llm-routing-comparison"
+Homepage = "https://github.com/APantov/llm-routing-comparison"
 
 [tool.setuptools]
 # Two packages, one arrow: `router_agent` imports `llm_routing`, never the

@@ -3,7 +3,7 @@ r"""Sort the `both_fail` tasks into "the model was wrong" and "the task is broke
 
 WHY THIS EXISTS
 ---------------
-STATUS.md section 6 (the quarantine rule) found five MBPP+ tasks whose expected answers cannot be
+docs/ENGINEERING.md (the quarantine rule) found five MBPP+ tasks whose expected answers cannot be
 derived from their prompt: they score a candidate against whatever the MBPP
 reference happened to return on inputs the natural-language prompt never
 describes. Those five were ALL of `always_expensive`'s failures on the eval
@@ -12,7 +12,7 @@ split, so leaving them in capped every policy in the project at 92% instead of
 
     "both rungs failed" reads as "hard" and is equally consistent with "broken".
 
-At 365 code tasks the expected queue is 40-45 of these, and `STATUS.md` flags
+At 365 code tasks the expected queue is 40-45 of these, and `docs/RESULTS.md` flags
 the cost honestly: THE REAL COST OF B IS HUMAN, NOT FINANCIAL. This script does
 not replace that judgement. It gathers the evidence mechanically and names the
 specific inputs in dispute, so the human time goes to deciding rather than to

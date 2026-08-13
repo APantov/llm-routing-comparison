@@ -25,9 +25,9 @@ WHAT IT DOES
         -m llm_routing.sweep_degraded --out runs/sweep_degraded.<ladder>.jsonl
         -m llm_routing.plot           --frontier ... --sweep ... --suffix .<ladder>
 
-then copies the canonical ladder's results to the unsuffixed
-`runs/results.jsonl` and `runs/frontier.jsonl`, because README, STATUS, the test
-suite and `router_agent` all read those names.
+There is no unsuffixed copy. Every reader - docs/RESULTS.md, the tests, and
+`router_agent.findings` - names the ladder it wants, so there is exactly one
+file per ladder and no second copy that can disagree with it.
 
 EACH LADDER RUNS IN ITS OWN SUBPROCESS. `models.LADDER` is read from the
 environment at import time and baked into module-level constants (`TIERS`,
@@ -51,7 +51,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import shutil
 import subprocess
 import sys
 import time
@@ -61,12 +60,6 @@ REPO = Path(__file__).resolve().parent.parent
 
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
-
-# The ladder whose files are also copied to the unsuffixed names. `wide` is the
-# canonical one: it is the ladder every committed number was measured on, and
-# the one the 46x price-ratio finding belongs to.
-CANONICAL = "wide"
-
 
 def ladders_available():
     """Read the ladder names from models rather than hard-coding them.
@@ -179,7 +172,7 @@ def main():
                 ["-m", "llm_routing.plot",
                  "--frontier", f"runs/frontier.{ladder}.jsonl",
                  "--sweep", f"runs/sweep_degraded.{ladder}.jsonl",
-                 "--suffix", f".{ladder}"],
+                 "--suffix", f".{ladder}", "--no-summaries"],
                 "plot",
             ))
 
@@ -198,23 +191,16 @@ def main():
                     return 1
                 break
 
-    # The canonical ladder also owns the unsuffixed names, because README,
-    # STATUS, tests/ and router_agent/findings.py all read `runs/results.jsonl`
-    # and `runs/frontier.jsonl`. Copy rather than symlink: this runs on Windows,
-    # and a tracked file that is sometimes a link is a portability problem
-    # nobody needs.
-    if CANONICAL in wanted and not any(l == CANONICAL for l, _ in failed):
-        for stem in ("results", "frontier", "sweep_degraded"):
-            src = REPO / "runs" / f"{stem}.{CANONICAL}.jsonl"
-            if src.exists():
-                shutil.copyfile(src, REPO / "runs" / f"{stem}.jsonl")
-        for stem in ("frontier", "degradation"):
-            src = REPO / "figures" / f"{stem}.{CANONICAL}.svg"
-            if src.exists():
-                shutil.copyfile(src, REPO / "figures" / f"{stem}.svg")
-        print(f"\ncopied {CANONICAL} -> the unsuffixed names "
-              f"(runs/results.jsonl, runs/frontier.jsonl, "
-              f"runs/sweep_degraded.jsonl, figures/)")
+    # The two cross-ladder charts read every ladder's results, so they are drawn
+    # once at the end rather than redrawn identically inside each ladder's loop.
+    if not args.skip_plots and not failed:
+        proc, elapsed = run(["-m", "llm_routing.plot", "--only-summaries"],
+                            dict(os.environ), log)
+        print(f"\n  {'ok ' if proc.returncode == 0 else 'FAIL'} "
+              f"summaries        {elapsed:5.1f}s")
+        for line in interesting(proc):
+            if "ladders.svg" in line or "scorecard.svg" in line:
+                print(f"       {line}")
 
     if failed:
         print("\nfailed steps:")

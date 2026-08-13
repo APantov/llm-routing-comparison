@@ -11,9 +11,9 @@ the repo.
 
 ## 1. The one-sentence version
 
-Load 100 questions → hand each one to 11 different routing strategies → each
-strategy decides which model(s) to pay for → grade every answer → compare the
-strategies on accuracy and cost.
+Load 417 questions → hand each one to 10 routing policies → each policy decides
+which model(s) to pay for → grade every answer → compare the policies on
+accuracy and cost.
 
 Everything else is machinery for making that comparison *fair*.
 
@@ -51,7 +51,7 @@ run_eval.py              THE CONDUCTOR. for each task, for each policy:
     |                        v
     |                    graders.py         was the answer right?
     v
-runs/results.jsonl       <-- one row per (task, policy)
+runs/results.<ladder>.jsonl   <-- one row per (task, policy)
     |
     +---> stats.py            are the differences real, or noise?
     +---> frontier.py         sweep every knob, compare curves not points
@@ -95,17 +95,24 @@ Real example, exactly as stored:
 
 ```json
 {
-  "id": "code-86",
+  "id": "codeplus-592",
   "domain": "code",
-  "prompt": "Write a function to find nth centered hexagonal number.",
-  "grader": "run_asserts",
-  "grader_payload": {"tests": ["assert centered_hexagonal_number(10) == 271", ...]},
-  "difficulty_proxy": 2,
-  "predict_features": {"prompt_chars": 55, "n_asserts": 3},
-  "_ref_code": "def centered_hexagonal_number(n):\n  return 3 * n * (n - 1) + 1",
-  "difficulty_pct": 0.0513
+  "prompt": "Write a python function to find the sum of the product of consecutive binomial co-efficients.",
+  "grader": "test_program",
+  "grader_payload": {
+    "tests": ["assert sum_Of_product(3) == 15", "assert sum_Of_product(4) == 56", "..."],
+    "test_program": "import numpy as np\n..."
+  },
+  "difficulty_proxy": 10,
+  "predict_features": {"prompt_chars": 93, "n_asserts": 3},
+  "difficulty_pct": 0.9173
 }
 ```
+
+`tests` is what the model is *shown* as its specification — the original thin
+MBPP asserts. `test_program` is the expanded evalplus suite it is *graded*
+against, roughly 35x more cases. Keeping the specification fixed while making
+the marking stricter is what makes MBPP+ a one-variable change over MBPP.
 
 Three fields deserve attention because they are where cheating would happen:
 
@@ -115,9 +122,9 @@ Three fields deserve attention because they are where cheating would happen:
   **not knowable before answering**, so a router reading it would be cheating. It
   exists for sampling and for driving the mock. Keeping it out of
   `predict_features` is what stops that leak.
-- **`_ref_code`** is the known-good answer. Used only by the mock (it needs
-  something that genuinely passes the tests) and by `llm_routing/sanity_check.py`. A real
-  model never sees it.
+- **`_ref_code`**, on the rows that carry it, is the known-good answer. Used
+  only by the mock and by `llm_routing/sanity_check.py`. A real model never sees
+  it.
 
 ### A model response (`models.ModelResponse`)
 
@@ -150,52 +157,54 @@ a one-shot router never "escalates" no matter which model it picked.
 
 ## 4. One real task, traced end to end
 
-Task `math-331`, level 5. Truth: `\frac{13}{6}`. These are actual numbers from a
-mock run on the `claude` ladder.
+Task `math-284`, MATH-500 level 5. Truth: `3 \pm 2 \sqrt{2}`.
+
+> Find all solutions to
+> `sin(tan⁻¹(x) + cot⁻¹(1/x)) = 1/3`.
+
+These are **real numbers from real model calls** on the `wide` ladder
+(DeepSeek v4-flash → Opus 5), replayed from `cache/raw_calls.wide.jsonl`.
 
 ### What `always_cheap` does
 
 ```
 1. models.call("cheap", task)
      -> build_prompt() makes the text
-     -> response_cache checks: seen this exact (model, prompt, temp, sample) before?
-        MISS -> mock generates a reply, writes it to cache
-     reply: "Reasoning... the answer is $\boxed{\frac{13}{6}+7}$"
-     55 tokens in, 80 out  ->  $0.000455
+     -> response_cache checks: seen this exact (model, prompt, temp, sample)?
+        HIT -> returns the response the paid run received
+     DeepSeek v4-flash answers
 2. graders.grade(task, reply)
-     extract_answer() finds the last \boxed{} -> "\frac{13}{6}+7"
-     normalise, compare to truth "\frac{13}{6}"  ->  WRONG
+     extract_answer() finds the last \boxed{}
+     normalise, compare to truth  ->  WRONG
 ```
 
-Result: `correct=False`, `cost=$0.000455`.
+Result: `correct=False`, `cost=$0.000287`.
 
 ### What `cascade` does on the same task
 
 ```
 1. models.call("cheap", task)   -- IDENTICAL call, so it is a CACHE HIT.
-   Same reply, same $0.000455. This is the whole point of the cache:
+   Same reply, same $0.000287. This is the whole point of the cache:
    both policies are judged on the same model output.
 
 2. verify_math(task, reply, "cheap")
      samples the cheap model 4 more times at temperature 0.8
-     +$0.001820
-     the 5 answers disagree: plurality is "\frac{13}{6}+7" with 40% agreement
-     threshold is 80%  ->  REJECTED, escalate
+     the 5 answers disagree, and agreement lands under the 0.8 threshold
+     -> REJECTED, escalate
 
-3. next rung is "mid" (Sonnet 5).
-     _verdict_is_predetermined() asks: could verify_math ever accept this rung?
-     Sonnet 5 does not accept a temperature -> cannot be sampled -> always rejected
-     -> SKIP IT. Do not pay for an answer already certain to be discarded.
-
-4. models.call("expensive", task)   -- Opus 5
+3. models.call("expensive", task)   -- Opus 5
      reply is correct
 
-Result: correct=True, cost=$0.007351, calls=[cheap x5, expensive]
+Result: correct=True, cost=$0.030078, calls=[cheap x5, expensive]
 ```
 
-Sixteen times the cost of `always_cheap`, and right instead of wrong. That single
-task is the entire trade-off the project measures, and every table in the repo is
-that comparison aggregated over 100 tasks.
+**105 times the cost of `always_cheap`, and right instead of wrong.** That single
+task is the entire trade-off the project measures, and every table in the
+repository is that comparison aggregated over 209 held-out tasks.
+
+It also shows why the maths half is the expensive half: five cheap calls bought
+a verdict, not an answer. On the code half the same verdict costs nothing,
+because the tests are executed instead of sampled.
 
 ### The bug that trace exposed
 
@@ -260,10 +269,10 @@ supposed maximum**. `run_eval` now prints an explicit bound check every run.
 
 ### 5.4 Half the tasks are hidden from the tuning
 
-Pick a threshold by trying several on all 100 tasks, then report the best score,
-and the number partly measures your own choice. `llm_routing/splits.py` holds out half;
-thresholds and quality estimates are fitted on the other half. That is why runs
-report `n=51` and not `n=100`.
+Pick a threshold by trying several on all 417 tasks, then report the best score,
+and the number partly measures your own choice. `llm_routing/splits.py` holds out
+half; thresholds and quality estimates are fitted on the other half. That is why
+runs report `n=209` and not `n=417`.
 
 ### 5.5 Policies are curves, not points
 
@@ -293,8 +302,8 @@ Each is marked `DECISION #n` in the source, next to the code it controls.
 
 ## 7. Reading order, if you want to read the source
 
-1. **`llm_routing/build_taskset.py`** (206 lines) — simplest. Shows you what a task is.
-2. **`llm_routing/graders.py`** (200) — self-contained. "Is this answer right?"
+1. **`llm_routing/build_taskset.py`** — simplest. Shows you what a task is.
+2. **`llm_routing/graders.py`** — self-contained. "Is this answer right?"
 3. **`llm_routing/models.py`**, just `MODEL_SPECS` and `LADDERS` at the top — the price tables.
 4. **`llm_routing/policies.py`**, just `policy_always` then `_cascade` — the two ends of the
    spectrum. Skip `cascade_routing` on a first pass; it is the most involved.
@@ -325,11 +334,17 @@ away from being published as a measurement.
 
 ## 9. What to be suspicious of
 
-- **Any accuracy number, right now.** Mock mode fabricates replies from constants.
-  Cost numbers are real; accuracy numbers are not. See [NOTES.md](NOTES.md).
-- **`llm_router`'s accuracy specifically.** In mock mode its router is an oracle on
-  the mock's own difficulty. It measures a constant.
-- **The `wide` ladder's accuracy.** Two providers, so capability and provider are
-  confounded, and the tokenizer factors are unmeasured.
-- **Anything from the maths half involving self-consistency.** The mock scatters
-  wrong answers, so majority voting works far better than it does on real models.
+Every published number comes from replay over real responses. These are the
+places to push anyway:
+
+- **Anything printed in mock mode.** Mock fabricates replies from a formula, so
+  its accuracies restate a constant in `models.py`. It is labelled at every
+  point of output, and nothing fabricated is committed — but it is what you get
+  if you forget `ROUTER_MODE=replay`.
+- **Aggregates over both domains.** The task set is 86% code, so any "all"
+  figure is close to a code figure. Per-domain numbers are reported throughout
+  and should be preferred.
+- **The `wide` ladder's capability gap.** Its two rungs are different providers,
+  so capability and provider are confounded.
+- **Any single-draw claim about routing opportunity.** Greedy decoding is not
+  deterministic; see [LIMITATIONS.md](LIMITATIONS.md).

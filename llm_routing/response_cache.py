@@ -114,6 +114,12 @@ _store = None          # key -> record dict
 _lock = threading.Lock()
 _conflicts = []        # keys seen twice on disk with different payloads
 
+# The task ids a caller considers live, set before the first cache read. None
+# means "the caller has not said", and a conflict is then reported as a note
+# rather than as a warning. `run_eval.load_tasks` sets it; the serving layer
+# never does, because a conflict on a benchmark id cannot affect a live query.
+LIVE_TASK_IDS = None
+
 
 # Real caches belonging to OTHER ladders, read before this ladder's own.
 #
@@ -128,7 +134,7 @@ _conflicts = []        # keys seen twice on disk with different payloads
 # `wide` and `deepseek` share DeepSeek v4-flash as their bottom rung, so the 980
 # responses already bought for `wide` cover a large part of both other ladders.
 # Without this, running the `claude` ladder re-buys every Opus call - about $1.91
-# at the current task set. See STATUS.md section 7 (standing invariants).
+# at the current task set. See docs/ENGINEERING.md (standing invariants).
 #
 # Only REAL caches are shared. Mock caches stay per-ladder: a mock response is a
 # function of MOCK_SEED and the model's stipulated skill, so pooling them across
@@ -237,25 +243,31 @@ def _load():
                     _conflicts.append((key, prev.get("task_id"), rec.get("task_id")))
                 _store[key] = rec
     if _conflicts:
-        # Name the tasks. A conflict only invalidates a comparison if the task is
-        # still IN the task set - a duplicate on a task that no longer exists is
-        # dead weight, not a threat - and the caller is the only one who can tell,
-        # because this module deliberately knows nothing about the task set.
+        # A conflict only invalidates a comparison if the task is still IN the
+        # task set. A duplicate on a task that no longer exists is dead weight,
+        # not a threat - and this module deliberately knows nothing about the
+        # task set, so the caller declares what is live via LIVE_TASK_IDS and
+        # this answers its own question instead of asking the reader to.
         #
-        # The known instance, as of 8 August 2026: math-92 was recorded by the
-        # 30 July plumbing run into both raw_calls.wide.jsonl and
-        # raw_calls.deepseek.jsonl, and the two texts differ (327 vs 268 output
-        # tokens) because DeepSeek is not deterministic at temperature 0. It is a
-        # stranded id, absent from the current task set, so it affects nothing.
+        # It used to print the loud form unconditionally, which meant every run
+        # and every demo opened with a scary multi-line warning about math-92: a
+        # 30 July plumbing-run id, stranded by the 6 August rebuild, recorded
+        # into two ladder caches whose texts differ because DeepSeek is not
+        # deterministic at temperature 0. A warning that is always on is a
+        # warning nobody reads.
         ids = sorted({t for _, t, _ in _conflicts if t} | {t for _, _, t in _conflicts if t})
-        print(
-            f"  !! response_cache: {len(_conflicts)} key(s) have conflicting "
-            f"responses across {', '.join(p.name for p in READ_PATHS)}. "
-            f"Later entries won.\n"
-            f"     affected task(s): {', '.join(ids) if ids else 'unknown'}\n"
-            f"     If any of those is in the current task set, its paired "
-            f"comparisons are NOT valid until resolved."
-        )
+        live = sorted(set(ids) & LIVE_TASK_IDS) if LIVE_TASK_IDS is not None else None
+        if live:
+            print(
+                f"  !! response_cache: {len(live)} LIVE task(s) have conflicting "
+                f"responses across {', '.join(p.name for p in READ_PATHS)}. "
+                f"Later entries won.\n"
+                f"     affected: {', '.join(live)}\n"
+                f"     Their paired comparisons are NOT valid until resolved."
+            )
+        elif live is None and ids:
+            print(f"  note: {len(_conflicts)} stale cache key(s) from a superseded "
+                  f"task set ({', '.join(ids)}); later entries won.")
     return _store
 
 

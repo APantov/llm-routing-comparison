@@ -22,7 +22,7 @@ from __future__ import annotations
 from llm_routing import models
 
 # Mean OUTPUT tokens per answer, measured on the `wide` ladder during the
-# 6 August 2026 two-arm probe (STATUS.md §1, "What the probe cost").
+# 6 August 2026 two-arm probe (docs/RESULTS.md §1, "What the probe cost").
 #
 #   maths  650  level-5 MATH500 problems produce long derivations
 #   code    55  MBPP+ solutions are short functions

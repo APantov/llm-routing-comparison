@@ -29,7 +29,10 @@ from llm_routing import response_cache
 from llm_routing import splits
 from llm_routing.policies import POLICIES, POLICY_DOMAINS
 
-RESULTS = paths.RUNS / "results.jsonl"
+# One file per ladder, always. There is no unsuffixed `results.jsonl`:
+# it used to be a copy of whichever ladder ran last, which is a second
+# source of truth that can silently disagree with the first.
+RESULTS = paths.RUNS / f"results.{models.LADDER}.jsonl"
 
 # Hard spend cap, enforced in code rather than by willpower.
 #
@@ -39,12 +42,12 @@ RESULTS = paths.RUNS / "results.jsonl"
 # pre-pass, estimator fitting on the calibration half - was outside the cap.
 #
 # Re-exported under the old name because this is where a reader looks for it,
-# and because STATUS.md and README point at `run_eval.MAX_SPEND_USD`.
+# and because the README and docs/RESULTS.md point at `run_eval.MAX_SPEND_USD`.
 #
 # PER RUN, not per project: a runaway guard, sitting above the largest planned
 # run and far below the funded card, so a bug costs one run rather than the
 # budget. $20 -> $3 on 8 August, $3 -> $5 on 9 August. The $5 is set against
-# STATUS.md section 4 (what it cost), whose largest single buy is E at ~$2.64 and whose whole
+# docs/RESULTS.md section 4 (what it cost), whose largest single buy is E at ~$2.64 and whose whole
 # sequence is ~$4.0; $3 would have bound partway through E, which is the worst
 # place for a cap to bind - not a bug, just a plan the guard had not been told
 # about.
@@ -244,7 +247,11 @@ def load_tasks(limit=None, domain=None):
         tasks = [json.loads(l) for l in f]
     if domain:
         tasks = [t for t in tasks if t["domain"] == domain]
-    return tasks[:limit] if limit else tasks
+    tasks = tasks[:limit] if limit else tasks
+    # Tell the cache which ids are live, so a conflicting key on a stranded task
+    # stays a note and one on a task this run will score becomes a warning.
+    response_cache.LIVE_TASK_IDS = {t["id"] for t in tasks}
+    return tasks
 
 
 def applicable(name, task):
@@ -764,8 +771,9 @@ def report(rows):
             )
         print(
             "   These are MISSING measurements, not capability failures. Raising\n"
-            "   models.MAX_TOKENS re-charges every cached response (STATUS.md\n"
-            "   section 1), so exclude the task or accept the row as unmeasured -\n"
+            "   models.MAX_TOKENS re-charges every cached response (see\n"
+            "   docs/ENGINEERING.md), so exclude the task or accept the row as\n"
+            "   unmeasured -\n"
             "   do not read it as the model getting the answer wrong."
         )
 

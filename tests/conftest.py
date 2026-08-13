@@ -133,9 +133,9 @@ def wide_verdicts():
 def benchmark_task():
     """A real row from the task set, for replay tests.
 
-    Skips rather than fails when the task set has not been built: a fresh
-    clone has no taskset.jsonl until `python -m llm_routing.build_taskset` runs, and a
-    missing artefact is not a broken test.
+    Skips rather than fails when the task set is absent. It is committed, so a
+    fresh clone has it - but it is also the one artefact a contributor might
+    delete while rebuilding, and a missing input is not a broken test.
     """
     import json
     path = REPO_ROOT / "data" / "taskset.jsonl"

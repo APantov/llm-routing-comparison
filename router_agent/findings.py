@@ -6,18 +6,22 @@ next door, and this module is the seam between them.
 
 Two rules govern everything below.
 
-**Real numbers are computed, not typed.** The probe cross-tab is recomputed
-from `results.probe.jsonl` on demand rather than transcribed into a constant.
-A hard-coded 15.0% would silently rot the first time the task set is rebuilt or
-the grader is fixed - and the grader fix of 6 August 2026 moved this exact
-figure from 13.0% to 15.0%, so that is a demonstrated failure mode, not a
-hypothetical one.
+**Real numbers are computed, not typed.** The probe cross-tab is recomputed from
+`runs/results.probe.jsonl` on demand rather than transcribed into a constant. A
+hard-coded figure would silently rot the first time the task set is rebuilt or a
+grader is fixed, and both have happened - the grader fix of 6 August 2026 moved
+this exact number, and the code-half rebuild moved it again. Demonstrated
+failure mode, not a hypothetical one.
 
-**Simulated numbers are labelled at the point of use.** Nine of the eleven
-policies have never been run against a real model; their accuracy figures come
-from mock mode and mean nothing about any model. Anything sourced from them
-carries `simulated: True` in its payload, so a consumer that surfaces it has to
-walk past the label to do so.
+**A number with no run behind it is not served.** Every ladder's economics come
+from that ladder's own committed frontier run. There is no table of fallback
+constants: there was, and when all three ladders were finally measured it had
+two of three verdicts backwards. A ladder with no run now reports `verdict:
+None` and names the command that would produce one.
+
+**Simulated numbers are labelled at the point of use.** Anything derived from
+mock output carries `simulated: True` in its payload, so a consumer that
+surfaces it has to walk past the label to do so.
 """
 
 from __future__ import annotations
@@ -31,7 +35,19 @@ from pathlib import Path
 from llm_routing import paths
 
 PROBE_PATH = paths.RUNS / "results.probe.jsonl"
-FRONTIER_PATH = paths.RUNS / "frontier.jsonl"
+
+
+def frontier_path(ladder: str) -> Path:
+    """Where this ladder's frontier run lives.
+
+    Per-ladder rather than one shared `frontier.jsonl`. The shared name was a
+    copy of whichever ladder ran last, so a fresh clone either found the wrong
+    ladder's economics or - because the copy was gitignored - found nothing and
+    silently fell back to the 30 July constants. The per-ladder files are
+    committed, so a clone now reports measured economics for every ladder that
+    has one.
+    """
+    return paths.RUNS / f"frontier.{ladder}.jsonl"
 
 
 # ---------------------------------------------------------------------------
@@ -83,11 +99,10 @@ def realized_ratio(ladder: str, path: Path | None = None) -> dict | None:
     much further apart. On `wide` the input rates differ by 36x and the output
     rates by 89x, so which one is used is not a detail.
 
-    Measured on the 7 August redraw the realized figure was **69x against a
-    quoted 46x**, and the direction matters: this repository's whole thesis is
-    that cascading pays in proportion to the price gap, so understating the gap
-    understates the case for cascading on exactly the hard tasks where routing
-    is worth doing.
+    On `wide` the realized figure is **117x against a quoted 46x**, over 429
+    tasks with both rungs cached. The direction matters: understating the price
+    gap understates the case for cascading on exactly the hard tasks where
+    routing is worth doing.
 
     Restricted to tasks where BOTH rungs answered, so the two means describe the
     same population rather than two different task mixes. Greedy answers only -
@@ -136,53 +151,37 @@ def realized_ratio(ladder: str, path: Path | None = None) -> dict | None:
 # wasted cheap call, plus verification - exceed what skipping an expensive call
 # saves.
 #
-# Deliberately NOT used to compute a verdict. The `deepseek` ladder sits at
-# 3.1x and the cascade still loses there, so the true crossover is somewhere
-# above 3.1 and below `claude`'s 6.5 - a single threshold would get deepseek
-# wrong. Treat this as "around 3x, and the sign is what to check" rather than
-# as a decision boundary.
+# Deliberately NOT used to compute a verdict, and the measurement is why. On
+# real models the cascade is CHEAPER at deepseek's 3.11x and DEARER at claude's
+# 6.5x, so the outcome is not monotonic in the price ratio and no single
+# threshold can express it. What actually decides it is how much verification
+# costs on that ladder and how much better the top rung is. Kept as the
+# literature's rule of thumb, and reported alongside the measured verdict rather
+# than in place of it.
 CROSSOVER_RATIO = 3.0
 
 
 # ---------------------------------------------------------------------------
-# The economics - derived from a frontier run, or quoted from a historical one
+# The economics - derived from this ladder's own frontier run, or not at all
 # ---------------------------------------------------------------------------
 
-# Recorded 30 July 2026 from README "The finding this made possible" and
-# STATUS.md §1.
+# Every ladder in `models.LADDERS` has a frontier run committed under runs/, so
+# the economics below are always derived and never quoted.
 #
-# THESE ARE SUPERSEDED and are kept only as a fallback and a comparison point.
-# They were produced BEFORE the 6 August task-set rebuild (sanitized MBPP ->
-# MBPP+, MATH500 level 3 -> level 5), and a mock frontier run over the current
-# task set gives materially different magnitudes - `claude` moves from -12% to
-# about -46%, `deepseek` from +33% to about +10%.
-#
-# The SIGN survives on all three ladders, which is the actual finding: cascading
-# pays in proportion to the price gap, and below roughly 3x it loses. The
-# magnitudes do not survive, which is exactly why they are no longer presented
-# as current.
-HISTORICAL_ECONOMICS = {
-    "deepseek": {"cascade_vs_always_best_pct": +33.0,
-                 "auc_gain_over_random_pct": 7.2, "verdict": "route"},
-    "claude": {"cascade_vs_always_best_pct": -12.0,
-               "auc_gain_over_random_pct": 4.8, "verdict": "cascade"},
-    "wide": {"cascade_vs_always_best_pct": -74.0,
-             "auc_gain_over_random_pct": 8.8, "verdict": "cascade"},
-}
-HISTORICAL_AS_OF = "2026-07-30"
-HISTORICAL_NOTE = (
-    "quoted from the 30 July 2026 frontier run, which predates the 6 August "
-    "task-set rebuild. The sign is reliable; the magnitude is not. Run "
-    "`python -m llm_routing.frontier` on this ladder to derive current figures."
-)
-
+# There used to be a table of constants here as a fallback, recorded from mock
+# runs on 30 July 2026. It is deleted rather than kept, because when all three
+# ladders were finally measured it had TWO OF THREE VERDICTS BACKWARDS: it said
+# `deepseek` should route and `claude` should cascade, and the measurement says
+# the opposite of both. A fallback that fires silently and is wrong is worse
+# than no fallback - a ladder with no frontier run now says so and names the
+# command that would produce one.
 
 @lru_cache(maxsize=4)
-def frontier_economics(path: str | None = None) -> dict | None:
+def frontier_economics(path: str | None = None, ladder: str | None = None) -> dict | None:
     """Derive the cascade's economics from a frontier run, if one is on disk.
 
-    Returns None when `frontier.jsonl` is absent - it is gitignored, because
-    while the inputs are simulated so is every number in it.
+    Returns None when this ladder has no frontier run committed, which is the
+    honest answer for a ladder nobody has swept.
 
     Two quantities, both computed with `frontier.py`'s own hull and AUC code
     rather than a reimplementation, so the router and the report can never
@@ -197,11 +196,15 @@ def frontier_economics(path: str | None = None) -> dict | None:
           for a cost-matched coin flip. Answers "how good is this at every
           budget" rather than "at the budget somebody tuned it to".
 
-    The file holds ONE ladder at a time - `frontier.py` overwrites it per run -
-    so the ladder it was generated for is returned alongside, and the caller
-    must check it matches the one they are asking about.
+    The ladder each file was generated for is returned alongside, and the
+    caller still checks it matches - the rows carry the ladder, so a mislabelled
+    or hand-copied file cannot pass itself off as another ladder's.
     """
-    p = Path(path) if path else FRONTIER_PATH
+    if path:
+        p = Path(path)
+    else:
+        from llm_routing import models
+        p = frontier_path(ladder or models.LADDER)
     if not p.exists():
         return None
 
@@ -276,12 +279,16 @@ def frontier_economics(path: str | None = None) -> dict | None:
 def ratio_verdict(ladder: str) -> dict:
     """Should this ladder cascade or route? The product's core decision.
 
-    Assembled from three sources of decreasing reliability, each labelled:
+    Two sources, both labelled in the payload:
 
-      price ratios   exact arithmetic over the price table. Always present.
-      frontier       derived from `frontier.jsonl` if a run for THIS ladder is
-                     on disk. Current, but simulated while the inputs are.
-      historical     the 30 July constants. Superseded; sign only.
+      price ratios   exact arithmetic over the price table. Always present, and
+                     reported for context - it does NOT decide the verdict,
+                     because the measurement is not monotonic in it.
+      frontier       derived from `runs/frontier.<ladder>.jsonl`, which is
+                     committed for every ladder in `models.LADDERS`.
+
+    A ladder with no frontier run gets `verdict: None` and a note naming the
+    command that would produce one. It does not get a guess.
     """
     ratios = price_ratios(ladder)
     if ratios is None:
@@ -296,39 +303,33 @@ def ratio_verdict(ladder: str) -> dict:
 
     out: dict = {"ladder": ladder, "known": True, **ratios}
 
-    live = frontier_economics()
+    live = frontier_economics(ladder=ladder)
     if live and live.get("ladder") == ladder and live.get("verdict"):
         out.update({
             "cascade_vs_always_best_pct": live["cascade_vs_always_best_pct"],
             "auc_gain_over_random_pct": live["auc_gain_over_random_pct"],
             "verdict": live["verdict"],
-            "economics_source": "frontier.jsonl",
+            "economics_source": f"frontier.{ladder}.jsonl",
             "economics_simulated": live["simulated"],
             "economics_n": live.get("n"),
         })
     else:
-        hist = HISTORICAL_ECONOMICS.get(ladder)
-        if hist is None:
-            out.update({
-                "verdict": None,
-                "economics_source": None,
-                "note": (
-                    "no frontier run on disk for this ladder and no historical "
-                    "figure; run `python -m llm_routing.frontier` to derive one"
-                ),
-            })
-        else:
-            out.update({
-                **hist,
-                "economics_source": "historical",
-                "economics_simulated": True,
-                "economics_as_of": HISTORICAL_AS_OF,
-                "economics_note": HISTORICAL_NOTE,
-            })
+        out.update({
+            "verdict": None,
+            "economics_source": None,
+            "note": (
+                f"no frontier run on disk for {ladder!r}. Derive one with "
+                f"`ROUTER_LADDER={ladder} ROUTER_MODE=replay "
+                f"python -m llm_routing.frontier`. This router will not guess "
+                f"a verdict from a price ratio - the measurement is not "
+                f"monotonic in it."
+            ),
+        })
 
-    # Only `wide` has real accuracy data behind any of this, and even there the
-    # frontier itself has never been run against real models.
-    out["accuracy_data_is_real"] = ladder == "wide"
+    # Every committed ladder is measured on real responses, so this is now a
+    # property of the frontier file rather than a per-ladder exception.
+    out["accuracy_data_is_real"] = bool(
+        live and live.get("ladder") == ladder and not live.get("simulated"))
     return out
 
 

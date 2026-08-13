@@ -70,9 +70,20 @@ async def main() -> int:
     else:
         v = r.structured_content["ratio"]
         print(f"  verdict={v['verdict']}  "
-              f"cascade vs always-best {v['cascade_vs_always_best_pct']:+}%")
-        if v["verdict"] != "route":
-            problems.append("deepseek should recommend `route`, not cascade")
+              f"cascade vs always-best {v['cascade_vs_always_best_pct']:+}%  "
+              f"from {v['economics_source']}")
+        # Checks that the verdict is TRACEABLE, not that it is a particular
+        # word. This asserted `route` for deepseek until 11 August 2026, from a
+        # mock-era constant the measurement later contradicted - the real
+        # frontier for that ladder says cascade, by 4.4%.
+        if v["verdict"] not in ("route", "cascade"):
+            problems.append(f"explain_routing gave no usable verdict: {v['verdict']!r}")
+        if v.get("economics_source") != "frontier.deepseek.jsonl":
+            problems.append(
+                f"the verdict should come from that ladder's own frontier run, "
+                f"got {v.get('economics_source')!r}")
+        if v.get("economics_simulated") is not False:
+            problems.append("the served verdict is not backed by real responses")
 
     print("\ncalling estimate_cost:")
     r = await mcp.call_tool("estimate_cost", {"query": "What is 17 times 23?"})

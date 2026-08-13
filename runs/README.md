@@ -31,10 +31,13 @@ nine-policy `wide` run with 47 rows of one policy. Every writer now takes an
 output override, and `tests/test_experiment.py` has a structural tripwire that
 fails when a new analysis script arrives without one.
 
-The unsuffixed names — `results.jsonl`, `frontier.jsonl`,
-`sweep_degraded.jsonl` — are copies of the canonical `wide` ladder, made by
-`scripts/run_all_ladders.py`, because STATUS, the test suite and
-`router_agent/findings.py` read those names.
+**There are no unsuffixed copies.** There used to be: the canonical `wide`
+ladder was copied to `results.jsonl` and `frontier.jsonl` for readers that
+wanted a default. That is a second source of truth for the same numbers, and it
+went wrong in both available ways — the copy was gitignored, so a fresh clone
+found no economics at all and silently fell back to a stale constant; and the
+constant it fell back to had two of three ladders' verdicts backwards. Every
+reader now names the ladder it wants.
 
 ## What is committed, and what is not
 

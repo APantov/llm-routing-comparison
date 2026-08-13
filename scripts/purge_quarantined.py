@@ -21,7 +21,7 @@ deleted, which is why it is committed rather than run from a shell one-liner.
 WHAT IS NOT LOST
 ----------------
 Git. Commit 24302ba is the last one containing every purged row, so the
-responses remain recoverable and the diagnosis in STATUS.md section 6 (the quarantine rule)
+responses remain recoverable and the diagnosis in docs/ENGINEERING.md (the quarantine rule)
 stays reproducible from history. The evidence for the quarantine also survives
 in prose: each entry in QUARANTINED carries the specific input that breaks it,
 and a test asserts that it does.
@@ -52,13 +52,21 @@ Q = set(QUARANTINED)
 # Every file that stores a task id. Mock caches are absent deliberately: they
 # are gitignored and regenerate for free, so they are deleted outright rather
 # than filtered.
+#
+# The per-ladder results files are named explicitly rather than left to a
+# default: this list used to end in a single `runs/results.jsonl`, which the
+# 11 August 2026 restructure replaced with one file per ladder. A purge that
+# still named the old path would have reported success while leaving every
+# quarantined row in all three live results files.
 JSONL_TARGETS = [
     "cache/raw_calls.wide.jsonl",
     "cache/raw_calls.claude.jsonl",
     "cache/raw_calls.deepseek.jsonl",
     "cache/routellm_scores.jsonl",
     "runs/results.probe.jsonl",
-    "runs/results.jsonl",
+    "runs/results.wide.jsonl",
+    "runs/results.claude.jsonl",
+    "runs/results.deepseek.jsonl",
 ]
 MOCK_CACHES = "cache/*.mock.jsonl"
 REDRAW = "runs/redraw.{ladder}.json"

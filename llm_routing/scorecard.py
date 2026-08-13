@@ -44,8 +44,8 @@ Two things to read carefully rather than quote:
   it on the wide ladder - so treat the rescue counts as being about this
   measurement rather than about an infinitely repeated one.
 
-    python -m llm_routing.scorecard                                  # results.jsonl
-    python -m llm_routing.scorecard --results results.claude.jsonl
+    python -m llm_routing.scorecard                    # results.<ladder>.jsonl
+    python -m llm_routing.scorecard --results runs/results.claude.jsonl
     python -m llm_routing.scorecard --by-domain --json card.json
 
 Reads only files already on disk. No API calls, no spend.
@@ -60,7 +60,7 @@ from pathlib import Path
 
 from llm_routing import paths
 
-RESULTS = paths.RUNS / "results.jsonl"
+RESULTS = paths.RUNS / f"results.{paths.default_ladder()}.jsonl"
 
 # The cell a task falls in, from (cheap_ok, expensive_ok). Same four names
 # routable.crosstab uses, deliberately - this is that table, per policy.
@@ -229,7 +229,7 @@ def fmt_policy(name, d):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--results", metavar="PATH", default=None,
-                    help="results file to score (default results.jsonl)")
+                    help="results file to score. Default: runs/results.<ladder>.jsonl for the ladder in ROUTER_LADDER - there is no unsuffixed file.")
     ap.add_argument("--ladder", default=None,
                     help="cache to build the cross-tab from. Default: whichever "
                          "ladder the results file says it was measured on.")

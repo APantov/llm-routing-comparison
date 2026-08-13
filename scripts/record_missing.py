@@ -17,7 +17,7 @@ policies here make calls neither of those runs had any reason to make:
     llm_router        asks the cheap model to classify difficulty first, an
                       8-token call with its own prompt. Never recorded.
 
-Since ROUTER_REPLAY_FALLBACK defaults off (NOTES.md issue 19), those policies
+Since ROUTER_REPLAY_FALLBACK defaults off, those policies
 are now correctly DROPPED from a replay rather than silently served fabricated
 responses. Dropped is honest; it is not the same as measured. This script buys
 the gap once so they can be measured, after which everything replays free
@@ -245,7 +245,7 @@ def main():
         for task_id, tier, kind, idx in sorted(models.truncated_ids):
             print(f"     {task_id:<16} {tier:<10} {kind} sample={idx}")
         print("   Raising models.MAX_TOKENS re-charges every cached response "
-              "(STATUS.md section 7 (standing invariants)). Exclude the task instead.")
+              "(docs/ENGINEERING.md (standing invariants)). Exclude the task instead.")
     print("\nEverything replays free from here:")
     print(f"  ROUTER_MODE=replay ROUTER_LADDER={ladder} python -m llm_routing.run_eval")
 

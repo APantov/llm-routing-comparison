@@ -68,6 +68,44 @@ def _render_event(ev: dict) -> str:
     return f"  {style(ev['node'].ljust(9))} {ev['detail']}"
 
 
+def _print_estimate(est: dict) -> None:
+    """Render a cost projection for a human. `--json` prints the payload raw.
+
+    The numbers here are unrounded floats carrying full binary noise
+    (0.00011270000000000002), which is correct to keep in the payload and wrong
+    to put in front of a reader. Formatting happens at the edge, so nothing
+    downstream inherits a rounded figure.
+    """
+    print()
+    print(BOLD(f"  cost projection  ") + DIM(f"({est['domain']} domain, "
+                                             f"{est['ladder']} ladder)"))
+    print(DIM("  no model is called; this is arithmetic over the price table"))
+    print()
+    for tier, model in est["rungs"].items():
+        print(f"    {DIM(tier.ljust(10))} {model}")
+    print()
+    for e in est["estimates"]:
+        lo, hi = e["min_usd"], e["max_usd"]
+        span = f"${lo:.6f}" if lo == hi else f"${lo:.6f} - ${hi:.6f}"
+        print(f"    {e['policy'].ljust(18)} {span}")
+
+    v = est.get("recommended_policy") or {}
+    print()
+    if v.get("verdict"):
+        print(BOLD("  recommended policy   ") + GREEN(v["verdict"])
+              + DIM(f"        (measured on the {v['ladder']} ladder)"))
+        pct = v.get("cascade_vs_always_best_pct")
+        if pct is not None:
+            print(f"  cascade vs always-best, at matched accuracy   {pct:+.1f}%")
+        print(DIM(f"  source: {v.get('economics_source')}"))
+    else:
+        print(YELLOW("  recommended policy   unknown"))
+        print(DIM(f"  {v.get('note', 'no frontier run for this ladder')}"))
+    print()
+    print(DIM("  " + est["basis"].replace(". ", ".\n  ")))
+    print()
+
+
 def _print_outcome(out, show_answer: bool = True) -> None:
     d = out.to_dict()
 
@@ -111,8 +149,8 @@ def _demo(args) -> int:
     """Route a real benchmark question through the real cached responses.
 
     The whole point: a reviewer with no API key, no account and no money can
-    watch the router escalate over genuine model output, because the 318
-    responses the probe paid for are committed to the repository.
+    watch the router escalate over genuine model output, because the 5,075
+    responses this project paid for are committed to the repository.
     """
     import json as _json
     from pathlib import Path
@@ -129,6 +167,16 @@ def _demo(args) -> int:
         return 1
 
     rows = [_json.loads(l) for l in taskset.open(encoding="utf-8") if l.strip()]
+
+    # Declare which ids are live before the cache is first read. Without this,
+    # response_cache cannot tell a conflict that invalidates a comparison from
+    # one on a task that no longer exists, so it hedges with a note - and that
+    # note landed in the middle of the demo trace, which is the one place in the
+    # repository where a reader is watching the output line by line. The demo
+    # has just loaded the task set, so it can answer the question instead.
+    from llm_routing import response_cache as _rc
+    _rc.LIVE_TASK_IDS = {r["id"] for r in rows}
+
     wanted = args.domain if args.domain in ("math", "code") else "math"
     pool = [r for r in rows if r["domain"] == wanted]
     if not pool:
@@ -247,7 +295,11 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     if args.estimate:
-        print(json.dumps(estimate(args.query, cfg, tests=args.tests), indent=2))
+        est = estimate(args.query, cfg, tests=args.tests)
+        if args.json:
+            print(json.dumps(est, indent=2))
+        else:
+            _print_estimate(est)
         return 0
 
     try:

@@ -15,17 +15,20 @@ up with `data/taskset.jsonl`.
 
 | file | what it is | why it was quarantined |
 |---|---|---|
-| `results.2026-07-30.jsonl` | 47 rows from the 30 July plumbing run. Every row is `"simulated": false` — **real model output**, and part of the $1.36 the experiment has spent. | All 5 of its task ids (`code-475`, `math-105`, …) are gone from the current task set. `llm_routing/stats.py` and `llm_routing/frontier.py` read `runs/results.jsonl` by default and would have analysed it as though it were current. |
+| `results.2026-07-30.jsonl` | 47 rows from the 30 July plumbing run. Every row is `"simulated": false` — **real model output**, and part of the $1.36 the experiment had spent by then. | All 5 of its task ids (`code-475`, `math-105`, …) are gone from the current task set. At the time, `llm_routing/stats.py` and `llm_routing/frontier.py` both defaulted to one fixed `runs/results.jsonl`, so leaving it in place meant they would have analysed it as though it were current. |
 | `routellm_scores.2026-07-31.jsonl` | 100 RouteLLM `bert` scores, computed locally on 31 July. No API key was involved; regenerating needs torch (~1GB) but no money. | Scores are keyed on the prompt, so after the rebuild only **10 of 100** matched. `routellm_router.CALIBRATED` correctly refuses to run uncalibrated, so the policy was silently sitting out every run while the file looked present and healthy. |
 
 ## What this changed
 
-- `llm_routing/stats.py` and `llm_routing/frontier.py` now find **no** `runs/results.jsonl` and say so,
-  instead of reporting on five tasks that no longer exist. That is the
-  intended behaviour until [STATUS.md §2 step 5](../STATUS.md) — the full paid
-  run — actually happens.
-- The `routellm` policy still skips, exactly as before, but now it skips for a
-  stated reason rather than because of a file that appeared to be fine.
+- The fixed output path is gone entirely. Every writer now takes an output
+  override and every reader names the ladder it wants
+  (`runs/results.<ladder>.jsonl`), so there is no default file left for a
+  stranded artefact to be mistaken for. All three ladders were measured on
+  10 August 2026; every current number is in
+  [docs/RESULTS.md](../docs/RESULTS.md).
+- The `routellm` policy skips when it is uncalibrated, as before, but now it
+  skips for a stated reason rather than because of a file that appeared to be
+  fine.
 
 ## Regenerating, rather than restoring
 
@@ -37,12 +40,12 @@ set, and a reproduced artefact is worth more than a restored one:
 pip install routellm==0.2.0
 python -m llm_routing.routellm_router --score
 
-# runs/results.jsonl: this is the paid run. Read STATUS.md section 3 first.
+# the paid run itself. Read docs/RESULTS.md section 4 (what it cost) first.
 ROUTER_MODE=real python -m llm_routing.run_eval
 ```
 
 The one thing that was **not** stranded by the rebuild is
 `cache/raw_calls.*.jsonl`. The response cache is keyed on the prompt text
 rather than the task id, so every response the current task set needs is still
-a hit — which is why `runs/results.probe.jsonl` (200 rows, all real, all current)
+a hit — which is why `runs/results.probe.jsonl` (834 rows, all real, all current)
 stayed where it is, and why `scripts/demo.py` still replays for $0.00.

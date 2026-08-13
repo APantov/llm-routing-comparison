@@ -270,7 +270,7 @@ def real_verdicts(tasks, ladder):
         for task_id, tier in sorted(truncated):
             print(f"     {task_id:<16} {tier:<10} dropped from the cross-tab")
         print(f"     n falls by that many pairs. Raising models.MAX_TOKENS "
-              f"re-charges every\n     cached response (STATUS.md section "
+              f"re-charges every\n     cached response (docs/ENGINEERING.md section "
               f"1), so the task is excluded instead.")
     return out
 

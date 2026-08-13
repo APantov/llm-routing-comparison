@@ -62,10 +62,18 @@ class TestRegistration:
 
 class TestTools:
     async def test_explain_routing_returns_the_verdict(self, server):
+        """The tool serves whatever that ladder's frontier measured.
+
+        Pinned to "route" for deepseek until 11 August 2026, from a mock-era
+        constant that the measurement later contradicted. What the tool owes a
+        caller is a verdict traceable to a real run, not a particular one.
+        """
         r = await server.call_tool("explain_routing", {"ladder": "deepseek"})
         assert not r.is_error
         d = r.structured_content
-        assert d["ratio"]["verdict"] == "route"
+        assert d["ratio"]["verdict"] in ("cascade", "route")
+        assert d["ratio"]["economics_source"] == "frontier.deepseek.jsonl"
+        assert d["ratio"]["economics_simulated"] is False
 
     async def test_estimate_cost_calls_no_model(self, server):
         from llm_routing import models

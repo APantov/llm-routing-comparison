@@ -3,7 +3,7 @@
 Two halves that share one substrate.
 
 ```
-┌─────────────────────────── the product ───────────────────────────┐
+┌─────────────────────────── the product ────────────────────────────┐
 │                                                                    │
 │   llm-router CLI            MCP server (stdio)                     │
 │        │                         │                                 │
@@ -46,7 +46,7 @@ by a serving layer that reimplements its own client:
 | property | why it follows |
 |---|---|
 | costs are comparable | one verified price table, one piece of arithmetic |
-| the demo is free | `ROUTER_MODE=replay` serves from 318 committed real responses |
+| the demo is free | `ROUTER_MODE=replay` serves from 5,075 committed real responses |
 | spending is auditable | one function reaches a provider, not a package |
 
 ---
@@ -141,6 +141,13 @@ The structural point stands and is why the deletion costs the argument
 nothing. It cuts in the cascade's favour, and it is not a thumb on the scale —
 a cascade needs no difficulty label because it finds out by trying.
 
+> **One name, two things.** `predictive` still exists *here*, in the serving
+> layer: `llm-router --policy predictive` routes once from the query text, and
+> `--estimate` prices it as the one-shot bracket. What was deleted is the
+> **benchmark** policy of that name, which routed on MATH500's shipped
+> difficulty label. They are not the same object, and only the benchmark one
+> could read a field a user's query does not have.
+
 ### 3. The perfect verifier is usually gone
 
 | benchmark verifier | quality | transfers? | why |
@@ -183,16 +190,16 @@ branch in `_mock_call` for live queries with no ground truth to perturb.
 
 The claim is that none of it is reachable from `llm_routing/build_taskset.py` output.
 `scripts/check_core_unchanged.py` **proves** it rather than asserting it: it
-fingerprints every mock response the task set can produce — 100 tasks × 3
+fingerprints every mock response the task set can produce — 417 tasks × 3
 ladders × 4 sample indices × 2 temperatures, plus both prompt kinds — and
 compares against `llm_routing/models.py` at a git revision.
 
 ```
-  claude    identical  6a463523b63ce57a
-  deepseek  identical  2ffdab4328c47b17
-  wide      identical  4f2133356a22d25e
+  claude    identical  c467911f3b282a8d
+  deepseek  identical  ecda0b686b9cb668
+  wide      identical  3d19dda9a9df1565
 
-OK: byte-identical to HEAD.
+OK: 417 tasks x 3 ladders x 4 samples x 2 temperatures - byte-identical to HEAD.
 ```
 
 It runs in CI. If a future edit to the serving path leaks into the experiment,
@@ -241,7 +248,7 @@ trace.
 | `scripts/check_core_unchanged.py` | proves the research core is untouched |
 | `scripts/check_mcp_server.py` | MCP registration smoke test |
 
-For the experiment's own files, see the table in [README.md](README.md).
+For the experiment's own files, see the table in [WALKTHROUGH.md](WALKTHROUGH.md).
 
 ---
 

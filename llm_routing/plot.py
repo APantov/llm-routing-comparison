@@ -62,7 +62,7 @@ class Chart:
     def py(self, y):
         return H - PAD_B - (y - self.y0) / (self.y1 - self.y0) * (H - PAD_T - PAD_B)
 
-    def axes(self, x_fmt, y_fmt, n_x=5, n_y=5):
+    def axes(self, x_fmt, y_fmt, n_x=5, n_y=5, x_ticks=True):
         for i in range(n_y + 1):
             y = self.y0 + (self.y1 - self.y0) * i / n_y
             py = self.py(y)
@@ -72,15 +72,16 @@ class Chart:
             self.parts.append(
                 f'<text x="{PAD_L - 9}" y="{py + 4:.1f}" text-anchor="end" '
                 f'font-size="11" fill="{INK}">{esc(y_fmt(y))}</text>')
-        for i in range(n_x + 1):
-            x = self.x0 + (self.x1 - self.x0) * i / n_x
-            px = self.px(x)
-            self.parts.append(
-                f'<line x1="{px:.1f}" y1="{PAD_T}" x2="{px:.1f}" y2="{H - PAD_B}" '
-                f'stroke="{GRID}" stroke-width="1"/>')
-            self.parts.append(
-                f'<text x="{px:.1f}" y="{H - PAD_B + 18}" text-anchor="middle" '
-                f'font-size="11" fill="{INK}">{esc(x_fmt(x))}</text>')
+        if x_ticks:
+            for i in range(n_x + 1):
+                x = self.x0 + (self.x1 - self.x0) * i / n_x
+                px = self.px(x)
+                self.parts.append(
+                    f'<line x1="{px:.1f}" y1="{PAD_T}" x2="{px:.1f}" '
+                    f'y2="{H - PAD_B}" stroke="{GRID}" stroke-width="1"/>')
+                self.parts.append(
+                    f'<text x="{px:.1f}" y="{H - PAD_B + 18}" text-anchor="middle" '
+                    f'font-size="11" fill="{INK}">{esc(x_fmt(x))}</text>')
         self.parts.append(
             f'<rect x="{PAD_L}" y="{PAD_T}" width="{W - PAD_L - PAD_R}" '
             f'height="{H - PAD_T - PAD_B}" fill="none" stroke="{INK}" stroke-width="1"/>')
@@ -110,6 +111,35 @@ class Chart:
                 f'<line x1="{px:.1f}" y1="{self.py(y - e):.1f}" x2="{px:.1f}" '
                 f'y2="{self.py(y + e):.1f}" stroke="{colour}" stroke-width="1.2"/>')
 
+    def bar(self, x, half_width, y_lo, y_hi, colour, label=None):
+        """A rectangle in data coordinates, for the categorical charts.
+
+        Bars rather than lines wherever the x axis is a name (a ladder, a
+        policy) rather than a quantity. A line between two ladders would imply
+        the space between them means something, and it does not.
+        """
+        x0, x1 = self.px(x - half_width), self.px(x + half_width)
+        y0, y1 = self.py(y_hi), self.py(y_lo)
+        self.parts.append(
+            f'<rect x="{x0:.1f}" y="{y0:.1f}" width="{x1 - x0:.1f}" '
+            f'height="{max(0.0, y1 - y0):.1f}" fill="{colour}"/>')
+        if label and (label, colour, False) not in self.legend:
+            self.legend.append((label, colour, False))
+
+    def label_at(self, x, y, text, size=10, anchor="middle", colour=None):
+        self.parts.append(
+            f'<text x="{self.px(x):.1f}" y="{self.py(y):.1f}" '
+            f'text-anchor="{anchor}" font-size="{size}" '
+            f'fill="{colour or INK}">{esc(text)}</text>')
+
+    def tick_labels(self, positions, labels, size=11):
+        """Replace the numeric x axis with category names."""
+        for x, text in zip(positions, labels):
+            self.parts.append(
+                f'<text x="{self.px(x):.1f}" y="{H - PAD_B + 18}" '
+                f'text-anchor="middle" font-size="{size}" '
+                f'fill="{INK}">{esc(text)}</text>')
+
     def point(self, x, y, colour, label, shape="diamond"):
         px, py = self.px(x), self.py(y)
         if shape == "diamond":
@@ -137,9 +167,13 @@ class Chart:
             head.append(
                 f'<text x="{PAD_L}" y="40" font-size="11" fill="#666666">'
                 f'{esc(self.subtitle)}</text>')
-        tail = [
-            f'<text x="{PAD_L + (W - PAD_L - PAD_R) / 2:.0f}" y="{H - 30}" '
-            f'text-anchor="middle" font-size="12" fill="{INK}">{esc(self.x_label)}</text>',
+        tail = []
+        if self.x_label:
+            tail.append(
+                f'<text x="{PAD_L + (W - PAD_L - PAD_R) / 2:.0f}" y="{H - 30}" '
+                f'text-anchor="middle" font-size="12" fill="{INK}">'
+                f'{esc(self.x_label)}</text>')
+        tail += [
             f'<text x="18" y="{PAD_T + (H - PAD_T - PAD_B) / 2:.0f}" font-size="12" '
             f'fill="{INK}" transform="rotate(-90 18 '
             f'{PAD_T + (H - PAD_T - PAD_B) / 2:.0f})" text-anchor="middle">'
@@ -177,7 +211,7 @@ def _mark(rows):
 
 
 def plot_frontier(out, src=None):
-    src = src or paths.RUNS / "frontier.jsonl"
+    src = src or paths.RUNS / f"frontier.{paths.default_ladder()}.jsonl"
     rows = _read(src)
     if not rows:
         print(f"  {src.name} not found - run: python -m llm_routing.frontier", file=sys.stderr)
@@ -231,7 +265,7 @@ def plot_frontier(out, src=None):
 
 
 def plot_degradation(out, src=None):
-    src = src or paths.RUNS / "sweep_degraded.jsonl"
+    src = src or paths.RUNS / f"sweep_degraded.{paths.default_ladder()}.jsonl"
     rows = _read(src)
     if not rows:
         print(f"  {src.name} not found - run: python -m llm_routing.sweep_degraded",
@@ -273,6 +307,137 @@ def plot_degradation(out, src=None):
     return True
 
 
+def plot_ladders(out, ladders=("wide", "claude", "deepseek")):
+    """The headline, across all three ladders at once.
+
+    The one chart that carries the finding: the cascade's accuracy against
+    always-paying-for-the-best, on each ladder, with the cost difference
+    printed on the bar. Everything else in figures/ is per-ladder detail.
+    """
+    groups, missing = [], []
+    for ladder in ladders:
+        rows = _read(paths.RUNS / f"results.{ladder}.jsonl")
+        if not rows:
+            missing.append(ladder)
+            continue
+        by = {}
+        for r in rows:
+            if r.get("split") not in (None, "eval"):
+                continue
+            by.setdefault(r["policy"], []).append(r)
+        if not {"cascade", "always_expensive"} <= set(by):
+            missing.append(ladder)
+            continue
+        stat = {}
+        for name in ("cascade", "always_expensive"):
+            g = by[name]
+            stat[name] = (sum(bool(r["correct"]) for r in g) / len(g),
+                          sum(r["cost_usd"] for r in g) / len(g))
+        groups.append((ladder, stat, any(r.get("simulated") for r in rows)))
+
+    if not groups:
+        print("  no per-ladder results found - run: "
+              "ROUTER_MODE=replay python scripts/run_all_ladders.py", file=sys.stderr)
+        return False
+
+    accs = [a for _, s, _ in groups for a, _ in s.values()]
+    lo = min(accs) - 0.08
+    c = Chart(
+        "Cascade vs always paying for the best model",
+        "", "accuracy on the held-out half",
+        (-0.5, len(groups) - 0.5), (max(0.0, lo), 1.0),
+        subtitle=("SIMULATED" if any(m for _, _, m in groups)
+                  else "measured on real models, n=209 per ladder"),
+    )
+    c.axes(lambda v: "", lambda v: f"{v:.0%}", x_ticks=False)
+
+    for i, (ladder, stat, _) in enumerate(groups):
+        for j, (name, colour) in enumerate((("always_expensive", "#999999"),
+                                            ("cascade", PALETTE[0]))):
+            acc, cost = stat[name]
+            x = i + (j - 0.5) * 0.28
+            c.bar(x, 0.12, max(0.0, lo), acc, colour, name)
+            # Accuracy above the bar, cost inside it. The cost label used to sit
+            # further above and ran off the top of the frame on `claude`, where
+            # the cascade reaches 96.7%.
+            c.label_at(x, acc + 0.010, f"{acc:.1%}")
+            c.label_at(x, acc - 0.022, f"${cost:.5f}", size=9, colour="#ffffff")
+        # The cost delta is the second half of the finding and belongs on the
+        # chart: on `claude` the cascade wins accuracy and LOSES on cost, which
+        # a bare accuracy chart would hide.
+        d = stat["cascade"][1] - stat["always_expensive"][1]
+        c.label_at(i, max(0.0, lo) + 0.012,
+                   f"{'+' if d > 0 else ''}${d:.5f}/task", size=10,
+                   colour="#d55e00" if d > 0 else "#009e73")
+
+    c.tick_labels(range(len(groups)), [g[0] for g in groups], size=13)
+    out.write_text(c.render(
+        "green = the cascade also costs less; orange = it buys the accuracy at a "
+        "premium"), encoding="utf-8")
+    return True
+
+
+def plot_scorecard(out, src=None):
+    """Where each policy's spend goes, in tasks rather than dollars.
+
+    Accuracy alone cannot distinguish a router that escalated the right tasks
+    from one that escalated everything, and those are very different products.
+    """
+    src = src or paths.RUNS / "scorecard.wide.json"
+    if not src.exists():
+        print(f"  {src.name} not found - run: python -m llm_routing.scorecard "
+              f"--json {src}", file=sys.stderr)
+        return False
+    data = json.loads(src.read_text(encoding="utf-8"))
+    pols = data["policies"]
+
+    order = ["oracle", "cascade", "cascade_routing", "always_expensive",
+             "llm_router", "routellm", "random_matched", "always_cheap"]
+    order = [p for p in order if p in pols]
+
+    # MISTAKES ONLY, so "shorter is better" is literally true. An earlier
+    # version stacked `rescued` in here too, which made the oracle's bar the
+    # tallest on a chart captioned "shorter is better" - the good outcome and
+    # the bad ones cannot share an axis. Rescues are printed as a number
+    # instead.
+    buckets = [
+        ("missed_rescue", PALETTE[1], "missed (stayed cheap, was wrong)"),
+        ("wasted_escalation", "#bbbbbb", "wasted (escalated, cheap already had it)"),
+        ("harmful_escalation", PALETTE[3], "harmful (escalated and lost the answer)"),
+    ]
+    totals = [sum(pols[p]["all"].get(k, 0) for k, _, _ in buckets) for p in order]
+
+    c = Chart(
+        "What each policy did with its escalations",
+        "", "tasks",
+        (-0.6, len(order) - 0.4), (0, max(totals) * 1.15),
+        subtitle=(f"{'SIMULATED' if data.get('simulated') else 'measured'}"
+                  f"  |  {data['ladder']} ladder, n={pols[order[0]]['all']['n']}"),
+    )
+    c.axes(lambda v: "", lambda v: f"{v:.0f}", n_y=4, x_ticks=False)
+
+    for i, name in enumerate(order):
+        g = pols[name]["all"]
+        base = 0.0
+        for key, colour, label in buckets:
+            v = g.get(key, 0)
+            if v:
+                c.bar(i, 0.3, base, base + v, colour, label)
+            base += v
+        head = max(totals) * 0.04
+        c.label_at(i, base + head, f"{g['accuracy']:.1%}", size=10)
+        c.label_at(i, base + head * 2.4,
+                   f"{g.get('correct_rescue', 0)} rescued", size=9,
+                   colour=PALETTE[2])
+
+    c.tick_labels(range(len(order)), [p.replace("_", " ") for p in order], size=9)
+    out.write_text(c.render(
+        "shorter is better - every bar is a task got wrong, or an escalation paid "
+        "for and not needed. Accuracy and rescues above each bar."),
+        encoding="utf-8")
+    return True
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--outdir", default=str(paths.FIGURES))
@@ -285,6 +450,15 @@ def main():
                     help="appended to each figure's stem, e.g. --suffix .claude "
                          "gives figures/frontier.claude.svg. Without it a second "
                          "ladder's figures overwrite the first ladder's.")
+    ap.add_argument("--no-summaries", dest="summaries", action="store_false",
+                    help="skip the two cross-ladder charts (ladders.svg, "
+                         "scorecard.svg), which read every ladder's results "
+                         "rather than the files named above")
+    ap.add_argument("--only-summaries", action="store_true",
+                    help="draw only the two cross-ladder charts. They are the "
+                         "same picture whichever ladder is loaded, so the "
+                         "driver draws them once after the last ladder rather "
+                         "than three identical times.")
     args = ap.parse_args()
 
     outdir = Path(args.outdir)
@@ -294,10 +468,22 @@ def main():
     degradation_svg = outdir / f"degradation{args.suffix}.svg"
 
     made = []
-    if plot_frontier(frontier_svg, Path(args.frontier) if args.frontier else None):
-        made.append(frontier_svg)
-    if plot_degradation(degradation_svg, Path(args.sweep) if args.sweep else None):
-        made.append(degradation_svg)
+    if not args.only_summaries:
+        if plot_frontier(frontier_svg,
+                         Path(args.frontier) if args.frontier else None):
+            made.append(frontier_svg)
+        if plot_degradation(degradation_svg,
+                            Path(args.sweep) if args.sweep else None):
+            made.append(degradation_svg)
+
+    # The two cross-ladder summaries are written once, not per ladder, so they
+    # take no suffix - a --suffix run would otherwise redraw the same chart
+    # three times under three names.
+    if args.summaries or args.only_summaries:
+        for fn, name in ((plot_ladders, "ladders"), (plot_scorecard, "scorecard")):
+            svg = outdir / f"{name}.svg"
+            if fn(svg):
+                made.append(svg)
 
     if not made:
         sys.exit("no figures written; generate the data files first")

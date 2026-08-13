@@ -4,8 +4,8 @@
   "simulated": false,
   "cells": {
     "both_ok": 166,
-    "inverted": 8,
     "routable": 27,
+    "inverted": 8,
     "both_fail": 8
   },
   "policies": {

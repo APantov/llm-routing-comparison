@@ -23,6 +23,7 @@ THE THREE CLASSES OF PATH, which are kept apart on purpose:
               does come from the committed data.
 """
 
+import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -40,6 +41,19 @@ TASKSET = DATA / "taskset.jsonl"
 # Gitignored; .env.example is committed in its place. models.load_dotenv reads
 # this, and a real environment variable always beats it.
 ENV_FILE = ROOT / ".env"
+
+
+def default_ladder():
+    """The ladder name a run will use, without importing `models`.
+
+    Duplicated from `models.LADDER` on purpose, and only here: `stats` and
+    `scorecard` need to name a default results file *before* they know which
+    ladder produced it, and `scorecard` in particular must not import `models`
+    early - it reads the ladder out of the results file and sets the
+    environment before the first import, because `models` builds its price
+    table at module scope. `TestPathsDefaultLadder` keeps the two in step.
+    """
+    return os.environ.get("ROUTER_LADDER", "claude")
 
 
 def ensure_runs():

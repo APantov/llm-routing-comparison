@@ -1,8 +1,8 @@
 # METHOD — how the benchmark is built, and how to run it
 
-The long-form companion to [README](../README.md) and [STATUS](../STATUS.md).
-The README says what was found; STATUS says where the project stands; this file
-says how, and why each choice was made the way it was.
+The long-form companion to [README](../README.md) and [RESULTS](RESULTS.md).
+The README says what was found and RESULTS gives every number; this file says
+how, and why each choice was made the way it was.
 
 Every figure quoted here is either measured on real models and replayable from
 `cache/`, or labelled as a projection. Nothing on this page is carried over from
@@ -65,7 +65,7 @@ reproducible byte for byte and there is no judge to calibrate.
 disputed input recorded as evidence in `llm_routing.build_taskset.QUARANTINED`.
 The bar for quarantining is deliberately hard to clear — every rung's multi-draw
 p̂ must be exactly 0 — because getting it wrong is expensive in both directions.
-[STATUS.md §6](../STATUS.md) has the full rule and the reversal that motivated
+[ENGINEERING.md](ENGINEERING.md) has the full rule and the reversal that motivated
 it.
 
 Half the set is held out. `llm_routing/splits.py` splits it deterministically,
@@ -99,7 +99,7 @@ one it would fail too, and only the first kind is worth routing.
 cheap model cannot do this" from "the cheap model usually can and missed once".
 Redrawing the decisive cells three times put roughly a fifth of the apparent
 opportunity down to one model having a bad draw — see
-[STATUS.md §2.5](../STATUS.md), which is the number to quote.
+[RESULTS.md §2.6](RESULTS.md), which is the number to quote.
 
 ## The model ladder is the main variable
 
@@ -138,27 +138,41 @@ unknown model names to the cheap model instead of erroring, which is guarded at
 import, because a typo would otherwise produce plausible, wrong, paid-for
 numbers.
 
-### The sign flips, and the sign is the finding
+### The price ratio does not decide it
 
-Cascading pays in proportion to the price gap it exploits. A cascade always pays
-for the cheap call *and* for verifying it — fixed costs — and what they buy is
-the *chance* to skip an expensive call. Below roughly 3x, the fixed costs swamp
-the saving.
+The intuition the project started from: cascading pays in proportion to the
+price gap it exploits, because a cascade always pays for the cheap call *and*
+for verifying it, and what those fixed costs buy is the *chance* to skip an
+expensive one. Below some ratio the fixed costs swamp the saving.
 
-On `wide`, `frontier.py` puts the cascade **83.1% below always-expensive at
-matched accuracy** (n=209, from `runs/frontier.wide.jsonl`, real responses),
-with an AUC **6.9 points above a cost-matched coin flip**. On `deepseek`, where
-the rungs are 3.1x apart, the same comparison goes the other way. The router
-therefore *computes* these rather than quoting them: `router_agent/findings.py`
-reads `runs/frontier.jsonl` when a run for the ladder exists and falls back to
-date-labelled constants when it does not, reporting which it used.
+The measurement, from each ladder's own frontier run (n=209, real responses):
 
-> **A confound this design cannot separate.** The project set out to test a
-> **price-ratio** crossover. What the data distinguishes is the **capability
-> gap** between rungs, and here the two are confounded: the ladder with the
-> small price ratio is also the ladder whose rungs are equally capable. Three
-> ladders cannot tell them apart. The supported claim is *"cascading pays when
-> the top rung is genuinely better."* See [STATUS.md §2.4](../STATUS.md).
+| ladder | effective ratio | cascade vs always-best, matched accuracy | AUC over the coin flip | verdict |
+|---|---|---|---|---|
+| `deepseek` | 3.11x | **−4.4%** (cheaper) | +2.2 | cascade |
+| `claude` | 6.5x | **+11.7%** (dearer) | +5.3 | route |
+| `wide` | 46.4x | **−83.1%** (much cheaper) | +6.9 | cascade |
+
+**That is not monotonic, and the middle row is the interesting one.** `claude`
+has the *higher* price ratio of the two close ladders and is the one where
+cascading costs more, because what decides the outcome is not the price gap
+alone but how much verification costs on that ladder. On `claude` the cheap
+rung is Haiku and the maths half draws five samples from it, and the middle rung
+does not accept a temperature so it cannot be verified at all. On `deepseek`
+both rungs accept one, and the top rung is barely better, so the cascade rarely
+escalates and rarely pays twice.
+
+The router therefore *computes* this rather than quoting it:
+`router_agent/findings.py` reads `runs/frontier.<ladder>.jsonl`, which is
+committed for every ladder, and refuses to guess a verdict for a ladder that has
+none.
+
+> **A confound this design cannot separate.** What the data distinguishes is the
+> **capability gap** between rungs as much as the price gap, and here the two
+> move together: the ladder with the small price ratio is also the ladder whose
+> rungs are equally capable. Three ladders cannot tell them apart. The supported
+> claim is *"cascading pays when the top rung is genuinely better and
+> verification is cheap."* See [RESULTS.md §2.4](RESULTS.md).
 
 ## The policies
 
@@ -299,7 +313,7 @@ comparison can. `sweep_degraded` prints both and says which is which.
 The caveats, in order of size: one ladder, and the code half is the half whose
 free perfect verifier **does not transfer to production** — MBPP+ ships the
 tests, and a user's query does not. That is the sharpest open problem in this
-repository; see [NOTES.md](NOTES.md).
+repository; see [LIMITATIONS.md](LIMITATIONS.md).
 
 ## The RouteLLM comparison
 
@@ -540,7 +554,7 @@ measurement into reproducible specialist advantage and single-draw label noise,
 and puts the noise share highest on MATH-500 — which is what the maths half of
 this task set is. That prediction was tested here on independent data and it
 held: redrawing the decisive cells moved the routable fraction from 13.5%
-observed to 11.3% reproducible. See [STATUS.md §2.5](../STATUS.md).
+observed to 11.3% reproducible. See [RESULTS.md §2.6](RESULTS.md).
 
 "Isn't this just FrugalGPT?" — largely yes, and deliberately: a replication with
 2026 models. What is added is the manipulation. FrugalGPT and AutoMix take their

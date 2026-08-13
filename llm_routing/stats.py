@@ -46,7 +46,7 @@ from pathlib import Path
 
 from llm_routing import paths
 
-RESULTS = paths.RUNS / "results.jsonl"
+RESULTS = paths.RUNS / f"results.{paths.default_ladder()}.jsonl"
 
 # Resamples for the bootstrap. 10k is enough for a 95% interval to be stable to
 # about a tenth of a point, and it costs no model calls at all - this module reads
@@ -222,8 +222,8 @@ def main():
     ap.add_argument("--all-pairs", action="store_true",
                     help="every pair. Read the multiple-comparisons warning first.")
     ap.add_argument("--results", metavar="PATH", default=None,
-                    help="read this results file instead of results.jsonl, e.g. "
-                         "results.claude.jsonl. NOTE these tests are PAIRED within "
+                    help="results file to test. Default: runs/results.<ladder>.jsonl "
+                         "for the ladder in ROUTER_LADDER. NOTE these tests are PAIRED within "
                          "one file: every policy answered the same tasks from the "
                          "same cache. Do not try to pair across two ladders' files "
                          "- different ladders are different models, so the pairing "

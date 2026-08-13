@@ -458,7 +458,7 @@ def policy_cascade_degraded(task):
 # DECISION #4: the hand-written predictive heuristic. RETRACTED 8 August 2026.
 #
 # The numbering is kept and the slot left empty on purpose. DECISIONS #1-#9 are
-# cited by number in README.md, docs/NOTES.md and docs/WALKTHROUGH.md, and
+# cited by number in docs/METHOD.md and docs/WALKTHROUGH.md, and
 # renumbering would silently rewrite the record. This is a tombstone.
 #
 # WHAT IT WAS. `predict_is_hard` routed math on MATH500's shipped `level >= 5`
@@ -477,7 +477,7 @@ def policy_cascade_degraded(task):
 # because a threshold sweep over a constant has nowhere to go. The published
 # reading of that sweep, "predictive contributes no point to the frontier,
 # LLMRouterBench reproduced on real data", was an arithmetic consequence of the
-# level filter and is retracted. See STATUS.md section 2.3.
+# level filter and is retracted. See docs/RESULTS.md section 2.3.
 #
 # THE CLAIM IT MADE, which DECISION #7 exists to test and run_eval still prints:
 # an LLM routing call "would add a full round trip and defeat the purpose". The

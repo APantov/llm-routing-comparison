@@ -1,7 +1,4 @@
-<!--
-  Add a CI badge once this repository has a GitHub remote — replace OWNER:
-  [![CI](https://github.com/OWNER/llm-routing-comparison/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/llm-routing-comparison/actions/workflows/ci.yml)
--->
+[![CI](https://github.com/APantov/llm-routing-comparison/actions/workflows/ci.yml/badge.svg)](https://github.com/APantov/llm-routing-comparison/actions/workflows/ci.yml)
 
 # LLM Routing: a measured benchmark, and the router it argues for
 
@@ -13,15 +10,17 @@ escalate only when verification fails. Whether that beats simply paying for the
 best model is not a matter of opinion — it depends on the models you are
 choosing between, and this repository measures it on three real ladders.
 
+> **The finding, in one sentence: cascade when the top rung is genuinely better
+> and verification is cheap — the price ratio alone gets two of three ladders
+> backwards.** The shipped router computes that verdict per ladder from the
+> committed measurements, and refuses to answer for a ladder it has no data on.
+
 | | |
 |---|---|
 | **What runs** | A LangGraph state machine — `classify → answer → verify → escalate ⟲` — with human-in-the-loop approval *inside* the escalation loop and checkpointed resume, served over MCP with four tools and four resources. |
 | **What decides its policy** | 417 tasks (MBPP+ code, MATH-500 level 5), 10 policies, 3 price ladders, **all measured on real models**: cost–quality frontiers, exact McNemar, paired bootstrap. |
-| **Built with** | Python 3.10–3.13 · LangGraph · MCP · Anthropic + DeepSeek APIs · pytest (205 tests) · GitHub Actions. The research core is **pure standard library** — no dependency can change a benchmark number. |
+| **Built with** | Python 3.10–3.13 · LangGraph · MCP · Anthropic + DeepSeek APIs · pytest (207 tests) · GitHub Actions. The research core is **pure standard library** — no dependency can change a benchmark number. |
 | **Evidence** | **5,075 real model responses**, committed. **$8.51** spent. Every figure and table regenerates offline, with no API key, for **$0.00**. |
-
-**Start with [STATUS.md](STATUS.md)** — it is the one file kept current, and it
-states the findings, the costs and the limitations in that order.
 
 ---
 
@@ -37,29 +36,43 @@ No account, no key, no money: the responses were bought once and committed, so
 the router replays genuine model output rather than simulating it.
 
 ```
-2. The cascade's cost - it disagreed with itself, so it paid twice
+1. The cascade's win - verified at the cheap rung
 --------------------------------------------------------------------------
-  query: Let N be the number of ordered triples (a,b,c) of positive integers
-         with a*b*c = 2310 and a<b<c. Compute N.
+  query: Let f(x) = x^3 - 3x + 1. Find the sum of the squares of all real roots.
 
     classify  domain=math, start=cheap, verifier=self_consistency
     answer    cheap (deepseek-v4-flash) answered
+    verify    self_consistency -> ACCEPT, confidence=1.00
+    finalize  done: verified
+
+    answered by  deepseek-v4-flash
+    verified     True  (self_consistency)
+    cost         $0.000315   backend $0.000000
+```
+
+Three independent draws from DeepSeek all gave the right answer, so the cascade
+accepted and never called Opus 5 — roughly **27x cheaper** than routing straight
+to the top rung.
+
+And the case that costs money, because a router is only worth reading about with
+both:
+
+```
+2. The cascade's cost - it disagreed with itself, so it paid twice
+--------------------------------------------------------------------------
     verify    self_consistency -> REJECT, confidence=0.75
     escalate  cheap -> expensive
     answer    expensive (claude-opus-5) answered
-    verify    self_consistency -> REJECT
     finalize  done: exhausted_ladder
 
-    answered by  claude-opus-5
-    verified     False  (self_consistency)
     cost         $0.013450   backend $0.000000
 ```
 
-That is the expensive case on purpose. The cheap model agreed with itself only
-75% of the time, so the cascade escalated — and **paid for both rungs**. Whether
-that is a good trade is exactly what the price ratio decides, and what the rest
-of this repository measures. `python scripts/demo.py` prints all three canonical
-traces.
+The cheap model agreed with itself only 75% of the time, so the cascade
+escalated — and **paid for both rungs**. Whether that trade is worth making is
+what the rest of this repository measures. `python scripts/demo.py` prints all
+three canonical traces, including the code one where verification is exact and
+free.
 
 ## The finding
 
@@ -72,12 +85,26 @@ Exact McNemar over paired outcomes, n=209 held-out tasks per ladder.
 | `claude` | Haiku 4.5 → Sonnet 5 → Opus 5 | **96.7%** | 92.3% | +4.3% | **0.012** | +$0.00097 |
 | `deepseek` | v4-flash → v4-pro | 86.6% | 83.7% | +2.9% | 0.070 | −$0.00000 |
 
+![Cascade against always-expensive on all three ladders](figures/ladders.svg)
+
 **On `wide` the cascade is more accurate *and* four times cheaper. On `claude`
 it buys the accuracy at a premium** — verification is not free when the cheap
-rung is Haiku and the maths half draws five samples from it. Do not quote
-"cheaper and better" without naming the ladder.
+rung is Haiku and the maths half draws five samples from it. The ladder decides
+the sign, which is why the router below reads it rather than assuming it.
 
-![Cost–quality frontier on the wide ladder](figures/frontier.wide.svg)
+### Accuracy hides what a router actually did
+
+Two policies can reach the same accuracy by escalating the right ten tasks or
+by escalating everything. `scorecard.py` joins each decision against what the
+two rungs could actually do:
+
+![What each policy did with its escalations](figures/scorecard.svg)
+
+`always_expensive` escalates 201 tasks to buy 27 rescues, burning **$0.71** on
+escalations that could not improve the answer and losing 8 tasks the cheap rung
+had already answered. `cascade` gets 24 of those 27 rescues and wastes
+**$0.084** — eight times less — because verification tells it which escalations
+are worth making.
 
 **Predictive routing does not beat a coin flip — six comparisons out of six.**
 `random_matched` flips a coin at the learned router's own escalation rate, which
@@ -94,19 +121,44 @@ coin flip on any ladder, while the cascade beats both on every ladder. **The
 distinction is when the decision is made**: a predictive router commits before
 seeing an attempt, a cascade decides after verifying one.
 
-The full results — the per-policy error attribution, what the routing signal is
-actually worth once decoding noise is priced out, and the confound three ladders
-cannot separate — are in [STATUS.md](STATUS.md).
+### And every policy is a curve, not a point
+
+Every router here has a knob that trades accuracy for money, so comparing two at
+one setting each lets whoever set the knobs pick the winner. `frontier.py`
+sweeps each knob across its whole range and compares the resulting curves:
+
+![Cost-quality frontier on the wide ladder](figures/frontier.wide.svg)
+
+The full results — what the routing signal is worth once decoding noise is
+priced out, the verifier-degradation experiment, and the confound three ladders
+cannot separate — are in [docs/RESULTS.md](docs/RESULTS.md).
+
+## The benchmark ships its own conclusion
+
+A benchmark that ends in a table leaves the reader to apply it. This one ends in
+a function. `findings.ratio_verdict(ladder)` reads that ladder's committed
+frontier and returns the verdict for it — and **declines when it has no data**:
+
+```bash
+$ llm-router --estimate "prove that sqrt(2) is irrational"
+  recommended policy   cascade        (measured on the wide ladder)
+  cascade vs always-best, at matched accuracy   -83.1%
+```
+
+The CLI, the MCP `explain_routing` tool and the `RouterConfig` defaults all call
+it, so changing what the benchmark measured changes what the router recommends —
+there is no constant to fall back to and drift out of date. There used to be
+one, and two of its three verdicts were backwards; that is why this exists.
 
 ## Layout
 
 ```
 .
-├── llm_routing/      the experiment — 16 modules, standard library only
+├── llm_routing/      the experiment — 17 modules, standard library only
 ├── router_agent/     the product — LangGraph cascade + MCP server
 ├── scripts/          operator tools: paid buys, guards, the demo, the driver
-├── tests/            pytest, 205 tests
-├── docs/             method, architecture, walkthrough, datasets, open issues
+├── tests/            pytest, 207 tests
+├── docs/             results, method, architecture, walkthrough, limitations
 ├── data/             MATH-500 and MBPP+ sources, and the built task set
 ├── cache/            5,075 real model responses — what makes replay free
 ├── runs/             every derived artefact: results, frontiers, scorecards
@@ -135,14 +187,16 @@ Replay mode reruns the published analysis against the committed responses. No
 key, no network, $0.00:
 
 ```bash
-ROUTER_MODE=replay python scripts/run_all_ladders.py    # all 3 ladders
+ROUTER_MODE=replay python scripts/run_all_ladders.py --ladders wide   # ~18 min
 python -m llm_routing.stats     --results runs/results.wide.jsonl
 python -m llm_routing.scorecard --results runs/results.wide.jsonl
 ```
 
-The published figures were produced by deleting every derived artefact and
-regenerating all three ladders from the cache. 0 calls reached a backend; 0 rows
-are simulated.
+Drop `--ladders wide` for all three, which takes **about 55 minutes** and prints
+one line per step. The published figures were produced exactly that way, after
+deleting every derived artefact: 0 calls reached a backend, 0 rows are
+simulated, and every regenerated file came back byte-identical to the committed
+one.
 
 Real mode needs a key and spends money. `pip install -e ".[real]"`, copy
 `.env.example` to `.env`, and read [docs/METHOD.md](docs/METHOD.md#running-it-for-real)
@@ -154,23 +208,26 @@ doing.
 
 | file | read it when |
 |---|---|
-| [STATUS.md](STATUS.md) | you want the current findings, costs and limitations. **Start here.** |
+| [docs/RESULTS.md](docs/RESULTS.md) | you want every finding, with the numbers and what they cost |
 | [docs/METHOD.md](docs/METHOD.md) | you want the method: task set, ladders, policies, verifiers, the degradation experiment, and how to run it for real |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | you want to know how the benchmark and the serving layer fit together |
 | [docs/WALKTHROUGH.md](docs/WALKTHROUGH.md) | you want to understand the code, one real task traced through every module |
 | [docs/EXPLAINED.md](docs/EXPLAINED.md) | you want the plain-language version, no familiarity with routing assumed |
-| [docs/NOTES.md](docs/NOTES.md) | you want the honest list of what is wrong, unresolved, or would weaken the headline |
+| [docs/LIMITATIONS.md](docs/LIMITATIONS.md) | you want what bounds the claims |
 | [docs/DATASETS.md](docs/DATASETS.md) | you are choosing a benchmark, or want to know why MBPP+ and MATH-500 level 5 |
+| [docs/ENGINEERING.md](docs/ENGINEERING.md) | you want the operational rules, and the bugs this project found in itself |
 
-## What this is not
+## The open problem, and how it is priced
 
-The sharpest limitation, stated here rather than buried: **the verifier that
-produces the signal is not the verifier that ships.** The code half is graded by
-executing the tests MBPP+ supplies, which a deployed router does not have. The
-maths half — where a self-consistency verifier *would* deploy — carries far less
-routing signal. Every number here is collected under a verifier the product
-cannot have, and [docs/NOTES.md](docs/NOTES.md) tracks that alongside seven
-others in the same spirit.
+Stated here rather than buried: **the verifier that produces the signal is not
+the verifier that ships.** The code half is graded by executing the tests MBPP+
+supplies, and a deployed router does not have them.
+
+That gap is priced rather than noted. `sweep_degraded.py` damages the perfect
+verifier by a controlled amount and measures what the cascade loses — so going
+from shipped tests to a proxy verifier in production is a **move along a measured
+curve**, not a step into the unknown. Every other bound on these claims is stated
+once in [docs/LIMITATIONS.md](docs/LIMITATIONS.md), with what would settle it.
 
 ## Where this sits in the literature
 

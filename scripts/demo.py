@@ -104,9 +104,20 @@ SCENARIOS = [
 
 
 def main() -> int:
+    import json
+
     from router_agent.config import RouterConfig
     from router_agent.engine import route
-    from llm_routing import models
+    from llm_routing import models, paths, response_cache
+
+    # Declare the live task ids before the first cache read, so a conflict on a
+    # task the current set no longer contains is recognised as dead weight
+    # rather than hedged about. Otherwise the hedge prints inside a trace.
+    if paths.TASKSET.exists():
+        response_cache.LIVE_TASK_IDS = {
+            json.loads(l)["id"]
+            for l in paths.TASKSET.open(encoding="utf-8") if l.strip()
+        }
 
     mode = os.environ["ROUTER_MODE"]
     print()

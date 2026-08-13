@@ -14,7 +14,7 @@ buys three properties which are otherwise very hard to get in a serving layer:
   * **Cost accounting that matches the benchmark.** Same verified price tables,
     same tokenizer-asymmetry handling, same arithmetic. A dollar figure the
     router reports means the same thing as a dollar figure in the paper tables.
-  * **Replay.** `ROUTER_MODE=replay` serves the whole agent from the 318 real
+  * **Replay.** `ROUTER_MODE=replay` serves the whole agent from the 5,075 real
     responses committed under `cache/`. The demo runs end to end, against real
     model output, with no API key and at zero cost.
   * **One place where money is spent.** Auditing what a run costs means reading

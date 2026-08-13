@@ -51,7 +51,7 @@ N_MATH = 60
 # design.
 #
 # The committed data/taskset.jsonl holds 417 tasks - 60 maths and 357 code -
-# and every number in STATUS.md is measured over it. The default here was 40,
+# and every number in docs/RESULTS.md is measured over it. The default here was 40,
 # so `python -m llm_routing.build_taskset`, the command README and CI both
 # give, OVERWROTE that file with a 96-task set sampled under a different draw.
 # A reader following the quickstart destroyed the artefact the results are
@@ -302,8 +302,8 @@ def stratified_sample(tasks, n, rng):
 # This matters more than five tasks should, because they were ALL of
 # always_expensive's failures on the eval split. Left in, they set the ceiling
 # for every policy: `always_expensive` and `oracle` read 92% instead of 100%,
-# and the code half reads 80% instead of 100%. STATUS.md's "code is now the
-# harder domain in absolute terms" was this artefact. See STATUS.md section 6.
+# and the code half reads 80% instead of 100%. docs/RESULTS.md's "code is now the
+# harder domain in absolute terms" was this artefact. See docs/ENGINEERING.md (the quarantine rule).
 #
 # Removal happens AFTER sampling and AFTER add_difficulty_pct, deliberately.
 # Filtering the pool first would let stratified_sample draw five replacements,

@@ -217,7 +217,7 @@ def synthesize_task(
 # the benchmark's own notes were blunt that prompt length is the least bad of a
 # weak set of pre-call features: measured on the probe it separates "the cheap
 # rung fails" at AUC 0.688 on the code half, and only 0.586 for the question that
-# actually matters, "would escalating fix it". See docs/NOTES.md issue 6.
+# actually matters, "would escalating fix it". See docs/LIMITATIONS.md.
 _LONG_PROMPT_CHARS = 100
 
 _HARD_MARKERS = (

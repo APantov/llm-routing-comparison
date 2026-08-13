@@ -119,7 +119,7 @@ class TestProbe:
         # All 5 of its both_fail tasks were unpassable, not hard, so the code
         # half now has ZERO both_fail and a 100% rescue rate - the clean cascade
         # structure. Pinned here because it is the claim most likely to creep
-        # back into the docs. See STATUS.md section 6 (the quarantine rule).
+        # back into the docs. See docs/ENGINEERING.md (the quarantine rule).
         for domain, want in snap["by_domain"].items():
             assert probe.by_domain[domain]["both_fail"] == want["both_fail"], (
                 f"{domain} both_fail moved from {want['both_fail']} to "
@@ -177,22 +177,36 @@ class TestPriceRatios:
 
 
 class TestRatioVerdict:
-    def test_sign_flips_across_ladders(self):
-        """The repository's headline: cascading pays in proportion to the gap.
+    def test_every_verdict_is_measured_on_its_own_ladder(self):
+        """The economics come from that ladder's own frontier run, always.
 
-        Asserted on the SIGN only. The magnitudes moved substantially in the
-        6 August task-set rebuild (claude -12% -> about -46%), which is why
-        `ratio_verdict` derives them from a frontier run when one is on disk
-        rather than quoting a constant. The sign survived; pinning a magnitude
-        here would just re-create the staleness in the test suite.
+        This test used to assert a SIGN per ladder - deepseek routes, claude and
+        wide cascade - taken from constants recorded from mock runs on 30 July
+        2026. When all three ladders were finally measured, two of the three
+        were backwards: on real models the cascade is cheaper at deepseek's
+        3.11x and DEARER at claude's 6.5x.
+
+        So the invariant is not a sign. It is that every ladder reports a
+        verdict derived from its own committed frontier, on real responses,
+        rather than from anything typed in by hand.
         """
-        assert findings.ratio_verdict("deepseek")["verdict"] == "route"
-        assert findings.ratio_verdict("claude")["verdict"] == "cascade"
-        assert findings.ratio_verdict("wide")["verdict"] == "cascade"
+        for ladder in ("deepseek", "claude", "wide"):
+            v = findings.ratio_verdict(ladder)
+            assert v["verdict"] in ("cascade", "route"), ladder
+            assert v["economics_source"] == f"frontier.{ladder}.jsonl", ladder
+            assert v["economics_simulated"] is False, ladder
 
-        # Positive means the cascade costs MORE than always-best.
-        assert findings.ratio_verdict("deepseek")["cascade_vs_always_best_pct"] > 0
-        assert findings.ratio_verdict("wide")["cascade_vs_always_best_pct"] < 0
+        # NOT monotonic in the price ratio, and that is the finding rather than
+        # a wrinkle. `claude` sits at a HIGHER effective ratio than `deepseek`
+        # and is the ladder where cascading costs more, because verification is
+        # expensive there: the cheap rung draws five samples and the middle rung
+        # cannot be verified at all. Any code deriving a verdict from
+        # CROSSOVER_RATIO would get this backwards, which is why nothing does.
+        deep = findings.ratio_verdict("deepseek")
+        claude = findings.ratio_verdict("claude")
+        assert claude["effective_ratio"] > deep["effective_ratio"]
+        assert (claude["cascade_vs_always_best_pct"]
+                > deep["cascade_vs_always_best_pct"])
 
     def test_every_verdict_declares_where_it_came_from(self):
         """The flag must track its source, not pin the project to a moment.
@@ -209,21 +223,20 @@ class TestRatioVerdict:
         """
         for ladder in ("deepseek", "claude", "wide"):
             v = findings.ratio_verdict(ladder)
-            assert v["economics_source"] in ("frontier.jsonl", "historical")
+            assert v["economics_source"] == f"frontier.{ladder}.jsonl"
             assert isinstance(v["economics_simulated"], bool)
+            live = findings.frontier_economics(ladder=ladder)
+            assert v["economics_simulated"] == live["simulated"]
 
-            if v["economics_source"] == "historical":
-                # The stored constants were recorded from mock runs and cannot
-                # become real retrospectively, so this one IS permanent.
-                assert v["economics_simulated"] is True
-            else:
-                live = findings.frontier_economics()
-                assert v["economics_simulated"] == live["simulated"]
+    def test_real_accuracy_data_tracks_the_frontier_file(self):
+        """True exactly when this ladder's frontier came from real responses.
 
-    def test_only_wide_claims_real_accuracy_data(self):
-        assert findings.ratio_verdict("wide")["accuracy_data_is_real"] is True
-        assert findings.ratio_verdict("claude")["accuracy_data_is_real"] is False
-        assert findings.ratio_verdict("deepseek")["accuracy_data_is_real"] is False
+        Pinned to `wide` alone until 11 August 2026, which encoded "only one
+        ladder has ever been measured" as though it were an invariant. Three
+        have been.
+        """
+        for ladder in ("wide", "claude", "deepseek"):
+            assert findings.ratio_verdict(ladder)["accuracy_data_is_real"] is True, ladder
 
     def test_unknown_ladder_is_honest_about_it(self):
         v = findings.ratio_verdict("nonexistent")

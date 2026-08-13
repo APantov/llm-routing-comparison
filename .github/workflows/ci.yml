@@ -36,6 +36,13 @@ jobs:
       - name: Build the task set
         run: python -m llm_routing.build_taskset
 
+      # data/README.md claims the committed task set rebuilds byte for byte on
+      # any platform, and every published number is joined against that file.
+      # An unenforced reproducibility claim is a claim that quietly stops being
+      # true, so this is the enforcement.
+      - name: The task set rebuilds byte-identically
+        run: git diff --exit-code -- data/taskset.jsonl
+
       - name: Regression gate
         # Exits non-zero if a grader is broken OR too lax. This is the gate
         # that failed to catch a real grader bug in July 2026 by only testing

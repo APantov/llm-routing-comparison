@@ -12,7 +12,7 @@ A single draw cannot tell "the cheap model cannot do this" apart from "the cheap
 model can usually do this and missed once". *How Much of the Routing Gap Is
 Real?* (arXiv:2607.03436) decomposes exactly this measurement and puts the
 single-draw noise share at 36% on MATH-500 - and the maths half of this task set
-IS MATH-500 level 5. See NOTES.md issue 3.
+IS MATH-500 level 5. See docs/LIMITATIONS.md.
 
 WHAT IT DOES
 ------------
@@ -144,7 +144,7 @@ def mean_call_cost(ladder, task_ids=None, domain=None):
 
 # Raw candidate pools, for screening rather than redrawing. Each returns
 # (tasks, domain); `build_taskset.drop_quarantined` is applied to every one of
-# them at the call site, because STATUS.md section 6 (the quarantine rule) makes that rule apply
+# them at the call site, because docs/ENGINEERING.md (the quarantine rule) makes that rule apply
 # to "every rerun, every ladder, every figure" - a screener that re-bought the
 # five unpassable tasks would be the first thing to break it.
 def _pool_mbppplus(min_math_level):

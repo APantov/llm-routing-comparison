@@ -114,7 +114,7 @@ MOCK_SEED = int(os.environ.get("MOCK_SEED", "0"))
 # 7 August 2026 it took one: all 240 self-consistency samples the maths cascade
 # needs were served from the mock cache into a results.jsonl whose every row said
 # `simulated: false`, and the maths cascade duly reported 100%, which is issue 4
-# of docs/NOTES.md ("mock mode makes majority voting far too strong") arriving
+# of docs/LIMITATIONS.md ("mock mode makes majority voting far too strong") arriving
 # through the front door.
 #
 # With it off, a missing sample raises ReplayMiss and run_eval drops the policy -
@@ -470,7 +470,7 @@ class ModelResponse:
     # reproduces the numbers in - could not see it, and three truncated
     # responses in the committed cache were being graded as capability failures.
     # A truncated answer is not a wrong answer, it is a missing measurement, and
-    # the two must not be indistinguishable downstream. See STATUS.md §5.
+    # the two must not be indistinguishable downstream. See docs/LIMITATIONS.md.
     truncated: bool = False
 
 
@@ -751,7 +751,7 @@ def _note_truncation(task, tier, kind, sample_idx, *, from_cache):
         f"  !! TRUNCATED {where}: {task['id']} on {tier} ({kind}, sample "
         f"{sample_idx}). {consequence}.\n"
         f"     Raising models.{cap} re-charges every cached response - see "
-        f"STATUS.md section 7 (standing invariants). Exclude the task instead.",
+        f"docs/ENGINEERING.md (standing invariants). Exclude the task instead.",
         file=sys.stderr,
     )
 

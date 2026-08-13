@@ -50,7 +50,7 @@ from llm_routing import run_eval
 from llm_routing import paths
 from llm_routing import splits
 
-OUT = paths.RUNS / "frontier.jsonl"
+OUT = paths.RUNS / f"frontier.{models.LADDER}.jsonl"
 
 
 # ---------------------------------------------------------------------------

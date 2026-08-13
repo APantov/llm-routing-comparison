@@ -45,7 +45,7 @@ from llm_routing import paths
 from llm_routing import policies
 from llm_routing import run_eval
 
-OUT = paths.RUNS / "sweep_degraded.jsonl"
+OUT = paths.RUNS / f"sweep_degraded.{models.LADDER}.jsonl"
 
 # The corruption levels. Spaced to resolve the low end, because that is where the
 # break-even lives: a verifier does not have to be very good before cascading
