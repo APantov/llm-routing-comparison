@@ -1,0 +1,34 @@
+  73 stranded response(s) skipped - recorded under a parameter the cache key has since moved past, so the experiment cannot serve them.
+  !! 1 greedy response(s) hit max_tokens and are UNMEASURED, not failures.
+     math-96          cheap      dropped from the cross-tab
+     n falls by that many pairs. Raising models.MAX_TOKENS re-charges every
+     cached response (docs/ENGINEERING.md section 1), so the task is excluded instead.
+
+=== REAL (cached responses), ladder=wide ===
+  all              n=416  both_ok=327  routable=56   both_fail=15   inverted=18  | cheap= 82.9% exp= 92.1% | routable= 13.5% [10.5%,17.1%] | ceiling= 17.8% | rescue= 78.9% | McNemar p=0.000
+  code             n=357  both_ok=279  routable=47   both_fail=14   inverted=17  | cheap= 82.9% exp= 91.3% | routable= 13.2% [10.0%,17.1%] | ceiling= 17.9% | rescue= 77.0% | McNemar p=0.000
+  math             n=59   both_ok=48   routable=9    both_fail=1    inverted=1   | cheap= 83.1% exp= 96.6% | routable= 15.3% [8.2%,26.5%] | ceiling= 16.9% | rescue= 90.0% | McNemar p=0.021
+  math level 5     n=59   both_ok=48   routable=9    both_fail=1    inverted=1   | cheap= 83.1% exp= 96.6% | routable= 15.3% [8.2%,26.5%] | ceiling= 16.9% | rescue= 90.0% | McNemar p=0.021
+
+  !! both_fail review queue: 15 task(s) defeated BOTH rungs.
+     Each is either genuinely hard or unpassable-by-spec. The cross-tab
+     cannot tell, and an unpassable task silently caps every policy.
+       codeplus-113     code
+       codeplus-138     code
+       codeplus-16      code
+       codeplus-235     code
+       codeplus-301     code
+       codeplus-306     code
+       codeplus-415     code
+       codeplus-462     code
+       codeplus-468     code
+       codeplus-556     code
+       codeplus-620     code
+       codeplus-74      code
+       codeplus-780     code
+       codeplus-92      code
+       math-154         math
+     Check each against a textbook-correct solution; if unpassable, add
+     it to build_taskset.QUARANTINED with the evidence.
+
+real:wide        UNRESOLVED - CI straddles a boundary of [15%, 45%]; need more tasks

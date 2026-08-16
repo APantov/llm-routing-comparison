@@ -97,8 +97,8 @@ one it would fail too, and only the first kind is worth routing.
 
 **And one draw per cell overstates it.** A single draw cannot distinguish "the
 cheap model cannot do this" from "the cheap model usually can and missed once".
-Redrawing the decisive cells three times put roughly a fifth of the apparent
-opportunity down to one model having a bad draw — see
+Redrawing the decisive cells three times put about a sixth of the apparent
+opportunity down to one model having a bad draw (13.5% → 11.3%) — see
 [RESULTS.md §2.6](RESULTS.md), which is the number to quote.
 
 ## The model ladder is the main variable

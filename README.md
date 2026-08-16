@@ -17,7 +17,7 @@ choosing between, and this repository measures it on three real ladders.
 |---|---|
 | **What runs** | A LangGraph state machine — `classify → answer → verify → escalate ⟲` — with human-in-the-loop approval *inside* the escalation loop and checkpointed resume, served over MCP with four tools and four resources. |
 | **What decides its policy** | 417 tasks (MBPP+ code, MATH-500 level 5), 10 policies, 3 price ladders, **all measured on real models**: cost–quality frontiers, exact McNemar, paired bootstrap. |
-| **Built with** | Python 3.10–3.13 · LangGraph · MCP · Anthropic + DeepSeek APIs · pytest (207 tests) · GitHub Actions. The research core is **pure standard library** — no dependency can change a benchmark number. |
+| **Built with** | Python 3.10–3.13 · LangGraph · MCP · Anthropic + DeepSeek APIs · pytest (210 tests) · GitHub Actions. The research core is **pure standard library** — no dependency can change a benchmark number. |
 | **Evidence** | **5,075 real model responses**, committed. **$8.51** spent. Every figure and table regenerates offline, with no API key, for **$0.00**. |
 
 ---
@@ -155,7 +155,7 @@ one, and two of its three verdicts were backwards; that is why this exists.
 ├── llm_routing/      the experiment — 17 modules, standard library only
 ├── router_agent/     the product — LangGraph cascade + MCP server
 ├── scripts/          operator tools: paid buys, guards, the demo, the driver
-├── tests/            pytest, 207 tests
+├── tests/            pytest, 210 tests
 ├── docs/             results, method, architecture, walkthrough, limitations
 ├── data/             MATH-500 and MBPP+ sources, and the built task set
 ├── cache/            5,075 real model responses — what makes replay free

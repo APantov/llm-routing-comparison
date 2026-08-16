@@ -74,6 +74,27 @@ quality-per-dollar at each step — not the full algorithm.
 Costs are real throughout. Latency is a constant per rung, which is enough to
 keep the accounting honest and not enough to say anything about tail behaviour.
 
+## 9. The code grader is load-sensitive, to about one task in 417
+
+`graders.grade_run_asserts` executes candidate solutions in a subprocess and
+treats `subprocess.TimeoutExpired` as a **failure** rather than as an unmeasured
+result. A task whose expanded MBPP+ suite runs near the 30s ceiling can
+therefore grade wrong on a loaded machine and right on an idle one.
+
+Observed, not hypothesised: regenerating the `wide` cross-tab while three other
+analyses were running moved one task from `both_ok` to `inverted` and the top
+rung from 92.1% to 91.8%. The counts the argument rests on — `routable`,
+`both_fail` — and the McNemar p did not move.
+
+The same asymmetry is already handled correctly elsewhere: a response that hit
+`max_tokens` is dropped from the cross-tab as unmeasured rather than scored
+wrong. A timeout deserves the same treatment and does not get it.
+
+**What would settle it:** distinguish timeout from failure in the grader's
+return, drop timed-out pairs from the cross-tab the way truncated ones are, and
+record how often it fires. Until then, treat per-rung accuracies in
+[RESULTS.md §2.4](RESULTS.md) as ±0.3 points and the cell counts as firm.
+
 ---
 
 The bugs this project found in itself — each of which changed a published number,

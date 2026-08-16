@@ -37,6 +37,16 @@ from llm_routing import paths
 PROBE_PATH = paths.RUNS / "results.probe.jsonl"
 
 
+def redraw_path(ladder: str) -> Path:
+    """Where this ladder's decisive-cell redraw lives, if it has one.
+
+    Only `wide` has been redrawn - it is a paid run and the noise correction it
+    measures is a property of the task set more than of the ladder. Consumers
+    must handle absence.
+    """
+    return paths.RUNS / f"redraw.{ladder}.json"
+
+
 def frontier_path(ladder: str) -> Path:
     """Where this ladder's frontier run lives.
 
@@ -483,6 +493,25 @@ def load_probe(path: str | None = None) -> Probe | None:
     )
 
 
+@lru_cache(maxsize=4)
+def load_redraw(ladder: str) -> dict | None:
+    """The decisive-cell redraw for a ladder: observed vs reproducible routable.
+
+    Returns None when the ladder has not been redrawn, so the caveat that
+    quotes it can drop the magnitude rather than invent one.
+    """
+    p = redraw_path(ladder)
+    if not p.exists():
+        return None
+    try:
+        d = json.loads(p.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+    if not all(k in d for k in ("observed", "reproducible", "noise_share")):
+        return None
+    return d
+
+
 # ---------------------------------------------------------------------------
 # The verifier-quality finding - why the product cares which verifier it got
 # ---------------------------------------------------------------------------
@@ -526,10 +555,76 @@ DEGRADATION_NOTE = (
     "verify_code by a controlled amount inside the code domain - holding the "
     "models, prompts, domain and grader fixed - and measures how cascade "
     "quality falls as verifier quality does. Losing the real tests in "
-    "production is a move along that curve, not a step off it. NOTE: the "
-    "sweep has only ever been run in mock mode, so its shape is a modelled "
-    "prediction rather than a measurement."
+    "production is a move along that curve, not a step off it. The sweep has "
+    "been run in replay against real responses on all three ladders "
+    "(runs/sweep_degraded.<ladder>.jsonl), so its shape is measured."
 )
+
+
+def caveats(ladder: str) -> list[str]:
+    """What the agent must say about itself, derived rather than pinned.
+
+    THIS LIST WENT STALE ONCE, which is why it is a function now. It carried
+    three literals describing a superseded run: `McNemar p=0.002`, a claim that
+    only `wide` had real accuracy data and nine of eleven policies were mock,
+    and a self-disagreement rate of 8.7% with no measurement anywhere in the
+    repo behind it. All three survived the runs that falsified them, because a
+    literal in a caveat is quoted, never recomputed.
+
+    So anything with a magnitude now comes out of runs/, and anything that
+    cannot be derived here names the doc section that owns it instead of
+    restating the number. A caveat that has drifted from the data is worse than
+    no caveat: it is read as the current state of the evidence.
+
+    Same reasoning as scripts/freeze_probe.py, one layer up - that keeps the
+    tests off pinned magnitudes, this keeps the agent's own prose off them.
+    """
+    out = [
+        # Ladder-dependence is the caveat that replaced "only wide is real".
+        # All three ladders are measured now; what is NOT general is the
+        # headline, and quoting it without the ladder is the live error.
+        "`cheaper AND better` is a `wide` result, not a general one. On "
+        "`claude` the cascade buys its accuracy at a cost premium, and on "
+        "`deepseek` the two rungs are not measurably different, so there is "
+        "nothing to route at all. Name the ladder or the claim is empty - "
+        "docs/RESULTS.md 2.1 and 2.4.",
+    ]
+
+    probe = load_probe()
+    if probe:
+        # Thin, but real: the ceiling is computed from the same cross-tab the
+        # rest of the payload reports, so it cannot disagree with it.
+        out.append(
+            f"The routing signal is real and thin. The cheap and top rungs "
+            f"differ at exact-McNemar p<0.001 on `wide` and `claude`, but "
+            f"every policy competes over a ceiling of only "
+            f"{probe.ceiling_pct:.1f} points over always_cheap "
+            f"({probe.routable} routable and {probe.inverted} inverted of "
+            f"{probe.n}). On `deepseek` that test does not reject at all "
+            f"(p=1.000)."
+        )
+
+    redraw = load_redraw(ladder)
+    if redraw:
+        out.append(
+            f"Part of even that ceiling is luck. Redrawing the decisive cells "
+            f"moved the routable fraction from {100 * redraw['observed']:.1f}% "
+            f"observed to {100 * redraw['reproducible']:.1f}% reproducible - "
+            f"{100 * redraw['noise_share']:.1f}% of the apparent opportunity "
+            f"is one rung having a bad draw. Only the decisive cells were "
+            f"redrawn, so that correction is a floor on itself, not an "
+            f"estimate - docs/LIMITATIONS.md 5."
+        )
+    else:
+        out.append(
+            f"Part of even that ceiling is luck, and on `{ladder}` it is "
+            f"unquantified: only `wide` has a decisive-cell redraw. Greedy "
+            f"decoding is not deterministic for either provider, so a "
+            f"single-draw probe is partly measuring which draw it got - "
+            f"docs/RESULTS.md 2.6 and 2.7."
+        )
+
+    return out
 
 
 def summary(ladder: str) -> dict:
@@ -546,14 +641,5 @@ def summary(ladder: str) -> dict:
         ),
         "verifiers": VERIFIER_TRANSFER,
         "degradation_note": DEGRADATION_NOTE,
-        "caveats": [
-            "Only the `wide` ladder has real accuracy data. Two of eleven "
-            "policies (always_cheap, always_expensive) have been run against "
-            "real models; the other nine remain mock-mode figures.",
-            "The routing signal is real, significant (McNemar p=0.002) and "
-            "thin: every policy competes over a ~17-point ceiling.",
-            "Models disagree with themselves on 8.7% of maths tasks between "
-            "independent draws of the same prompt, which is noise sitting "
-            "underneath a 15% signal.",
-        ],
+        "caveats": caveats(ladder),
     }

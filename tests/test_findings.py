@@ -287,7 +287,38 @@ class TestSummary:
     def test_carries_caveats(self):
         s = findings.summary("wide")
         assert s["caveats"]
-        assert any("nine" in c or "mock" in c for c in s["caveats"])
+        # Every caveat must name the ladder-dependence, the thin ceiling or the
+        # draw noise. Asserting on SUBSTANCE, not on wording: the previous
+        # version of this test asserted `"nine" in c or "mock" in c`, which
+        # pinned the exact phrasing of a claim that had already gone false and
+        # so kept the stale caveat green for two runs.
+        assert any("wide" in c and "deepseek" in c for c in s["caveats"])
+        assert any("ceiling" in c for c in s["caveats"])
+
+    def test_caveats_carry_no_superseded_claims(self):
+        """The three literals that rotted, as a tripwire.
+
+        `p=0.002` was a figure from a superseded run, the mock-mode claim
+        outlived every policy being measured for real, and 8.7% never had a
+        measurement behind it at all. None may come back.
+        """
+        blob = " ".join(findings.summary("wide")["caveats"])
+        for dead in ("p=0.002", "8.7%", "mock-mode", "Only the `wide` ladder"):
+            assert dead not in blob, f"superseded claim is back: {dead}"
+        assert "mock" not in findings.DEGRADATION_NOTE
+
+    def test_caveat_magnitudes_track_the_probe(self, tmp_path):
+        """A caveat quoting a number must recompute it, not remember it."""
+        probe = findings.load_probe()
+        assert probe, "wide probe missing; cannot check derivation"
+        blob = " ".join(findings.summary("wide")["caveats"])
+        assert f"{probe.ceiling_pct:.1f} points" in blob
+
+    def test_caveats_degrade_when_a_ladder_has_no_redraw(self):
+        """`deepseek` has no redraw file, so the noise caveat must not invent one."""
+        assert findings.load_redraw("deepseek") is None
+        blob = " ".join(findings.caveats("deepseek"))
+        assert "unquantified" in blob
 
     def test_verifier_transfer_is_stated(self):
         s = findings.summary("wide")

@@ -246,7 +246,9 @@ class TestPolicyRegistry:
 
 
 # ---------------------------------------------------------------------------
-# McNemar. The p = 0.002 significance claim rests entirely on this function.
+# McNemar. Every p-value the project reports rests entirely on this function -
+# the headline p=0.039 for cascade vs always_expensive on `wide`, and the
+# p<0.001 rung separation. Do not pin those magnitudes here; test the maths.
 # ---------------------------------------------------------------------------
 
 class TestMcNemar:
