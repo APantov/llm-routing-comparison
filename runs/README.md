@@ -53,4 +53,9 @@ driver run rather than a result.
 
 A file here whose rows say `"simulated": true` is mock output. It is fabricated,
 it means nothing about any model, and it should never have been committed —
-every committed row in this directory says `"simulated": false`.
+every committed row in this directory that carries the field says
+`"simulated": false`. The redraws, screens and triage records do not carry it:
+the first two are written only by `redraw_decisive.py`, which exits rather than
+run outside real mode — a redraw in replay would re-read one cached answer k
+times and report perfect reproducibility — and the triage record is evidence
+gathered from responses already in the cache.

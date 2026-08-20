@@ -5,18 +5,24 @@ produce is already committed, and every published number replays from it for
 $0.00. They are kept because a measurement whose provenance is not in the
 repository is a measurement you have to take on trust.
 
-Four of the seven spend money. They all default to planning and pricing the
-work, and require an explicit `--go` before a single call reaches a backend.
+**Exactly two can reach a backend**: `record_missing.py` and
+`redraw_decisive.py`, the only two that call `models.call`. Both default to
+planning and pricing the work and require an explicit `--go` before a single
+call is made. The rest read what is already on disk.
 
-| script | what it does | spends |
+`purge_quarantined.py` and `freeze_probe.py` also take `--go`, for a different
+reason: they rewrite committed artefacts, so the flag guards destruction rather
+than spend.
+
+| script | what it does | can spend |
 |---|---|---|
 | `fetch_mbppplus.py` | downloads MBPP+, validates every reference solution against its own expanded suite, writes `data/mbppplus.json` | no (needs `datasets`) |
-| `redraw_decisive.py` | redraws a cross-tab cell at k draws to get a per-rung p̂, or screens a candidate task pool | **yes** |
-| `record_missing.py` | buys exactly the calls a full replay is missing, and nothing else | **yes** |
-| `triage_both_fail.py` | gathers the evidence for a quarantine decision, and refuses to make it | **yes** |
-| `purge_quarantined.py` | deletes a quarantined task's rows from every artefact on disk | no |
-| `resample_vs_reroute.py` | asks whether a gain is the routing signal or decoding noise | **yes** |
-| `freeze_probe.py` | freezes the probe cross-tab that `router_agent/findings.py` is tested against | no |
+| `redraw_decisive.py` | redraws a cross-tab cell at k draws to get a per-rung p̂, or screens a candidate task pool | **yes**, `--go` |
+| `record_missing.py` | buys exactly the calls a full replay is missing, and nothing else | **yes**, `--go` |
+| `triage_both_fail.py` | gathers the evidence for a quarantine decision, and refuses to make it | no — reads the cache and runs candidates locally |
+| `purge_quarantined.py` | deletes a quarantined task's rows from every artefact on disk | no (`--go` guards the rewrite) |
+| `resample_vs_reroute.py` | asks whether a gain is the routing signal or decoding noise | no — reads draws already on disk |
+| `freeze_probe.py` | freezes the probe cross-tab that `router_agent/findings.py` is tested against | no (`--go` guards the rewrite) |
 
 ## The order they were used in
 

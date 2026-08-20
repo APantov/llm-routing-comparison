@@ -1,5 +1,9 @@
 # LLM Routing: a measured benchmark, and the router it argues for
 
+[![CI](https://github.com/APantov/llm-routing-comparison/actions/workflows/ci.yml/badge.svg)](https://github.com/APantov/llm-routing-comparison/actions/workflows/ci.yml)
+[![Python 3.10–3.13](https://img.shields.io/badge/python-3.10--3.13-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
 **A cost-aware LLM routing service (LangGraph + MCP), and the 417-task benchmark
 that decides its policy.**
 
