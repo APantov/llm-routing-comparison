@@ -3,25 +3,24 @@
 
 WHY THIS EXISTS
 ---------------
-Every analysis script in this repo wrote to a single fixed path -
-`results.jsonl`, `frontier.jsonl`, `sweep_degraded.jsonl` - which was correct
-while there was one measured ladder and wrong the moment there were three. The
-project's whole thesis is that the sign of the cascading-vs-routing result
-depends on the PRICE RATIO between rungs, and a price ratio is a property of a
-ladder. Testing that claim means holding three ladders' numbers side by side, so
-they cannot share a filename.
-
-`run_eval.guard_regression` was already refusing the alternative, and correctly:
-on 8 August 2026 a `deepseek` run found cached data for one policy, dropped the
-other eight, and overwrote a complete nine-policy `wide` run with 47 rows. The
-fix is not to weaken that guard. It is to give each ladder its own file, so the
-guard compares like with like and there is nothing to clobber.
+The thesis is that the sign of the cascading-vs-routing result depends on the
+PRICE RATIO between rungs, and a price ratio is a property of a ladder. Testing
+it means holding three ladders' numbers side by side, so they cannot share a
+filename - a single fixed `results.jsonl` was correct with one measured ladder
+and wrong the moment there were three. (A `deepseek` run once found cached data
+for one policy, dropped the other eight, and overwrote a complete nine-policy
+`wide` run with 47 rows.) Each ladder gets its own file, so
+`run_eval.guard_regression` compares like with like and there is nothing to
+clobber.
 
 WHAT IT DOES
 
     for each ladder:
         -m llm_routing.run_eval       --out runs/results.<ladder>.jsonl
         -m llm_routing.frontier       --out runs/frontier.<ladder>.jsonl
+
+    and, on the one ladder the degradation experiment is reported for:
+
         -m llm_routing.sweep_degraded --out runs/sweep_degraded.<ladder>.jsonl
         -m llm_routing.plot           --frontier ... --sweep ... --suffix .<ladder>
 
@@ -29,12 +28,10 @@ There is no unsuffixed copy. Every reader - docs/RESULTS.md, the tests, and
 `router_agent.findings` - names the ladder it wants, so there is exactly one
 file per ladder and no second copy that can disagree with it.
 
-EACH LADDER RUNS IN ITS OWN SUBPROCESS. `models.LADDER` is read from the
-environment at import time and baked into module-level constants (`TIERS`,
-`MODEL_SPECS` lookups, the policy registry built from them), so switching ladder
-inside one process means reloading half the repo. A subprocess per ladder is the
-honest version of that, and it also means one ladder failing cannot leave global
-state behind for the next.
+EACH LADDER RUNS IN ITS OWN SUBPROCESS. `models.LADDER` is read at import time
+and baked into module-level constants, so switching ladder inside one process
+means reloading half the repo. A subprocess is the honest version, and one
+ladder failing cannot leave global state behind for the next.
 
     python scripts/run_all_ladders.py                     # all three
     python scripts/run_all_ladders.py --ladders wide      # just one
@@ -60,6 +57,11 @@ REPO = Path(__file__).resolve().parent.parent
 
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
+
+# The degradation sweep and its figures are produced for this ladder only.
+# docs/RESULTS.md reports the experiment on it; see the note in main().
+DEGRADATION_LADDER = "wide"
+
 
 def ladders_available():
     """Read the ladder names from models rather than hard-coding them.
@@ -97,8 +99,8 @@ def interesting(proc):
     """The lines worth putting on screen from a captured run.
 
     SKIPPED lines are the ones that matter most: a policy dropped for a replay
-    miss is the difference between a nine-policy comparison and a one-policy
-    file that looks like one.
+    miss is the difference between a full comparison and a one-policy file
+    that looks like one.
     """
     out = []
     for line in (proc.stdout + proc.stderr).splitlines():
@@ -164,17 +166,28 @@ def main():
               "--out", f"runs/results.{ladder}.jsonl"], "run_eval"),
             (["-m", "llm_routing.frontier",
               "--out", f"runs/frontier.{ladder}.jsonl"], "frontier"),
-            (["-m", "llm_routing.sweep_degraded",
-              "--out", f"runs/sweep_degraded.{ladder}.jsonl"], "sweep_degraded"),
         ]
-        if not args.skip_plots:
+
+        # The degradation sweep and the rendered curves run on ONE ladder.
+        #
+        # The sweep holds the ladder fixed and varies verifier fidelity inside
+        # the code domain - the ladder is the control, not the variable - so a
+        # second ladder's curve answers no question the first has not. Three
+        # ladders exist for the price-ratio finding, and `frontier.<ladder>.jsonl`
+        # is still written for each because `router_agent.findings` reads its own
+        # ladder's economics and declines when there is none.
+        if ladder == DEGRADATION_LADDER:
             steps.append((
-                ["-m", "llm_routing.plot",
-                 "--frontier", f"runs/frontier.{ladder}.jsonl",
-                 "--sweep", f"runs/sweep_degraded.{ladder}.jsonl",
-                 "--suffix", f".{ladder}", "--no-summaries"],
-                "plot",
-            ))
+                ["-m", "llm_routing.sweep_degraded",
+                 "--out", f"runs/sweep_degraded.{ladder}.jsonl"], "sweep_degraded"))
+            if not args.skip_plots:
+                steps.append((
+                    ["-m", "llm_routing.plot",
+                     "--frontier", f"runs/frontier.{ladder}.jsonl",
+                     "--sweep", f"runs/sweep_degraded.{ladder}.jsonl",
+                     "--suffix", f".{ladder}", "--no-summaries"],
+                    "plot",
+                ))
 
         print(f"\n--- {ladder} " + "-" * (60 - len(ladder)))
         for cmd, name in steps:

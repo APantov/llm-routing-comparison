@@ -13,14 +13,11 @@ Model client. Three modes, selected by the ROUTER_MODE environment variable.
            the repo reproducible by someone with no API key, and what makes every
            sweep after the first paid run cost nothing.
 
-EVERY call goes through response_cache first, in all three modes. Read the module
-docstring there before changing anything here: the cache is not a speed
-optimisation, it is what makes the paired statistics valid. Without it,
-always_cheap and cascade would be compared on different draws from the same
-model, and the oracle would bound a set of responses nobody else received.
+EVERY call goes through response_cache first, in all three modes. It is not a
+speed optimisation but what makes the paired statistics valid - read its module
+docstring before changing anything here.
 
-Every call returns a ModelResponse carrying tokens, latency and cost. Cost
-accounting is half the point of the project and retrofitting it is painful.
+Every call returns a ModelResponse carrying tokens, latency and cost.
 
     python -m llm_routing.run_eval                              # mock
     ROUTER_MODE=real   python -m llm_routing.run_eval --limit 10
@@ -39,33 +36,22 @@ from llm_routing import paths
 from llm_routing import response_cache
 
 
-# ---------------------------------------------------------------------------
-# .env loading
+# .env loading, hand-rolled rather than python-dotenv: mock mode runs on a bare
+# interpreter with nothing installed, and a dependency that only matters in real
+# mode would cost that for everyone who never spends a cent.
 #
-# Hand-rolled rather than `pip install python-dotenv`, because mock mode is meant
-# to run on a bare interpreter with nothing installed, and a secrets loader is
-# twenty lines. Adding a dependency that only matters in real mode would cost the
-# repo its "clone it and it runs" property for everyone who never spends a cent.
-#
-# PRECEDENCE: a real environment variable always beats the file. That ordering is
-# not arbitrary - it means CI, a one-off `ANTHROPIC_API_KEY=... python3 ...`, and a
-# temporarily exported key all override .env without anyone having to remember to
-# edit it back.
-#
-# The file is gitignored; .env.example is committed in its place and holds no
-# secrets.
-# ---------------------------------------------------------------------------
+# PRECEDENCE: a real environment variable always beats the file, so CI and a
+# one-off `ANTHROPIC_API_KEY=... python ...` override .env without an edit-and-undo.
+# The file is gitignored; .env.example is committed in its place.
 
 def load_dotenv(path=None):
     """Read KEY=VALUE lines from .env into os.environ, without overwriting.
 
-    Deliberately forgiving about format, because the failure mode of a strict
-    parser here is a confusing crash while holding a secret. Accepts a leading
-    `export `, ignores blank lines and `#` comments, and strips one layer of
-    matching quotes.
+    Forgiving about format, because a strict parser here crashes confusingly
+    while holding a secret: accepts a leading `export `, ignores blanks and `#`
+    comments, strips one layer of matching quotes.
 
-    Returns the names of the keys it set. NEVER the values - nothing in this repo
-    should be able to print a secret by accident.
+    Returns the names of the keys it set, NEVER the values.
     """
     path = Path(path) if path else paths.ENV_FILE
     if not path.exists():
@@ -99,31 +85,23 @@ if MODE not in ("mock", "real", "replay"):
     raise SystemExit(f"ROUTER_MODE must be mock, real or replay - got {MODE!r}")
 
 # Seed for the whole mock world. Every mock outcome is a pure hash of
-# (seed, task, tier, temperature, sample_idx), so a run is reproducible byte for
-# byte, and a sweep over seeds gives the run-to-run variance of the mock. That
-# variance is the only honest context for reading a two-point accuracy gap at
-# n=100.
+# (seed, task, tier, temperature, sample_idx), so a run reproduces byte for byte
+# and a sweep over seeds gives the mock's run-to-run variance - the only honest
+# context for reading a two-point accuracy gap.
 MOCK_SEED = int(os.environ.get("MOCK_SEED", "0"))
 
 # Replay serves from the real cache. When a key is missing it can either raise
 # (the default) or fall back to the mock cache for the same key.
 #
-# The fallback exists so the replay PATH can be exercised without an API key, and
-# that is a real need - but it defaults OFF, because it is otherwise a silent
-# route from a fabricated response into a file labelled as a measurement. On
-# 7 August 2026 it took one: all 240 self-consistency samples the maths cascade
-# needs were served from the mock cache into a results.jsonl whose every row said
-# `simulated: false`, and the maths cascade duly reported 100%, which is issue 4
-# of docs/LIMITATIONS.md ("mock mode makes majority voting far too strong") arriving
-# through the front door.
+# Defaults OFF: it is otherwise a silent route from a fabricated response into a
+# file labelled as a measurement. Left on, it can serve all 240 of the maths
+# cascade's self-consistency samples from the mock cache into a results.jsonl
+# whose every row says `simulated: false`. Off, a missing sample raises ReplayMiss
+# and run_eval drops the policy.
 #
-# With it off, a missing sample raises ReplayMiss and run_eval drops the policy -
-# which is what the ReplayMiss machinery was written for and could never do while
-# the fallback was silently satisfying every lookup.
-#
-# Turning it on is fine and supported. It no longer lies about the result:
-# ModelResponse.simulated tracks which cache actually served each call, so a row
-# built from even one fabricated response is stamped `simulated: true`.
+# Turning it on is supported and does not lie: ModelResponse.simulated tracks
+# which cache served each call, so a row built from even one fabricated response
+# is stamped `simulated: true`.
 REPLAY_FALLBACK_TO_MOCK = os.environ.get(
     "ROUTER_REPLAY_FALLBACK", "0") in ("1", "true", "yes")
 
@@ -141,15 +119,15 @@ REPLAY_FALLBACK_TO_MOCK = os.environ.get(
 #     ROUTER_LADDER=wide     python -m llm_routing.run_eval    # 1x / 36x, cross-provider
 #
 # All prices are per million tokens, input / output, at LIST or standard rates.
-# Verified 2026-07-30 against platform.claude.com/docs/en/about-claude/pricing
+# Verified against platform.claude.com/docs/en/about-claude/pricing
 # and api-docs.deepseek.com/quick_start/pricing.
 #
 # PROMOTIONAL PRICING IS DELIBERATELY IGNORED. Sonnet 5 has introductory $2/$10
-# pricing running to 2026-08-31; the standard $3/$15 is used instead. Billing a
-# rung at a rate that expires would mean a run reproduced in September did not
-# match a run from August, and an experiment whose cost axis expires is not
-# reproducible. DeepSeek's page likewise says prices may be adjusted, so the
-# figures below are stamped with the date they were checked.
+# pricing that runs out; the standard $3/$15 is used instead. Billing a rung at
+# a rate that expires would mean a run reproduced later did not match an earlier
+# one, and an experiment whose cost axis expires is not reproducible. DeepSeek's
+# page likewise says prices may be adjusted, so the figures below are pinned
+# here rather than read from a provider at run time.
 #
 # THE CHEAP RUNG IS NOT A FREE CHOICE. verify_math samples it at temperature 0.8,
 # and that sampling IS the self-consistency signal - without it there is nothing
@@ -194,8 +172,7 @@ MODEL_SPECS = {
         "thinking_on_by_default": False,
         # Previous tokenizer. See TOKENIZER ASYMMETRY below.
         "tokenizer_factor": 1.00,
-        "mock": {"base": 0.86, "spread": 0.36},
-        "mock_tokens_out": 80, "mock_latency_s": 0.4,
+        "assumed_tokens_out": 80,
     },
     "claude-sonnet-5": {
         "provider": "anthropic",
@@ -205,8 +182,7 @@ MODEL_SPECS = {
         # Adaptive thinking is ON by default on Sonnet 5, unlike Sonnet 4.6.
         "thinking_on_by_default": True,
         "tokenizer_factor": 1.30,
-        "mock": {"base": 0.94, "spread": 0.24},
-        "mock_tokens_out": 100, "mock_latency_s": 0.6,
+        "assumed_tokens_out": 100,
     },
     "claude-opus-5": {
         # Opus 5 ids carry no date suffix - never append one.
@@ -221,8 +197,7 @@ MODEL_SPECS = {
         # valid only at effort `high` or below; `high` is the default.
         "thinking_on_by_default": True,
         "tokenizer_factor": 1.30,
-        "mock": {"base": 0.97, "spread": 0.16},
-        "mock_tokens_out": 120, "mock_latency_s": 0.9,
+        "assumed_tokens_out": 120,
     },
     "deepseek-v4-flash": {
         "provider": "deepseek",
@@ -240,8 +215,7 @@ MODEL_SPECS = {
         # Unknown tokenizer relative to Claude's. 1.0 is a placeholder meaning
         # "not modelled", not a measurement - see TOKENIZER ASYMMETRY.
         "tokenizer_factor": 1.00,
-        "mock": {"base": 0.84, "spread": 0.38},
-        "mock_tokens_out": 90, "mock_latency_s": 0.5,
+        "assumed_tokens_out": 90,
     },
     "deepseek-v4-pro": {
         "provider": "deepseek",
@@ -249,8 +223,7 @@ MODEL_SPECS = {
         "accepts_temperature": True,
         "thinking_on_by_default": True,
         "tokenizer_factor": 1.00,
-        "mock": {"base": 0.93, "spread": 0.26},
-        "mock_tokens_out": 110, "mock_latency_s": 0.8,
+        "assumed_tokens_out": 110,
     },
 }
 
@@ -368,54 +341,49 @@ def ladder_summary():
 #
 # Claude 4.7 and later use a newer tokenizer that produces roughly 30% more
 # tokens for the same text than the tokenizer used by Claude Sonnet 4.6 and
-# earlier (platform.claude.com/docs/en/about-claude/pricing, checked 2026-07-30).
+# earlier (platform.claude.com/docs/en/about-claude/pricing).
 # Sonnet 5 and Opus 5 are on the new tokenizer; Haiku 4.5 is on the old one. So on
 # the claude ladder the boundary runs between the bottom rung and everything above
 # it.
 #
-# The rungs therefore do not merely charge different prices for the same token
-# count - they disagree about how many tokens the same prompt IS. On identical
-# text the upper rungs bill about 1.3x the input tokens, making the claude
-# ladder's effective input ratios roughly 1x / 3.9x / 6.5x rather than 1x / 3x /
-# 5x. `ladder_summary()` prints both.
+# So the rungs do not merely charge different prices for the same token count -
+# they disagree about how many tokens the same prompt IS. On identical text the
+# upper rungs bill about 1.3x the input tokens, making the claude ladder's
+# effective input ratios roughly 1x / 3.9x / 6.5x rather than 1x / 3x / 5x.
+# `ladder_summary()` prints both. That makes escalation more expensive than the
+# price table suggests, which works AGAINST the cascade.
 #
-# `tokenizer_factor` models that in mock mode only. In real mode token counts come
-# back from the API already correct. The exact factor is content-dependent and
-# 1.30 is the documented approximation, so it is a modelled constant like every
-# other mock parameter rather than a measurement.
+# `tokenizer_factor` models this in MOCK MODE ONLY; real runs get correct counts
+# back from the API. 1.30 is the documented approximation, so it is a modelled
+# constant rather than a measurement.
 #
-# THE DEEPSEEK ENTRIES USE 1.00, WHICH MEANS "NOT MODELLED", NOT "THE SAME".
-# DeepSeek does not publish a comparison against Claude's tokenizer and this
-# project has not measured one, so on the `wide` ladder the cross-provider token
-# counts are the least trustworthy numbers in the repo. A real run fixes this for
-# free, because then the counts come from the APIs.
-#
-# Consequence worth stating plainly: on the claude ladder this asymmetry makes
-# escalation more expensive than the price table suggests, which works AGAINST the
-# cascade and in favour of routing cheap.
+# THE DEEPSEEK ENTRIES USE 1.00, MEANING "NOT MODELLED", NOT "THE SAME". No
+# comparison against Claude's tokenizer is published or measured here, so on the
+# `wide` ladder the cross-provider token counts are the least trustworthy numbers
+# in the repo. A real run fixes it for free.
 # ---------------------------------------------------------------------------
 
 # Truncation is the expensive failure here: a cut-off math answer loses its
 # \boxed{} and the grader scores a correct answer as wrong, which reads as a
 # capability result instead of a bug.
 #
-# Was 2048, on the reasoning that replies are short with thinking disabled.
-# MEASURED on 6 August 2026 against 118 real responses on the `wide` ladder, and
-# 2048 was not enough once the maths half moved to MATH500 level 5:
+# MEASURED against 118 real responses on the `wide` ladder. A 2048 cap - the
+# obvious choice, since replies are short with thinking disabled - is not enough
+# once the maths half is MATH500 level 5:
 #
 #   code            mean  55 tokens out
 #   maths           mean 650 tokens out
-#   at the 2048 cap 2 of 118 calls (math-422 on cheap, math-103 on expensive)
+#   at a 2048 cap   2 of 118 calls (math-422 on cheap, math-103 on expensive)
 #
 # Both truncations were inspected rather than assumed. Neither was a degenerate
-# loop: both were coherent level-5 derivations that simply ran long, and the
-# Opus one was a few hundred tokens short of its \boxed{}. So the cap was
-# binding on real work, not catching pathology.
+# loop: both were coherent level-5 derivations that simply ran long, and the Opus
+# one was a few hundred tokens short of its \boxed{}. So the cap binds on real
+# work rather than catching pathology.
 #
 # 1.7% sounds ignorable and is not, because the truncations are not randomly
 # distributed. They land on the HARDEST tasks, which are exactly the ones that
-# decide the routable fraction, and they bias it directionally: a truncated
-# cheap answer reads as "the cheap rung failed" and inflates `routable`.
+# decide the routable fraction, and they bias it directionally: a truncated cheap
+# answer reads as "the cheap rung failed" and inflates `routable`.
 #
 # 4096 leaves headroom over the observed maths tail. Raising it invalidates the
 # response cache, since max_tokens is part of the cache key - see
@@ -439,8 +407,8 @@ class ReplayMiss(KeyError):
     subclasses KeyError so any existing `except KeyError` keeps working.
 
     A miss is not always an error. A cache populated by one run legitimately
-    lacks the calls a DIFFERENT policy would have made - the two-arm probe of
-    6 August recorded always_cheap and always_expensive and nothing else, so
+    lacks the calls a DIFFERENT policy would have made - the two-arm probe
+    recorded always_cheap and always_expensive and nothing else, so
     llm_router's classification call has never existed in it. Distinguishing
     that from a bug is the whole reason this type exists; see run_eval.run.
     """
@@ -483,53 +451,63 @@ def _price(tier: str, tokens_in: int, tokens_out: int) -> float:
 # Mock implementation
 # ---------------------------------------------------------------------------
 
-# Mock tuning, read per MODEL rather than per tier position. p_correct for a model
-# is base - spread * difficulty_pct, and both constants live in that model's
-# MODEL_SPECS entry.
+# Synthetic p_correct, derived from LADDER POSITION and nothing else.
 #
-# Per model, not per tier, for a reason that matters once ladders are selectable:
-# `cheap` means a different model on each ladder, so a skill table keyed on the
-# tier name would claim DeepSeek's flash rung and Claude's Haiku rung are equally
-# capable. Keyed on the model id, each ladder gets its own honest mock world and
-# two ladders sharing a model share its behaviour.
+# There is deliberately no per-model skill table. All three ladders have 5,075
+# real responses, so a stipulated number claiming a named model is 0.86-good
+# would be an invented capability estimate sitting next to measured ones. Mock
+# proves the PLUMBING works before money is spent; it does not stand in for a
+# result.
 #
-# EVERY ONE OF THESE NUMBERS IS STIPULATED. They are chosen so the bottom rung
-# fails often enough for routing to matter and the rungs stay separated; the
-# realised failure rate is a consequence of them plus the task mix, and run_eval
-# prints it as the pilot gate. Read it there rather than trusting a comment.
-MOCK_SKILL = {tier: MODELS[tier]["mock"] for tier in TIERS}
-MOCK_TOKENS_OUT = {tier: MODELS[tier]["mock_tokens_out"] for tier in TIERS}
-MOCK_LATENCY_S = {tier: MODELS[tier]["mock_latency_s"] for tier in TIERS}
+# These are tuned to run_eval's own pilot gate, not to any model: the bottom rung
+# lands near 35% failure at mean difficulty, inside the gate's 20-55% band, so a
+# cascade has something to escalate and the plumbing run is not drowned in a
+# warning about the mock.
+_MOCK_P_BOTTOM, _MOCK_P_TOP, _MOCK_SPREAD = 0.80, 0.95, 0.30
 
-# How much of a task's outcome is a shared property of the task rather than
-# tier-specific luck. 1.0 = perfectly nested failure (anything the expensive
-# model gets wrong, the cheap model also gets wrong); 0.0 = independent.
-# Real tiers from one provider are strongly but not perfectly correlated.
-MOCK_FAILURE_CORRELATION = 0.75
 
-# ---------------------------------------------------------------------------
-# Mock skill of the LLM-as-router classifier (policies.policy_llm_router).
-#
-# READ THIS BEFORE QUOTING ANY llm_router ACCURACY FROM MOCK MODE.
-#
-# There is no way to simulate "the cheap model reads the question and judges its
-# difficulty" without deciding in advance how good that judgement is. So the mock
-# router is an oracle on the mock's own latent difficulty, corrupted at rate
-# 1 - MOCK_ROUTER_SKILL. Its accuracy in mock mode is therefore a RESTATEMENT OF
-# THIS CONSTANT and measures nothing. Raising it would make llm_router look
-# better with no change to any real capability.
-#
-# What IS measurable in mock mode, and what the policy exists to measure, is the
-# COST AND LATENCY of the extra round trip: those come from the price table and
-# the token counts rather than from this constant. policies.py DECISION #4
-# rejected LLM routing on the grounds that it "would add a full round trip and
-# defeat the purpose". That is a quantitative claim, and this is what tests it.
-# ---------------------------------------------------------------------------
-MOCK_ROUTER_SKILL = 0.70
+def _mock_skill():
+    """base/spread per tier, evenly spaced across the loaded ladder."""
+    n = len(TIERS)
+    step = (_MOCK_P_TOP - _MOCK_P_BOTTOM) / (n - 1) if n > 1 else 0.0
+    return {t: {"base": _MOCK_P_BOTTOM + i * step, "spread": _MOCK_SPREAD}
+            for i, t in enumerate(TIERS)}
 
-# The mock router's notion of "hard": the upper half of the within-domain
-# difficulty percentile. Matches how MOCK_SKILL drives p_correct, so the router
-# is judging the same latent quantity the mock models are failing on.
+
+MOCK_SKILL = _mock_skill()
+
+# Mock response shape. Flat, because nothing downstream of a mock run is a
+# measurement: `cost_usd` on a mock row is modelled from these and is labelled
+# MODELLED rather than attributed, and latency is modelled in every mode
+# (docs/LIMITATIONS.md).
+MOCK_TOKENS_OUT = {tier: 100 for tier in TIERS}
+MOCK_LATENCY_S = {tier: 0.5 for tier in TIERS}
+
+# NOT A MOCK PARAMETER, despite sitting beside them. `assumed_tokens_out` is the
+# reply length `cascade_routing` assumes when pricing a call it has not made yet:
+# `policies._est_cost` and `policies._default_lambda` read it in EVERY mode, real
+# included, so it decides which tasks that policy escalates in a paid run.
+# Changing a value here moves runs/results.*.jsonl and runs/frontier.*.jsonl,
+# which is why it stays per model and at its measured-run values. Naming it
+# MOCK_TOKENS_OUT, as it once was, invites exactly that edit.
+ASSUMED_TOKENS_OUT = {tier: MODELS[tier]["assumed_tokens_out"] for tier in TIERS}
+
+# How much of a task's outcome is shared across rungs rather than tier-specific
+# luck. 1.0 = perfectly nested failure, 0.0 = independent. 0.5 is a round number
+# chosen so the mock cross-tab has all four cells populated; it is not calibrated
+# against the measured correlation, which is in runs/routable.<ladder>.txt.
+MOCK_FAILURE_CORRELATION = 0.5
+
+# The mock LLM-as-router (policies.policy_llm_router) is A COIN FLIP, and 0.5
+# says so rather than inventing a skill level: simulating "the cheap model judges
+# this question's difficulty" means deciding in advance how good that judgement
+# is, so any value above 0.5 makes the policy's mock accuracy a restatement of
+# this constant. What mock CAN measure here is the cost and latency of the extra
+# round trip. Its accuracy is measured on real responses, in docs/RESULTS.md.
+MOCK_ROUTER_SKILL = 0.5
+
+# What the mock router calls "hard": the upper half of the within-domain
+# difficulty percentile, the same latent quantity MOCK_SKILL fails on.
 MOCK_ROUTER_HARD_PCT = 0.5
 
 
@@ -628,46 +606,43 @@ def _mock_call(
     cfg = MOCK_SKILL[tier]
     p_correct = max(0.05, min(0.99, cfg["base"] - cfg["spread"] * difficulty))
 
-    # Keyed on sample_idx, NOT on a fresh random nonce. Self-consistency samples
-    # still need to differ from each other, but they must differ REPRODUCIBLY:
-    # sample 3 of a given task is always the same sample 3. An unseeded global
-    # RNG here made every mock run different, which on a project whose headline
-    # is a two-point gap meant the headline was noise.
+    # Keyed on sample_idx, NOT a fresh nonce. Self-consistency samples must
+    # differ from each other but REPRODUCIBLY - sample 3 is always sample 3 - and
+    # an unseeded RNG here makes every mock run different, which on a two-point
+    # headline means the headline is noise.
     #
-    # Keying on sample_idx also makes the mock invariant to CALL ORDER, so a
-    # given (task, tier, temperature, sample_idx) is the same response whatever
-    # ran before it. `--limit 10` therefore reproduces the first ten tasks of the
-    # full run, and running one policy alone gives the same answers as running
-    # all of them.
+    # It also makes the mock invariant to CALL ORDER, so `--limit 10` reproduces
+    # the first ten tasks of the full run and one policy alone gives the same
+    # answers as all of them.
     #
-    # Two policies are exempt, and for a good reason rather than a bug:
-    # random_matched and routellm are CALIBRATED on the task set being run, so a
-    # 10-task run sets their escalation rate and score threshold from 10 tasks
-    # and can route a task differently than the full run does. The model
-    # responses are still identical; the policy's choice of which one to ask is
-    # what moved. See policies.calibrate_random_rates.
-    # Keyed on the MODEL ID, not the tier name. Two ladders both have a rung
-    # called `cheap`, and keying on the name would make DeepSeek's flash rung draw
-    # the same luck as Claude's Haiku rung while being scored against a different
-    # p_correct - which would silently make cross-ladder comparisons nonsense.
+    # random_matched and routellm are exempt by design: both CALIBRATE on the task
+    # set being run, so a 10-task run sets their rate and threshold from 10 tasks.
+    # The responses are identical; the policy's choice of which to ask is what
+    # moved. See policies.calibrate_random_rates.
+    # Keyed on the MODEL ID, not the tier name: two ladders both have a `cheap`
+    # rung, and keying on the name would make DeepSeek's flash draw the same luck
+    # as Claude's Haiku while scored against a different p_correct.
+    # Correlate the rungs by SHARING a draw with probability c, not by blending
+    # two draws. Blending averages two uniforms, which concentrates the result
+    # near 0.5 and makes the realised failure rate differ from p_correct - at
+    # c=0.5 a stated 0.80 realises as about 0.92. A mixture keeps the marginal
+    # uniform, so MOCK_SKILL means what it says.
     shared = _draw(task["id"], "shared", temperature, sample_idx).random()
     rng = _draw(task["id"], MODELS[tier]["id"], temperature, sample_idx)
-    draw = MOCK_FAILURE_CORRELATION * shared + (1 - MOCK_FAILURE_CORRELATION) * rng.random()
+    pick = _draw(task["id"], "corr", MODELS[tier]["id"], temperature, sample_idx)
+    draw = shared if pick.random() < MOCK_FAILURE_CORRELATION else rng.random()
     correct = draw < p_correct
 
     # SERVING ONLY - a live query, which has no ground truth to perturb.
     #
-    # Everything above this point simulates a model by starting from the known
-    # answer and corrupting it with probability 1 - p_correct. A query typed by
-    # a user has no known answer, so that construction is unavailable and the
-    # mock CANNOT simulate correctness for it. Saying so explicitly beats
-    # raising KeyError three frames down.
+    # The mock simulates a model by corrupting the known answer with probability
+    # 1 - p_correct. A user's query has no known answer, so it CANNOT simulate
+    # correctness here; saying so beats a KeyError three frames down.
     #
-    # What it can still simulate, and what router_agent actually needs from
-    # mock mode, is SELF-AGREEMENT: a capable rung converges on one answer
-    # across draws, a weak rung scatters. Self-consistency verification is
-    # therefore exercised for real, on obviously-fake content. The text is
-    # marked so it can never be mistaken for a model's opinion.
+    # It can still simulate SELF-AGREEMENT - a capable rung converges across
+    # draws, a weak rung scatters - so self-consistency verification is exercised
+    # for real on obviously-fake content, marked so it cannot be read as a
+    # model's opinion.
     if task.get("_live"):
         token = "A" if correct else rng.choice(["B", "C", "D"])
         note = "[MOCK - simulated response, ROUTER_MODE=mock. Not a real answer.]"
@@ -751,7 +726,7 @@ def _note_truncation(task, tier, kind, sample_idx, *, from_cache):
         f"  !! TRUNCATED {where}: {task['id']} on {tier} ({kind}, sample "
         f"{sample_idx}). {consequence}.\n"
         f"     Raising models.{cap} re-charges every cached response - see "
-        f"docs/ENGINEERING.md (standing invariants). Exclude the task instead.",
+        f"docs/ARCHITECTURE.md (standing invariants). Exclude the task instead.",
         file=sys.stderr,
     )
 
@@ -878,29 +853,20 @@ PROMPTS = {
         "Write a Python function for this task. Return ONLY a python code "
         "block, no explanation.\n\n{q}\n\nYour code should pass these tests:\n{tests}"
     ),
-    # The LLM-as-router prompt. Deliberately austere:
-    #   - it shows the QUESTION ONLY, never the tests or the answer, so it sees
-    #     no more than any other pre-call router and the comparison is fair;
-    #   - it forbids reasoning, because a router that thinks before routing is
-    #     just a slow expensive model and the whole premise is that it is cheap;
-    #   - one word out, so ROUTER_MAX_TOKENS can be 8 and the cost is bounded.
+    # The LLM-as-router prompt, austere on purpose: QUESTION ONLY (so it sees no
+    # more than any other pre-call router), no reasoning (a router that thinks is
+    # a slow expensive model), one word out (so ROUTER_MAX_TOKENS can be 8).
     "route": (
         "You are a difficulty classifier for a model router. Answer with "
         "exactly one word, EASY or HARD, and nothing else.\n\n"
         "HARD means a small fast model would probably get this wrong and it "
         "should be sent to a larger model.\n\nProblem:\n{q}"
     ),
-    # SERVING ONLY - never reached by the evaluation.
-    #
-    # The task set contains exactly two domains, math and code, and
-    # build_taskset.py is what writes them; no row in taskset.jsonl has domain
-    # "general". So this template cannot move a single number in the
-    # experiment, and it is safe to read every result in this repo as though
-    # it did not exist.
-    #
-    # It exists because router_agent serves arbitrary user queries, which have
-    # no ground truth and no answer protocol. Sending those through the math
-    # template would demand a \boxed{} answer for "summarise this email".
+    # SERVING ONLY - never reached by the evaluation. No row in taskset.jsonl has
+    # domain "general", so this template cannot move a number in the experiment.
+    # It exists because router_agent serves arbitrary queries, and sending those
+    # through the math template would demand a \boxed{} for "summarise this
+    # email".
     "general": "{q}",
     # Code with no caller-supplied tests. Same reasoning: serving only. The
     # evaluation always has asserts, because the asserts ARE the MBPP
@@ -999,15 +965,11 @@ def is_reachable(record: dict, task: dict) -> bool:
     return key == record.get("key")
 
 
-# How many times the policies asked for a call, how many were served from the
-# cache, and how many actually reached a backend. The last is the number that
-# costs money; the first is the number the cost table is built from. See
-# response_cache's docstring for why those differ on purpose.
+# Requested / served-from-cache / reached-a-backend. The last costs money, the
+# first builds the cost table; response_cache's docstring says why they differ.
 #
-# served_real and served_mock split every served response by what produced its
-# text, whichever cache it came from. In mock mode served_mock is the total and
-# in real mode served_real is; the split only carries information in replay,
-# which is exactly the mode where it is needed.
+# served_real and served_mock split served responses by what produced the text.
+# The split only carries information in replay - which is the mode that needs it.
 call_stats = {"requested": 0, "from_cache": 0, "backend": 0,
               "served_real": 0, "served_mock": 0, "truncated": 0}
 
@@ -1017,31 +979,23 @@ call_stats = {"requested": 0, "from_cache": 0, "backend": 0,
 # number of damaged MEASUREMENTS does not. The set is what to report.
 truncated_ids = set()
 
-# Dollars that actually left the account on this run: summed over the calls that
-# reached a backend, and only those.
-#
-# This is NOT the number any policy is charged. A cache hit returns its full
-# cost_usd and the policy pays it, because that is what the policy would cost in
-# production - see response_cache's docstring. Attributed cost therefore grows
-# with the number of policies and is identical in replay, mock and real mode.
+# Dollars that actually left the account: summed over calls that reached a
+# backend, and only those. NOT what any policy is charged - a cache hit returns
+# its full cost_usd and the policy pays it, because that is production cost.
 #
 # A spend cap must read THIS one. Capping on attributed cost would abort a free
-# replay of a large task set - $0.00 spent, several dollars attributed - and
-# would under-count a real run that escalated less than expected.
+# replay ($0.00 spent, several dollars attributed) and under-count a real run.
 backend_spend_usd = 0.0
 
 # Hard per-process spend cap, REAL MODE ONLY.
 #
-# It lives here, next to the one line that adds to `backend_spend_usd`, rather
-# than in each entry point that can spend. That is the whole reason it moved:
-# run_eval's own cap only wrapped its policy loop, so anything spent BEFORE that
-# loop - the llm_router routing pre-pass, estimator fitting on the calibration
-# half - was invisible to it. A cap the spender can walk around is not a cap.
+# It lives next to the one line that adds to `backend_spend_usd`, not in each
+# entry point that can spend: a cap wrapping run_eval's policy loop misses the
+# llm_router pre-pass and estimator fitting, and a cap the spender can walk
+# around is not a cap.
 #
-# Mock and replay are exempt by construction rather than by exemption: mock
-# responses have a modelled cost_usd that no card is charged for, and a $5 cap
-# would abort a free mock run over a large task set for no reason. `real` is the
-# only mode in which this counter corresponds to money.
+# Mock and replay are exempt by construction - their cost_usd is modelled and no
+# card is charged - so `real` is the only mode where this counter is money.
 #
 #     ROUTER_MAX_SPEND_USD=8 ROUTER_MODE=real python -m llm_routing.run_eval
 MAX_SPEND_USD = float(os.environ.get("ROUTER_MAX_SPEND_USD", "5.0"))
@@ -1050,12 +1004,12 @@ MAX_SPEND_USD = float(os.environ.get("ROUTER_MAX_SPEND_USD", "5.0"))
 class SpendCapExceeded(RuntimeError):
     """Raised by call() when real spend crosses MAX_SPEND_USD.
 
-    An EXCEPTION rather than a stop-and-return, and that is the point of it.
-    Until 9 August 2026 run_eval's cap printed "stopping early" and returned the
-    rows it had, which main() then wrote to results.jsonl and reported on. A
-    half-measured task set is indistinguishable from a complete one once it is a
-    file: every policy not yet reached simply scores lower, and nothing
-    downstream can tell that from a real result.
+    An EXCEPTION rather than a stop-and-return, and that is the point of it. A
+    cap that printed "stopping early" and returned the rows it had would have
+    main() write those to results.jsonl and report on them - and a half-measured
+    task set is indistinguishable from a complete one once it is a file. Every
+    policy not yet reached simply scores lower, and nothing downstream can tell
+    that from a real result.
 
     Nothing paid for is lost when it fires. response_cache.put writes each
     response as it arrives, so an aborted run is fully replayable and a re-run

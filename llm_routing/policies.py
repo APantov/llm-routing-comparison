@@ -27,24 +27,19 @@ The two architectures this repository compares:
     random_matched      coin flip at llm_router's own escalation rate
     oracle              hindsight-optimal, not deployable
 
-Three of them exist for reasons that are not obvious from the name:
+Three exist for reasons the name does not give:
 
-  cascade_degraded  is the experiment, not a variant. It moves verifier quality
-                    inside a single domain, which is the only way to stop
-                    verifier quality from being confounded with math-vs-code.
+  cascade_degraded  the experiment, not a variant: it moves verifier quality
+                    inside one domain, which is the only way to stop verifier
+                    quality being confounded with math-vs-code.
 
-  random_matched    is the null hypothesis. A router that escalates the same
-                    fraction of tasks AT RANDOM also gains accuracy - it just
-                    pays for it. Without this baseline, a gap between a router
-                    and always_cheap establishes only that spending more helps,
-                    not that the router has any skill.
+  random_matched    the null hypothesis. A router escalating the same fraction
+                    AT RANDOM also gains accuracy, it just pays for it - so
+                    without this, a gap over always_cheap shows only that
+                    spending more helps.
 
-  llm_router        exists to test the claim recorded in DECISION #4 that an LLM
-                    routing call "would defeat the purpose". That is a cost
-                    claim, and cost is measurable.
-
-A hand-written `predictive` policy was removed on 8 August 2026. See the
-DECISION #4 tombstone below: it was not a router, it was a constant.
+  llm_router        tests DECISION #4's claim that an LLM routing call "would
+                    defeat the purpose". That is a cost claim, and measurable.
 """
 
 from dataclasses import dataclass, field
@@ -222,72 +217,58 @@ def verify_math(task, response_text, tier="cheap"):
 # ---------------------------------------------------------------------------
 # DECISION #5: the verifier corruption rate. THIS IS THE MANIPULATED VARIABLE.
 #
-# The project's stated contribution is that verifier quality is what varies.
-# With only the two natural verifiers, that variable has exactly two levels and
-# they are perfectly confounded with task domain:
+# With only the two natural verifiers, verifier quality has two levels and they
+# are perfectly confounded with domain:
 #
 #     perfect verifier <-> code <-> MBPP    <-> run asserts <-> $0 verification
 #     proxy   verifier <-> math <-> MATH500 <-> exact match <-> k-1 extra calls
 #
-# Every row differs in five ways at once, so "the code cascade wins and the math
-# cascade does not" cannot be attributed to verifier quality. It can only be
-# attributed to "code is different from math", which is not a finding.
+# Five things differ per row, so "the code cascade wins and the math one does
+# not" can only be attributed to "code is different from math", which is not a
+# finding. cascade_degraded corrupts verify_code on the CODE domain instead: same
+# tasks, models, grader, prompts and cost structure, only fidelity moving.
 #
-# cascade_degraded fixes that by corrupting verify_code on the CODE domain. Same
-# tasks, same models, same grader, same prompts, same cost structure - only
-# verifier fidelity moves. Sweeping p from 0 to 1 gives a curve from a perfect
-# verifier to a coin flip with everything else held fixed, which is what turns an
-# observation into a measurement.
-#
-# p is the probability that the verifier IGNORES the test result and returns a
-# coin flip instead. So the effective error rate is p/2 rather than p, and p=1.0
-# is a verifier with zero information (AUC 0.5) rather than an inverted one.
+# p is the probability the verifier IGNORES the test result and flips a coin, so
+# the effective error rate is p/2 and p=1.0 is a zero-information verifier
+# (AUC 0.5) rather than an inverted one.
 # ---------------------------------------------------------------------------
 VERIFIER_CORRUPTION = 0.0
 
 # Which realisation of the corruption this is.
 #
-# At n=40 a single draw per corruption level is NOT a curve. One task is 2.5
-# points of accuracy, and the binomial standard deviation at these rates is
-# around 5 points, so a six-point single-draw sweep can easily show a rise where
-# the mechanism predicts a fall. Sweeping this seed and averaging is what turns
-# the sweep from an anecdote into an estimate, and it costs nothing because every
-# model response is a cache hit.
+# A single draw per corruption level is NOT a curve: at these n one task is ~2.5
+# points and the binomial SD is ~5, so a six-point sweep can show a rise where the
+# mechanism predicts a fall. Sweeping this seed and averaging turns the sweep into
+# an estimate, and costs nothing because every response is a cache hit.
 VERIFIER_CORRUPTION_SEED = 0
 
 
 def verify_code_degraded(task, response_text, tier="cheap"):
     """verify_code, damaged on purpose at rate VERIFIER_CORRUPTION.
 
-    Deterministic given (task, corruption rate, corruption seed, mock seed): the
-    corruption is drawn through models._draw like everything else stochastic in
-    this project, so a sweep is reproducible and two policies asked the same
-    question at the same p get the same answer.
+    Deterministic given (task, rate, corruption seed, mock seed) - the corruption
+    is drawn through models._draw like everything else stochastic here.
 
-    Note which way the two error types cost, because they are not symmetric:
+    The two error types do not cost symmetrically:
 
       false REJECT of a correct answer -> escalate anyway. Money wasted,
                                           accuracy unharmed.
       false ACCEPT of a wrong answer   -> ship the wrong answer. Accuracy lost,
                                           money saved.
 
-    Since the cheap model is right on most code tasks, false rejects dominate at
-    low p, so cost rises faster than accuracy falls. That asymmetry is the
-    engineering answer the sweep exists for: it says what the minimum verifier
-    quality is at which cascading still pays.
+    The cheap model is right on most code tasks, so false rejects dominate at low
+    p and cost rises faster than accuracy falls. That asymmetry is what the sweep
+    exists to price: the minimum verifier quality at which cascading still pays.
     """
     accepted = grade(task, response_text)
     if VERIFIER_CORRUPTION > 0.0:
-        # One RNG stream per (task, p). Two draws from it: the first decides
-        # whether the verifier bothered to look at the tests, the second is the
-        # coin it flips when it did not.
+        # One RNG stream per (task, p): first draw decides whether the verifier
+        # looked at the tests, second is the coin it flips when it did not.
         #
-        # The stream is keyed on p, so the set of corrupted tasks at p=0.25 is
-        # NOT a superset of the set at p=0.10. That is deliberate. Nesting the
-        # draws would make each sweep point a refinement of the last and the
-        # curve would look smoother than the evidence supports; keying on p makes
-        # each point an independent realisation, so a monotonic curve is a real
-        # result rather than an artefact of shared randomness.
+        # Keyed on p, so the corrupted set at p=0.25 is NOT a superset of the one
+        # at p=0.10. Nested draws would make each sweep point a refinement of the
+        # last and the curve smoother than the evidence supports; independent
+        # realisations make a monotonic curve a result rather than an artefact.
         rng = models._draw(
             task["id"], "verifier_corrupt", VERIFIER_CORRUPTION, VERIFIER_CORRUPTION_SEED
         )
@@ -455,48 +436,32 @@ def policy_cascade_degraded(task):
 
 
 # ---------------------------------------------------------------------------
-# DECISION #4: the hand-written predictive heuristic. RETRACTED 8 August 2026.
+# DECISION #4: the hand-written predictive heuristic. RETRACTED.
 #
-# The numbering is kept and the slot left empty on purpose. DECISIONS #1-#9 are
-# cited by number in docs/METHOD.md and docs/WALKTHROUGH.md, and
-# renumbering would silently rewrite the record. This is a tombstone.
+# A tombstone: the slot stays empty because DECISIONS #1-#9 are cited by number
+# in the docs, and renumbering would silently rewrite the record.
 #
-# WHAT IT WAS. `predict_is_hard` routed math on MATH500's shipped `level >= 5`
-# and code on `prompt_chars >= 100`, choosing one tier up front and committing.
+# `predict_is_hard` routed math on MATH500's `level >= 5` and code on
+# `prompt_chars >= 100`. With build_taskset.MIN_MATH_LEVEL at 5, `level` is
+# CONSTANT across all 60 math tasks, so the predicate was True for every one:
+# on 60% of the task set this was `always_expensive` spelled differently. It
+# measured 86.0% against random_matched's 88.0% - below the coin flip it was
+# meant to beat - and its frontier sweep drew two points rather than a curve,
+# because a threshold sweep over a constant has nowhere to go. Reading that sweep
+# as "predictive contributes no point to the frontier" is retracted; see
+# docs/RESULTS.md 2.3.
 #
-# WHY IT IS GONE. build_taskset.MIN_MATH_LEVEL was raised to 5 on 6 August, which
-# makes `predict_features.level` CONSTANT at 5 across all 60 math tasks. The
-# predicate therefore returned True for every one of them: on 60% of the task set
-# the policy was not a router, it was `always_expensive` spelled differently.
-# build_taskset.py:54-61 recorded that consequence when the filter was raised; it
-# never reached this file, the report, or the README.
+# ITS CLAIM, which DECISION #7 tests: an LLM routing call "would add a full round
+# trip and defeat the purpose". The latency half is true; the cost half is
+# quantitatively wrong at this project's prices.
 #
-# It was measured at 86.0% accuracy against `random_matched`'s 88.0% and
-# `llm_router`'s 88.0% on the held-out half - BELOW the coin flip it was supposed
-# to beat - and its frontier sweep drew two attainable points rather than a curve,
-# because a threshold sweep over a constant has nowhere to go. The published
-# reading of that sweep, "predictive contributes no point to the frontier,
-# LLMRouterBench reproduced on real data", was an arithmetic consequence of the
-# level filter and is retracted. See docs/RESULTS.md section 2.3.
+# Predictive routing is one of the two architectures compared here, so it is now
+# `llm_router` and `routellm` - neither of which reads a difficulty label no
+# production query carries. That was the deeper problem: `level` is written by
+# someone who has already solved the problem.
 #
-# THE CLAIM IT MADE, which DECISION #7 exists to test and run_eval still prints:
-# an LLM routing call "would add a full round trip and defeat the purpose". The
-# latency half is true. The cost half is quantitatively wrong at this project's
-# own prices, and `llm_router` measures by how much.
-#
-# WHAT REPLACED IT. Predictive routing did not go away - it is one of the two
-# architectures this repository exists to compare. It is now represented by its
-# two real implementations, `llm_router` and `routellm`, neither of which reads a
-# difficulty label that no production query carries. That was always the deeper
-# problem with this heuristic: `level` is written by someone who has already
-# solved the problem. The asymmetry it was meant to illustrate survives it -
-# predictive routing needs a difficulty signal up front, and a cascade does not,
-# because it looks at the answer.
-#
-# `predict_features` stays in the task set. It is the leak-discipline artifact
-# (build_taskset.py populates it with question-derived values ONLY, keeping the
-# reference solution's line count out of reach of any router), and
-# router_agent/live.py reads `prompt_chars` from it.
+# `predict_features` stays in the task set as the leak-discipline artifact
+# (question-derived values ONLY), and router_agent/live.py reads `prompt_chars`.
 # ---------------------------------------------------------------------------
 
 
@@ -508,39 +473,31 @@ def policy_cascade_degraded(task):
 # - it just spends money to do it. Without this baseline there is no evidence
 # that any router has skill, only evidence that spending more helps.
 #
-# THE ANCHOR IS `llm_router`, changed 8 August 2026 from the deleted `predictive`
-# heuristic (DECISION #4). It is the only member of the predictive family that
-# runs in every mode with no external dependency: `routellm` sits out whenever
-# its score cache is stale, and anchoring the null to a policy that may not run
-# is a bad structural bet.
+# THE ANCHOR IS `llm_router`: the only member of the predictive family that runs
+# in every mode with no external dependency. `routellm` sits out whenever its
+# score cache is stale, and anchoring the null to a policy that may not run is a
+# bad structural bet.
 #
-# Reading the rate costs nothing. The routing decisions go through
-# models.call(..., kind="route"), which is response_cache-backed, so the pre-pass
-# hits exactly the entries policy_llm_router hits moments later. In replay and
-# mock it is free by construction; in real mode the policy pays for those calls
-# anyway and the cache deduplicates.
+# Reading the rate is free: routing decisions go through
+# models.call(..., kind="route"), which is cache-backed, so the pre-pass hits
+# exactly the entries policy_llm_router hits moments later.
 #
-# TWO DISCLOSURES, both of which run_eval prints:
+# TWO DISCLOSURES, both printed by run_eval:
 #   - random_matched does NOT pay the router call, so it is cheaper than
-#     llm_router by exactly mean(ROUTER_CALL_COST). The LLM-as-router overhead
-#     block reports that number.
+#     llm_router by exactly mean(ROUTER_CALL_COST);
 #   - in mock mode the anchor derives from models.MOCK_ROUTER_SKILL, so the null
-#     is fabricated along with everything else. The SIMULATED banner covers it.
+#     is fabricated too. The SIMULATED banner covers it.
 #
-# The escalation rate is matched PER DOMAIN, not globally, because the router's
-# rate differs by domain and a global match would compare a router that spends
-# unevenly against one that spends evenly. Measured at run time on the tasks
-# actually being run, so --limit and --domain runs stay cost-matched.
+# Matched PER DOMAIN, not globally: the router's rate differs by domain, and a
+# global match would compare uneven spending against even. Measured at run time
+# on the tasks actually running, so --limit and --domain stay cost-matched.
 #
-# ONE ANCHORED NULL CANNOT SERVE A WHOLE FAMILY. Policies that spend differently
-# from llm_router - routellm on a fixed threshold, and both cascades - need a
-# null at THEIR OWN spend. run_eval.routing_skill computes that analytically from
-# the always_cheap -> always_expensive chord. This policy stays as the printed
-# empirical check that the chord is not a fiction.
-#
-# One draw is not a baseline. RANDOM_SEED picks which draw goes into
-# results.jsonl for pairing; frontier.py sweeps the rate across its whole range,
-# which is the stronger comparison and replaced a dedicated seed-sweep script.
+# ONE ANCHORED NULL CANNOT SERVE A WHOLE FAMILY. routellm on a fixed threshold
+# and both cascades spend differently and need a null at THEIR OWN spend;
+# run_eval.routing_skill computes that from the always_cheap -> always_expensive
+# chord. This policy is the printed empirical check that the chord is not a
+# fiction. RANDOM_SEED picks which draw lands in results.jsonl for pairing;
+# frontier.py sweeps the rate across its whole range.
 # ---------------------------------------------------------------------------
 RANDOM_SEED = 0
 
@@ -597,10 +554,10 @@ def _policy_random(task, rate, name):
 def policy_random_matched(task):
     """The null hypothesis: escalate at llm_router's own rate, but at random.
 
-    There used to be a second `random_50` anchor at a fixed 50/50 rate. It was
-    removed rather than kept: frontier.py sweeps this policy's rate from 0 to 1, so
-    a 50/50 flip is one point on a curve the frontier already draws, and having it
-    as a named policy implied it carried information the curve does not.
+    There is deliberately no second anchor at a fixed 50/50 rate: frontier.py
+    sweeps this policy's rate from 0 to 1, so a 50/50 flip is one point on a curve
+    the frontier already draws, and naming it as a policy would imply it carried
+    information the curve does not.
     """
     rate = RANDOM_MATCHED_RATES.get(task["domain"], 0.4)
     return _policy_random(task, rate, "random_matched")
@@ -609,23 +566,18 @@ def policy_random_matched(task):
 # ---------------------------------------------------------------------------
 # DECISION #7: LLM-as-router. Testing DECISION #4's own rejection of it.
 #
-# DECISION #4 rejects an LLM routing call on the grounds that it "would add a
-# full round trip and defeat the purpose".
+# DECISION #4 rejects an LLM routing call as one that "would add a full round
+# trip and defeat the purpose". The latency half is true and this measures it.
+# The COST half is quantitatively wrong at these prices: a classification call is
+# a couple of hundred tokens in and three out on the cheap tier, a small fraction
+# of a cheap answer call. run_eval prints the ratio. Worth implementing because
+# it turns a design comment into a number, and because LLM-as-router is what
+# production teams ship first.
 #
-# The latency half of that is true, and this policy measures it. The COST half is
-# quantitatively wrong at this project's own prices: a classification call is a
-# couple of hundred tokens in and about three out on the cheap tier, which is a
-# small fraction of a full cheap answer call and a much smaller fraction of an
-# expensive one. run_eval prints the exact ratio.
-#
-# Worth implementing precisely because it converts a design comment into a
-# number, and because LLM-as-router is what production teams tend to ship first.
-#
-# IN MOCK MODE THE ACCURACY OF THIS POLICY IS NOT A MEASUREMENT. The mock
-# classifier's skill is the constant models.MOCK_ROUTER_SKILL, and the mock
-# router judges the mock's own latent difficulty, so it will tend to outperform
-# every honest router here. Its COST and LATENCY overhead are real arithmetic on
-# the price table, and those are the numbers this policy exists to produce.
+# IN MOCK MODE THIS POLICY'S ACCURACY IS NOT A MEASUREMENT: the mock router
+# judges the mock's own latent difficulty at skill models.MOCK_ROUTER_SKILL, so
+# it outperforms every honest router here. Its COST and LATENCY are real
+# arithmetic on the price table, and those are what it exists to produce.
 # ---------------------------------------------------------------------------
 
 # The routing call's own cost and latency, recorded separately from the answer
@@ -692,9 +644,9 @@ def policy_llm_router(task):
 # DECISION #8: RouteLLM's pretrained router.
 #
 # A published learned router, trained on Chatbot Arena preference data, with its
-# threshold calibrated to predictive's expensive-call rate so the comparison is
-# cost-matched. See routellm_router.py for which of RouteLLM's variants is used
-# and why, and for the score cache that makes it a one-time cost.
+# threshold calibrated so the comparison is cost-matched. See routellm_router.py
+# for which of RouteLLM's variants is used and why, and for the score cache that
+# makes it a one-time cost.
 #
 # This policy makes NO routing call of its own at serving time on the bert path:
 # the score is a local forward pass, cached to disk. So unlike llm_router it adds
@@ -722,82 +674,66 @@ def policy_routellm(task):
 # ---------------------------------------------------------------------------
 # DECISION #9: CASCADE ROUTING - the unified policy.
 #
-# The whole repo is framed as "cascade vs predictive", and the literature's answer
-# to that framing is that it is a false choice. Dekoninck, Baader and Vechev,
-# "A Unified Approach to Routing and Cascading for LLMs" (arXiv:2410.10347, ICML
-# 2025) prove that routing and cascading are both special cases of one strategy,
-# derive the optimal form, and report that the unified version beats either one
-# alone by a large margin - up to 8% on RouterBench.
+# The repo is framed as "cascade vs predictive", and the literature's answer is
+# that this is a false choice. Dekoninck, Baader and Vechev, "A Unified Approach
+# to Routing and Cascading for LLMs" (arXiv:2410.10347, ICML 2025) prove both are
+# special cases of one strategy and report the unified version beating either
+# alone by up to 8% on RouterBench.
 #
-# Their central conclusion is also, independently, this project's thesis:
-#
-#   "we identify good quality estimators as the critical factor for the success
-#    of model selection paradigms"
-#
-# and, more precisely, that routing needs good EX-ANTE quality estimation (can I
-# predict this model will do well?) while cascading needs good POST-HOC quality
+# Their central conclusion is independently this project's thesis - "we identify
+# good quality estimators as the critical factor for the success of model
+# selection paradigms" - and more precisely, that routing needs good EX-ANTE
+# estimation (will this model do well?) while cascading needs good POST-HOC
 # estimation (was that answer any good?). The verifier is this repo's post-hoc
-# estimator, and it is a good one on the code half. So the repo is in a position
-# to test their claim empirically on objectively-graded tasks, which their
-# RouterBench experiments could only do by injecting synthetic Gaussian noise
-# into a quality signal - and sweep_degraded.py does exactly that.
+# estimator and a good one on the code half, so the claim can be tested on
+# objectively-graded tasks rather than by injecting synthetic Gaussian noise,
+# which is what sweep_degraded.py does.
 #
-# The EX-ANTE side is where this repository comes up empty, which is a result
-# rather than a gap in the implementation. `predict_is_hard` held that slot until
-# 8 August 2026 and turned out to be a constant (DECISION #4). `_Q_EXANTE` now
-# carries a domain prior and an empty feature slot, so cascade_routing runs with
-# a deliberately uninformative ex-ante term. Read its numbers as "the unified
-# strategy with only the post-hoc half working", which is the honest description
-# and is the paper's own prediction about what happens next.
+# The EX-ANTE side is where this repo comes up empty - a result, not a gap in the
+# implementation: the only ex-ante estimator available here was a constant
+# (DECISION #4). `_Q_EXANTE` carries a domain prior and an empty feature slot, so
+# read cascade_routing's numbers as "the unified strategy with only the post-hoc
+# half working", which is the paper's own prediction about what happens next.
 #
-# THE STRATEGY. Every model i gets a quality estimate q_i and a cost estimate
-# c_i. A single parameter lambda prices quality against money, and the strategy
-# maximises the tradeoff
+# THE MEASURED OUTCOME, stated here rather than left to the tables: it does not
+# beat the plain `cascade` on any ladder - 95.2% against 95.7% on `wide`, 96.2%
+# against 96.7% on `claude`, 84.2% against 86.6% on `deepseek`. That is the
+# prediction above coming true, and it is why the policy is carried as evidence
+# rather than as a recommendation.
+#
+# THE STRATEGY. Each model i gets quality q_i and cost c_i; one parameter lambda
+# prices quality against money and the strategy maximises
 #
 #     tau_i = q_i - lambda * c_i
 #
-# choosing at each step between stopping with the best answer in hand and paying
-# for another tier. Sweeping lambda from 0 to infinity walks the policy from
-# always_expensive down to always_cheap, tracing a whole cost-quality curve
-# rather than sitting at one operating point. frontier.py does that sweep.
+# choosing at each step between stopping and paying for another tier. Sweeping
+# lambda from 0 to infinity walks it from always_expensive to always_cheap,
+# tracing a whole curve rather than one operating point; frontier.py does that.
 #
-# WHY THIS IS NOT JUST `cascade`. Two differences, both of which matter:
+# NOT JUST `cascade`, in two ways that matter: it need not start at the bottom
+# (a task flagged hard ex-ante skips the cheap call `cascade` always pays for),
+# and it need not climb one rung at a time (a badly-wrong answer can jump to the
+# top rather than pay for the middle).
 #
-#   1. It need not start at the bottom. A task the ex-ante estimator flags as hard
-#      goes straight to a higher tier, skipping a cheap call that would have been
-#      thrown away. `cascade` always pays for that call.
-#   2. It need not climb one rung at a time. If the post-hoc signal says the
-#      answer is badly wrong, it can jump to the top rather than pay for the
-#      middle on the way.
-#
-# WHAT IS IMPLEMENTED HERE is the paper's GREEDY variant: at each step it
-# compares stopping against continuing to the single best next tier, rather than
-# taking an expectation over every remaining subset of the ladder. The paper
-# evaluates that variant too and reports it costs 0.5% to 1.3% against the full
-# version, mostly in low-noise settings. It is chosen here for legibility - the
-# full version needs a variance estimate per model per step - and the gap is
-# stated rather than hidden.
+# This is the paper's GREEDY variant - stopping compared against the single best
+# next tier, rather than an expectation over every remaining subset. The paper
+# reports that costs 0.5% to 1.3% against the full version, mostly in low-noise
+# settings. Chosen for legibility, and the gap stated rather than hidden.
 # ---------------------------------------------------------------------------
 
 # Lagrange multiplier on cost, in quality per dollar.
 #
-# It CANNOT be a fixed number, and getting this wrong is instructive. lambda
-# multiplies dollars, so its useful magnitude is set by the ladder's absolute
-# prices - and the ladders here differ by more than two orders of magnitude
-# (a top-rung Claude call is around a thousandth of a dollar; a top-rung DeepSeek
-# call is around a hundred-thousandth). A lambda tuned on the claude ladder makes
-# cost effectively free on the deepseek ladder, so the policy climbs to the top
-# rung on every task and quietly becomes always_expensive while still being
-# reported as a router.
+# It CANNOT be a fixed number. lambda multiplies dollars, so its useful magnitude
+# is set by the ladder's absolute prices - and these ladders differ by more than
+# two orders of magnitude. A lambda tuned on `claude` makes cost effectively free
+# on `deepseek`, so the policy climbs to the top rung on every task and quietly
+# becomes always_expensive while still being reported as a router.
 #
-# So it is expressed in a scale-free unit and converted: LAMBDA_QUALITY_PER_TOP_CALL
-# is how much accuracy, in probability, one top-rung call is deemed to be worth.
-# 0.5 means "paying for the best model is worth it if it adds 50 accuracy points",
-# which is deliberately stingy and puts the default in the interesting region
-# rather than at either extreme.
-#
-# frontier.py sweeps lambda across four orders of magnitude, so the default only
-# decides the single operating point that lands in results.jsonl.
+# So it is scale-free and converted: LAMBDA_QUALITY_PER_TOP_CALL is how much
+# accuracy one top-rung call is deemed worth. 0.5 means "worth it if it adds 50
+# accuracy points" - deliberately stingy, and in the interesting region rather
+# than at either extreme. frontier.py sweeps lambda across four orders of
+# magnitude, so this only decides the point that lands in results.jsonl.
 LAMBDA_QUALITY_PER_TOP_CALL = 0.5
 
 
@@ -809,7 +745,7 @@ def _default_lambda():
         # A nominal prompt and reply, so the conversion depends on the price table
         # rather than on any particular task.
         tokens_in=500,
-        tokens_out=models.MOCK_TOKENS_OUT[top],
+        tokens_out=models.ASSUMED_TOKENS_OUT[top],
     )
     return LAMBDA_QUALITY_PER_TOP_CALL / nominal if nominal > 0 else 0.0
 
@@ -824,23 +760,21 @@ CASCADE_ROUTING_LAMBDA = _default_lambda()
 #   _Q_POSTHOC[(domain, accepted)]   P(answer correct | verifier verdict)
 #   _Q_RESCUE[(tier, from_tier)]     P(tier correct | from_tier was wrong)
 #
-# _Q_EXANTE was keyed on (tier, predict_is_hard(task)) until 8 August 2026. With
-# `level` constant across the math half, that flag was really reading DOMAIN -
-# `hard=True` pooled all math plus long code, `hard=False` was short code only.
-# The two rows differed, and run_eval printed that as evidence the flag carried
-# signal. It was a false positive: the rows differed because the domains differ.
+# _Q_EXANTE is keyed on (tier, domain, EXANTE_FEATURE(task)) with the feature
+# slot empty by default. Keying it on a difficulty flag instead reads DOMAIN
+# rather than difficulty once `level` is constant across the math half, and the
+# two rows then differ because the domains differ - a false positive that
+# run_eval would print as evidence the flag carried signal.
 #
-# So the key is now (tier, domain, EXANTE_FEATURE(task)), with the feature slot
-# empty by default. That is the honest state of this repository - Dekoninck et
-# al. identify a good EX-ANTE quality estimator as what routing needs, and this
-# repo does not have one. Recording the absence in the shape of the table beats
-# filling it with a constant. EXANTE_FEATURE is where a real one plugs in.
+# The empty slot is the honest state of this repo: Dekoninck et al. identify a
+# good ex-ante estimator as what routing needs, and there is not one here.
+# Recording the absence in the table's shape beats filling it with a constant.
+# EXANTE_FEATURE is where a real one plugs in.
 #
-# The third table is the one that makes escalation decisions honest. The value of
-# climbing a rung is not "how good is the next model" but "how good is the next
-# model ON THE TASKS THIS ONE JUST FAILED", and correlated failure means those are
-# very different numbers. Measuring it rather than assuming independence is what
-# stops the policy from over-escalating.
+# The third table is what makes escalation honest. The value of climbing a rung is
+# not "how good is the next model" but "how good is it ON THE TASKS THIS ONE JUST
+# FAILED", and correlated failure makes those very different numbers. Measuring it
+# rather than assuming independence is what stops over-escalating.
 _Q_EXANTE = {}
 _Q_POSTHOC = {}
 _Q_RESCUE = {}
@@ -933,7 +867,7 @@ def _est_cost(tier, task):
     """
     prompt = models.build_prompt(task)
     tokens_in = models._mock_tokens_in(tier, prompt)
-    return models._price(tier, tokens_in, models.MOCK_TOKENS_OUT[tier])
+    return models._price(tier, tokens_in, models.ASSUMED_TOKENS_OUT[tier])
 
 
 def policy_cascade_routing(task, lam=None):
@@ -1019,7 +953,6 @@ def policy_cascade_routing(task, lam=None):
         escalated=len(set(calls)) > 1,
         calls=calls,
     )
-
 
 def policy_oracle(task):
     """Hindsight-optimal. Not deployable.
