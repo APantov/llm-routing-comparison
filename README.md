@@ -105,18 +105,25 @@ Three further results, each with its numbers and its caveats in
 
 A benchmark that ends in a table leaves the reader to apply it. This one ends in
 a function. `findings.ratio_verdict(ladder)` reads that ladder's committed
-frontier and returns the verdict for it — and **declines when it has no data**:
+frontier and returns the verdict for it. Same query, two ladders, opposite
+answers:
 
 ```bash
-$ llm-router --estimate "prove that sqrt(2) is irrational"
+$ llm-router --estimate "prove that sqrt(2) is irrational" --ladder wide
   recommended policy   cascade        (measured on the wide ladder)
   cascade vs always-best, at matched accuracy   -83.1%
+
+$ llm-router --estimate "prove that sqrt(2) is irrational" --ladder claude
+  recommended policy   route        (measured on the claude ladder)
+  cascade vs always-best, at matched accuracy   +11.7%
 ```
 
-The CLI, the MCP `explain_routing` tool and the `RouterConfig` defaults all call
-it, so changing what the benchmark measured changes what the router recommends.
-There is no constant to drift out of date — there used to be one, and two of its
-three verdicts were backwards.
+That flip is the finding, and the router reads it rather than assuming it — and
+**declines for a ladder it has no data on**. The CLI, the MCP `explain_routing`
+tool and the `RouterConfig` defaults all call the same function, so changing what
+the benchmark measured changes what the router recommends. There is no constant
+to drift out of date — there used to be one, and two of its three verdicts were
+backwards.
 
 ## Layout
 

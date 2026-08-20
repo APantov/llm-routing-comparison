@@ -195,18 +195,27 @@ The claim is that none of it is reachable from `llm_routing/build_taskset.py` ou
 `scripts/check_core_unchanged.py` **proves** it rather than asserting it: it
 fingerprints every mock response the task set can produce — 417 tasks × 3
 ladders × 4 sample indices × 2 temperatures, plus both prompt kinds — and
-compares against `llm_routing/models.py` at a git revision.
+compares against a frozen baseline in `tests/frozen_mock_fingerprints.json`.
 
 ```
-  claude    identical  c467911f3b282a8d
-  deepseek  identical  ecda0b686b9cb668
-  wide      identical  3d19dda9a9df1565
+  claude    identical  e9929b43780ae81e
+  deepseek  identical  926e46a77a185c43
+  wide      identical  822391109021ae3a
 
-OK: 417 tasks x 3 ladders x 4 samples x 2 temperatures - byte-identical to HEAD.
+OK: 417 tasks x 3 ladders x 4 samples x 2 temperatures - byte-identical to
+tests/frozen_mock_fingerprints.json.
 ```
 
 It runs in CI. If a future edit to the serving path leaks into the experiment,
 the build fails.
+
+> **The baseline is a committed file, and that is the whole point.** This guard
+> used to compare against `models.py` at `HEAD`. CI checks out a commit, so the
+> working tree *was* `HEAD`, the two copies were identical by construction, and
+> the check could never fail — it caught uncommitted local drift while promising
+> it caught leaks in CI. Moving the mock now means re-freezing the baseline with
+> `--update`, which is a diff a reviewer sees. `--ref <rev>` still compares
+> against a revision, which is useful when bisecting and wrong as a default.
 
 ---
 

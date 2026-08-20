@@ -1,0 +1,14 @@
+{
+  "_comment": "Frozen mock fingerprints. See scripts/check_core_unchanged.py.",
+  "sample_indices": [
+    0,
+    1,
+    2,
+    3
+  ],
+  "fingerprints": {
+    "claude": "e9929b43780ae81ebe186c84aaf6ede3caffb4c32d5f7ed265c0ae1861eb5611",
+    "deepseek": "926e46a77a185c43db341882a968464677c9ad0ea72ade21bfff76b87eb1594c",
+    "wide": "822391109021ae3ae44900286b73eb0c3b4e93c05509eab2782cb51914bd829e"
+  }
+}

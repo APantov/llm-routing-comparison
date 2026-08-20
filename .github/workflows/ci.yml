@@ -107,7 +107,12 @@ jobs:
         # Guards the one edit the agent layer made to the research core: a
         # `general` domain and a live-query branch in the mock. Both are
         # unreachable from build_taskset output, and this proves it by
-        # fingerprinting every mock response the task set can produce.
+        # fingerprinting every mock response the task set can produce and
+        # comparing against tests/frozen_mock_fingerprints.json.
+        #
+        # The baseline is a committed file rather than `HEAD` on purpose. A
+        # fresh checkout makes the working tree identical to HEAD, so the old
+        # default compared the file against itself and could never fail here.
         run: python scripts/check_core_unchanged.py
 
   demo:
