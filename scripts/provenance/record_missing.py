@@ -3,12 +3,10 @@ r"""Buy the calls a full replay needs and the paid runs never recorded.
 
 WHY THIS EXISTS
 ---------------
-The cache was populated by two runs with narrow purposes: the two-arm probe
+A cache is only as complete as the policies that filled it. The probe
 (`always_cheap` and `always_expensive`, one greedy draw per task) and the
-decisive-task redraw (21 tasks, ten draws each). Every response in it is real.
-
-But a cache is only as complete as the policies that filled it, and most
-policies here make calls neither of those runs had any reason to make:
+decisive-task redraw leave most policies unable to replay, because they make
+calls neither run had reason to make:
 
     verify_math       draws SELF_CONSISTENCY_K - 1 extra samples per maths
                       task at temperature 0.8. The probe drew ONE answer at
@@ -17,19 +15,16 @@ policies here make calls neither of those runs had any reason to make:
     llm_router        asks the cheap model to classify difficulty first, an
                       8-token call with its own prompt. Never recorded.
 
-Since ROUTER_REPLAY_FALLBACK defaults off, those policies
-are now correctly DROPPED from a replay rather than silently served fabricated
-responses. Dropped is honest; it is not the same as measured. This script buys
-the gap once so they can be measured, after which everything replays free
-forever.
+With ROUTER_REPLAY_FALLBACK off, those policies are DROPPED from a replay rather
+than served fabricated responses. Dropped is honest, but it is not measured. This
+buys the gap once, after which everything replays free forever.
 
 WHAT IT BUYS, AND WHY THAT LIST IS COMPLETE
 -------------------------------------------
-The missing calls are enumerable from the code's own constants rather than
-discovered by running a policy and seeing what it asks for. That distinction
-matters: a policy's control flow depends on the responses it gets, so a
-discovery run driven by stubs would request calls a real run never makes, and
-this script would buy them.
+The missing calls are enumerated from the code's own constants, not discovered by
+running a policy and seeing what it asks for: control flow depends on the
+responses a policy gets, so a discovery run driven by stubs would request calls a
+real run never makes, and this script would buy them.
 
 Two facts make the enumeration exact:
 
@@ -49,9 +44,9 @@ Prints a costed plan and exits. Nothing is called until `--go` is passed, and
 `--go` refuses unless ROUTER_MODE=real. Every response is written to the
 ladder's cache as it arrives, so a run that dies halfway keeps what it paid for.
 
-    python3 scripts/record_missing.py                       # plan and price
+    python3 scripts/provenance/record_missing.py                       # plan and price
     ROUTER_MODE=real ROUTER_LADDER=wide \
-        python3 scripts/record_missing.py --go
+        python3 scripts/provenance/record_missing.py --go
 """
 
 from __future__ import annotations
@@ -61,7 +56,7 @@ import json
 import sys
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parent.parent
+REPO = Path(__file__).resolve().parent.parent.parent
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
@@ -245,7 +240,7 @@ def main():
         for task_id, tier, kind, idx in sorted(models.truncated_ids):
             print(f"     {task_id:<16} {tier:<10} {kind} sample={idx}")
         print("   Raising models.MAX_TOKENS re-charges every cached response "
-              "(docs/ENGINEERING.md (standing invariants)). Exclude the task instead.")
+              "(docs/ARCHITECTURE.md (standing invariants)). Exclude the task instead.")
     print("\nEverything replays free from here:")
     print(f"  ROUTER_MODE=replay ROUTER_LADDER={ladder} python -m llm_routing.run_eval")
 

@@ -4,7 +4,7 @@
 WHY THIS EXISTS, AND WHY IT IS DESTRUCTIVE ON PURPOSE
 -----------------------------------------------------
 Five MBPP+ tasks have expected answers that cannot be derived from their prompt
-(`build_taskset.QUARANTINED`). The first fix, on 8 August 2026, kept their
+(`build_taskset.QUARANTINED`). The first fix kept their
 recorded responses and filtered them out at every point of use: a filter in
 `build_taskset`, another in `router_agent.findings.load_probe`, and a standing
 rule that every future reader had to remember.
@@ -21,13 +21,13 @@ deleted, which is why it is committed rather than run from a shell one-liner.
 WHAT IS NOT LOST
 ----------------
 Git. Commit 24302ba is the last one containing every purged row, so the
-responses remain recoverable and the diagnosis in docs/ENGINEERING.md (the quarantine rule)
+responses remain recoverable and the diagnosis in docs/METHOD.md (the quarantine rule)
 stays reproducible from history. The evidence for the quarantine also survives
 in prose: each entry in QUARANTINED carries the specific input that breaks it,
 and a test asserts that it does.
 
-    python scripts/purge_quarantined.py            # report only
-    python scripts/purge_quarantined.py --go       # rewrite the files
+    python scripts/provenance/purge_quarantined.py            # report only
+    python scripts/provenance/purge_quarantined.py --go       # rewrite the files
 """
 
 from __future__ import annotations
@@ -38,14 +38,14 @@ import shutil
 import sys
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parent.parent
+REPO = Path(__file__).resolve().parent.parent.parent
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
 from llm_routing import paths                                        # noqa: E402
 from llm_routing import routable as routable_mod                          # noqa: E402
 from llm_routing.build_taskset import QUARANTINED                    # noqa: E402
-from scripts.redraw_decisive import observed_cells, reestimate   # noqa: E402
+from scripts.provenance.redraw_decisive import observed_cells, reestimate   # noqa: E402
 
 Q = set(QUARANTINED)
 
@@ -55,7 +55,7 @@ Q = set(QUARANTINED)
 #
 # The per-ladder results files are named explicitly rather than left to a
 # default: this list used to end in a single `runs/results.jsonl`, which the
-# 11 August 2026 restructure replaced with one file per ladder. A purge that
+# per-ladder restructure replaced with one file per ladder. A purge that
 # still named the old path would have reported success while leaving every
 # quarantined row in all three live results files.
 JSONL_TARGETS = [
@@ -120,8 +120,8 @@ def purge_redraw(path: Path, go: bool, n_total: int):
     # A redraw file only re-estimates the task set it was drawn on. When the
     # task set is REBUILT rather than trimmed, the current cross-tab contains
     # tasks this file never drew, and reestimate() would raise KeyError on the
-    # first one - which is what happened on 10 August 2026 when the code half
-    # went from 35 tasks to 366.
+    # first one - which is what happened when the code half went from 35 tasks
+    # to 366.
     #
     # Refusing here rather than re-estimating over the overlap is deliberate.
     # `reproducible` is a correction to a PUBLISHED number, and computing it
@@ -192,7 +192,7 @@ def main():
               f"re-estimating it over\n     whichever tasks appear in both "
               f"files would produce a figure that looks like the\n     same "
               f"quantity and is not. Archive this file and redraw:")
-        print(f"       ROUTER_MODE=real python scripts/redraw_decisive.py "
+        print(f"       ROUTER_MODE=real python scripts/provenance/redraw_decisive.py "
               f"--cells decisive --go")
     elif r:
         dropped, before, after, n_rout, n_bf = r

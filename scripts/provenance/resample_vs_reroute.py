@@ -8,7 +8,7 @@ SIXTY-EIGHT more DeepSeek draws. *Resample or Reroute?* (arXiv:2607.08665)
 frames the two as competing uses of the same budget and reports cascades losing
 by 22-31% on saturated tasks.
 
-This answers it on real data, for free. The 7 August redraw left ten greedy
+This answers it on real data, for free. The decisive-cell redraw left ten greedy
 draws of both rungs for each of the 21 decisive tasks on disk, so every number
 below is read from `cache/raw_calls.wide.jsonl` and nothing is called.
 
@@ -38,7 +38,7 @@ import json
 import sys
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parent.parent
+REPO = Path(__file__).resolve().parent.parent.parent
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
@@ -124,7 +124,7 @@ def main():
         and len(draws.get(tid, {}).get("cheap", {})) >= max(KS)
     ]
     if not decisive:
-        sys.exit("No redrawn tasks found. Run scripts/redraw_decisive.py first.")
+        sys.exit("No redrawn tasks found. Run scripts/provenance/redraw_decisive.py first.")
 
     c, e = unit["cheap"], unit["expensive"]
     print(f"ladder {LADDER}   mean greedy call: cheap ${c:.6f}  expensive ${e:.6f}")

@@ -3,23 +3,18 @@ r"""Re-draw the tasks that decided the routable fraction, to price its noise.
 
 WHY THIS EXISTS
 ---------------
-`results.probe.jsonl` holds one draw per (task, tier). From that single draw the
-repository reports `routable = 15%` - the fraction of tasks the cheap rung gets
-wrong and the expensive rung gets right - and treats it as the ceiling on any
-router.
-
-A single draw cannot tell "the cheap model cannot do this" apart from "the cheap
-model can usually do this and missed once". *How Much of the Routing Gap Is
-Real?* (arXiv:2607.03436) decomposes exactly this measurement and puts the
-single-draw noise share at 36% on MATH-500 - and the maths half of this task set
-IS MATH-500 level 5. See docs/LIMITATIONS.md.
+`results.probe.jsonl` holds one draw per (task, tier), and the repository reports
+`routable` from it as the ceiling on any router. A single draw cannot tell "the
+cheap model cannot do this" from "it usually can and missed once". *How Much of
+the Routing Gap Is Real?* (arXiv:2607.03436) decomposes exactly this measurement
+and puts the single-draw noise share at 36% on MATH-500 - which is the maths half
+of this task set. See docs/LIMITATIONS.md.
 
 WHAT IT DOES
 ------------
-Redraws only the cells that can move the answer. A task in `both_ok` contributes
-nothing to `routable` on any draw where both rungs behave as observed, and a
-task in `inverted` is already counted against the cascade. The cells that decide
-the number are:
+Redraws only the cells that can move the answer: `both_ok` contributes nothing to
+`routable` on any draw where both rungs behave as observed, and `inverted` is
+already counted against the cascade. The deciding cells are:
 
     routable    cheap wrong, expensive right  -> is this reproducible?
     both_fail   neither rung right            -> or was the expensive rung unlucky?
@@ -50,13 +45,12 @@ replays for free.
 
 There is also a hard cap, `--max-spend`, checked twice: against the ESTIMATE
 before the first call, and against MEASURED backend spend after every call. The
-estimate alone is not a guard - the first real run of this script came in at
-$2.96 against a $1.96 prediction, a 51% under-quote, and only the second check
-would have caught that.
+estimate alone is not a guard - a real run of this came in at $2.96 against a
+$1.96 prediction, and only the second check catches that.
 
-    python3 scripts/redraw_decisive.py                    # plan and price only
+    python3 scripts/provenance/redraw_decisive.py                    # plan and price only
     ROUTER_MODE=real ROUTER_LADDER=wide \
-        python3 scripts/redraw_decisive.py --draws 10 --go
+        python3 scripts/provenance/redraw_decisive.py --draws 10 --go
 """
 
 from __future__ import annotations
@@ -67,7 +61,7 @@ import os
 import sys
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parent.parent
+REPO = Path(__file__).resolve().parent.parent.parent
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
@@ -144,7 +138,7 @@ def mean_call_cost(ladder, task_ids=None, domain=None):
 
 # Raw candidate pools, for screening rather than redrawing. Each returns
 # (tasks, domain); `build_taskset.drop_quarantined` is applied to every one of
-# them at the call site, because docs/ENGINEERING.md (the quarantine rule) makes that rule apply
+# them at the call site, because docs/METHOD.md (the quarantine rule) makes that rule apply
 # to "every rerun, every ladder, every figure" - a screener that re-bought the
 # five unpassable tasks would be the first thing to break it.
 def _pool_mbppplus(min_math_level):

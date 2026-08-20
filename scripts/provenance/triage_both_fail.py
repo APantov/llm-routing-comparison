@@ -3,25 +3,22 @@ r"""Sort the `both_fail` tasks into "the model was wrong" and "the task is broke
 
 WHY THIS EXISTS
 ---------------
-docs/ENGINEERING.md (the quarantine rule) found five MBPP+ tasks whose expected answers cannot be
-derived from their prompt: they score a candidate against whatever the MBPP
-reference happened to return on inputs the natural-language prompt never
-describes. Those five were ALL of `always_expensive`'s failures on the eval
-split, so leaving them in capped every policy in the project at 92% instead of
-100%. The recorded lesson is the general one:
+Some MBPP+ tasks have expected answers that cannot be derived from their prompt:
+they score a candidate against whatever the MBPP reference returned on inputs the
+prompt never describes. Left in, they cap every policy in the project - the first
+five found were ALL of `always_expensive`'s failures on the eval split, holding it
+at 92% instead of 100%. The general lesson:
 
     "both rungs failed" reads as "hard" and is equally consistent with "broken".
 
-At 365 code tasks the expected queue is 40-45 of these, and `docs/RESULTS.md` flags
-the cost honestly: THE REAL COST OF B IS HUMAN, NOT FINANCIAL. This script does
-not replace that judgement. It gathers the evidence mechanically and names the
-specific inputs in dispute, so the human time goes to deciding rather than to
-diffing hundred-element fuzzed input lists by eye.
+The real cost of adjudicating them is human, not financial, and this script does
+not replace that judgement. It gathers evidence mechanically and names the inputs
+in dispute, so human time goes to deciding rather than diffing hundred-element
+fuzzed input lists by eye.
 
 THE DISCRIMINATOR, AND TWO THAT DO NOT WORK
 -------------------------------------------
-Every MBPP+ task carries both suites, which is the whole design of the swap (see
-`build_taskset.load_mbppplus`):
+Every MBPP+ task carries both suites (see `build_taskset.load_mbppplus`):
 
     grader_payload["tests"]         the original thin asserts, SHOWN IN THE
                                     PROMPT by models.build_prompt. This is the
@@ -30,57 +27,49 @@ Every MBPP+ task carries both suites, which is the whole design of the swap (see
                                     model never sees it.
 
 *Rejected: "passes the prompt's asserts but fails the expanded suite".* That is
-not a broken task, it is the entire point of MBPP+. Its own docstring gives the
-example: a solution that forgets `n == 1` passes all four original asserts of
-`is_not_prime` and fails the expanded suite, and under plain MBPP that was a
-point the model did not earn. Measured here: 3 of 5 genuine capability failures
-satisfy every prompt assert.
+the entire point of MBPP+, not a broken task - a solution forgetting `n == 1`
+passes all four original asserts of `is_not_prime` and fails the expanded suite.
+Measured here: 3 of 5 genuine capability failures satisfy every prompt assert.
 
-*Rejected: "mismatches only a few hidden inputs".* Measured against the five
-adjudicated tasks, the broken ones span 1/106 to 119/123 mismatches - and
-`codeplus-741`, a genuine failure the expensive rung then solved, sits at 1/104.
-Broken and hard are indistinguishable on this axis.
+*Rejected: "mismatches only a few hidden inputs".* Across the five adjudicated
+tasks the broken ones span 1/106 to 119/123 mismatches, and `codeplus-741` - a
+genuine failure the expensive rung then solved - sits at 1/104. Indistinguishable.
 
-*What works: independent candidates failing on THE SAME inputs.* Run every
-prompt-conformant candidate the project has bought - the cheap rung's draws and
-the expensive rung's answer, which are different model families - and intersect
-the sets of hidden inputs each one gets "wrong". On the five adjudicated tasks
-that intersection is non-empty every time, and on four of the five it is the
-whole set (Jaccard 1.00): DeepSeek and Claude Opus, independently, disagree with
-the reference on exactly the same cases. When two unrelated solutions that both
-satisfy the written specification disagree with the reference in the same place,
-the specification does not determine that place.
+*What works: independent candidates failing on THE SAME inputs.* Intersect the
+hidden inputs each prompt-conformant candidate gets wrong, across the cheap
+rung's draws and the expensive rung's answer - different model families. On the
+five adjudicated tasks that intersection is non-empty every time and is the whole
+set on four (Jaccard 1.00): two unrelated solutions that both satisfy the written
+specification disagree with the reference in the same place, which means the
+specification does not determine that place.
 
-That intersection is also precisely the artefact the standing quarantine rule
-demands - the specific input that breaks the task - so this prints those inputs
-with their expected and actual values.
+That intersection is also the artefact the quarantine rule demands, so this
+prints those inputs with their expected and actual values.
 
 WHAT THIS IS AND IS NOT
 -----------------------
-It is a READING QUEUE, ordered by strength of evidence, with the disputed inputs
-already extracted. It is not an oracle, and the buckets are priorities rather
-than verdicts. Two measured limits, both found by checking it against the five
-tasks a human adjudicated on 8 August 2026:
+A READING QUEUE ordered by strength of evidence, with the disputed inputs
+extracted. Not an oracle: the buckets are priorities, not verdicts. Two measured
+limits, both found by checking it against tasks a human adjudicated:
 
   It misses an internally inconsistent reference. `codeplus-305` gives mutually
   inconsistent expectations for identically-shaped inputs, so no two candidates
-  fail in the same place and the intersection is empty. It is a broken task that
-  looks exactly like a hard one here. That is why "all candidates fail, on
-  disjoint inputs" is filed as `needs_read` rather than kept.
+  fail in the same place and the intersection is empty - a broken task that looks
+  exactly like a hard one. Hence "all candidates fail, on disjoint inputs" is
+  filed as `needs_read` rather than dropped.
 
-  A shared disputed input is not proof on its own. Every candidate failing on
-  `[]` can mean the specification says nothing about the empty case - or that
-  every model forgot it and the reference did not. Only the prompt settles that,
-  which is why the printed line ends in a question for the reader rather than a
-  verdict.
+  A shared disputed input is not proof. Every candidate failing on `[]` can mean
+  the specification says nothing about the empty case, or that every model forgot
+  it and the reference did not. Only the prompt settles that, which is why the
+  printed line ends in a question rather than a verdict.
 
 It will not quarantine anything. Quarantining is a deliberate edit to
-`build_taskset.QUARANTINED` followed by `scripts/purge_quarantined.py --go`, and
+`build_taskset.QUARANTINED` followed by `scripts/provenance/purge_quarantined.py --go`, and
 the evidence sentence is written by a person who read the prompt.
 
-    python scripts/triage_both_fail.py
-    python scripts/triage_both_fail.py --json triage.json
-    python scripts/triage_both_fail.py --show 3      # more disputed inputs each
+    python scripts/provenance/triage_both_fail.py
+    python scripts/provenance/triage_both_fail.py --json triage.json
+    python scripts/provenance/triage_both_fail.py --show 3      # more disputed inputs each
 
 Reads only files already on disk. No API calls, no spend, no network.
 """
@@ -96,7 +85,7 @@ import tempfile
 from collections import defaultdict
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parent.parent
+REPO = Path(__file__).resolve().parent.parent.parent
 
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
@@ -459,14 +448,14 @@ def main():
             print(f"{'':<21}   {', '.join(buckets[b][:8])}"
                   f"{' ...' if len(buckets[b]) > 8 else ''}")
     print("=" * 74)
-    print("\nValidated against the five tasks a human adjudicated on 8 August:")
+    print("\nValidated against the five tasks a human adjudicated:")
     print("  4 of 5 land in `broken_evidence`, and the inputs printed for them")
     print("  match the evidence sentences in build_taskset.QUARANTINED. The")
     print("  fifth (codeplus-305, an internally inconsistent reference) lands in")
     print("  `needs_read` - which is why that bucket is read rather than kept.")
     print("\nNothing here is applied. Quarantining is a deliberate edit to")
     print("build_taskset.QUARANTINED with the disputed input named as evidence,")
-    print("then `python scripts/purge_quarantined.py --go`.")
+    print("then `python scripts/provenance/purge_quarantined.py --go`.")
 
     if args.json:
         Path(args.json).write_text(

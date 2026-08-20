@@ -14,7 +14,7 @@ measures a cheap model's failure rate, and that rate was 0/10 against original
 MBPP, tightening the tests is the cheapest way to make the task set discriminate
 again.
 
-    python -m llm_routing.fetch_mbppplus            # writes data/mbppplus.json
+    python scripts/provenance/fetch_mbppplus.py     # writes data/mbppplus.json
     python -m llm_routing.build_taskset
     python -m llm_routing.sanity_check
 
@@ -40,7 +40,11 @@ import sys
 import tempfile
 from pathlib import Path
 
-from llm_routing import paths
+REPO = Path(__file__).resolve().parent.parent.parent
+if str(REPO) not in sys.path:
+    sys.path.insert(0, str(REPO))
+
+from llm_routing import paths                                        # noqa: E402
 
 OUT = paths.DATA / "mbppplus.json"
 

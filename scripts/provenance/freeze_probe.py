@@ -5,8 +5,8 @@ WHY THIS EXISTS
 ---------------
 `tests/test_findings.py` used to carry the probe's magnitudes as literals -
 `assert probe.n == 95`, `routable_pct == 15.8`. They went stale twice: the
-6 August 2026 task-set rebuild moved every one of them, and the 10 August code-
-half rebuild (35 tasks to 366) moved them again. Both times the test failed for
+task-set rebuild moved every one of them, and the later code-half rebuild
+(35 tasks to 366) moved them again. Both times the test failed for
 the right reason and taught nothing, because a pinned literal cannot tell
 "the measurement moved because the task set moved" from "the measurement broke".
 
@@ -28,8 +28,8 @@ red test green is the one use that defeats the point: `both_fail` moving is how
 you find out that unpassable tasks have entered the set, and this script would
 bless them.
 
-    python scripts/freeze_probe.py            # show the diff, write nothing
-    python scripts/freeze_probe.py --go       # write it
+    python scripts/provenance/freeze_probe.py            # show the diff, write nothing
+    python scripts/provenance/freeze_probe.py --go       # write it
 """
 
 from __future__ import annotations
@@ -39,7 +39,7 @@ import json
 import sys
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parent.parent
+REPO = Path(__file__).resolve().parent.parent.parent
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
@@ -60,7 +60,7 @@ def snapshot():
         sys.exit("no measured results.probe.jsonl to freeze")
     lo, hi = probe.ci95()
     return {
-        "note": "Regenerate with scripts/freeze_probe.py after a DELIBERATE "
+        "note": "Regenerate with scripts/provenance/freeze_probe.py after a DELIBERATE "
                 "task-set change. See that script for why this is a file "
                 "rather than literals in the test.",
         "cells": {
@@ -117,7 +117,7 @@ def main():
                   f"those is either\n     genuinely hard or unpassable-by-spec, "
                   f"and an unpassable task silently\n     caps every policy. "
                   f"Adjudicate before freezing:\n"
-                  f"       python scripts/triage_both_fail.py")
+                  f"       python scripts/provenance/triage_both_fail.py")
 
     if not args.go:
         print("\nplan only - nothing written. Add --go once the moves above are "
