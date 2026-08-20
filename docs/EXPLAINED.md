@@ -206,7 +206,7 @@ This is where sample size bites. An earlier version of this project ran on 100
 tasks and found **zero of eight** comparisons significant, and honestly reported
 that accuracy differences were undetectable. Growing the code half from 35 tasks
 to 357 changed it to **four of eight** — because the number of tasks that can
-tell two routers apart at all rose from 7 to 75.
+tell two routers apart at all rose from 7 to 74.
 
 The lesson is worth more than the result: *most of the tasks in a routing
 benchmark are doing no work.* Both models get them right, or both get them
@@ -271,9 +271,9 @@ escalation means paying the inflated input cost on top of the cheap call you
 already made. It is modelled explicitly rather than ignored.
 
 **Greedy decoding is not deterministic.** Temperature 0 is supposed to give the
-same answer every time. Across 21 tasks with five or more draws each, more than
-one distinct answer came back on **76%** of tasks for Opus 5 and **67%** for
-DeepSeek v4-flash. This matters for the whole field, not just here: a routing
+same answer every time. Across the 16 tasks with five or more usable draws each,
+more than one distinct answer came back on **81%** of tasks for Opus 5 and
+**75%** for DeepSeek v4-flash. This matters for the whole field, not just here: a routing
 benchmark that takes one draw per model per task is partly measuring luck. When
 this project redrew the tasks that decide its headline number, about a sixth of
 the apparent routing opportunity turned out to be one model having a bad day.

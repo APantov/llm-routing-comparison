@@ -21,7 +21,7 @@ for $0.00 with no API key.
 | ladders | **3** — `wide` (flash→opus), `claude` (haiku→sonnet→opus), `deepseek` (flash→pro) |
 | policies | **9**, including an oracle bound and a cost-matched random null |
 | real responses | **5,075** |
-| total spend | **$8.5145** |
+| total spend | **$8.5146** |
 | tests | **210 passing**, plus one end-to-end reconciliation against the committed results behind `pytest -m slow` |
 
 ---
@@ -53,7 +53,7 @@ The ladder has to be named for the claim to mean anything.
 
 At n=100 it was **0 of 8**, and the reason is worth more than the result. Growing
 the code half from 35 tasks to 357 raised the number of tasks that can
-distinguish two routers *at all* from **7 to 75** on `wide` (56 routable + 19
+distinguish two routers *at all* from **7 to 74** on `wide` (56 routable + 18
 inverted; 76 on `claude`, 31 on `deepseek`). Every other task is one both rungs
 get right or both get wrong, and contributes nothing but denominator.
 
@@ -72,8 +72,9 @@ comparison holds spend roughly fixed and isolates skill.
 
 Neither a learned router (RouteLLM's pretrained BERT) nor an LLM-as-router beats
 a cost-matched coin flip on any ladder, while the cascade beats both on every
-ladder. RouteLLM's frontier AUC sits at or *below* the null everywhere:
-−0.0018, −0.0001, −0.0129.
+ladder. RouteLLM's frontier AUC sits *below* the null on all three:
+−0.0018 on `wide`, −0.0004 on `claude`, −0.0119 on `deepseek`. For scale, the
+cascade's AUC gain over the same null is +0.0688, +0.0527 and +0.0223.
 
 The distinction is **when the decision is made**. A predictive router commits
 before seeing an attempt; a cascade decides after verifying one.
@@ -171,10 +172,15 @@ redrawn, so flakiness hidden there is still uncounted.
 
 ### 2.7 Greedy decoding is not deterministic, for either provider
 
-Across 21 tasks with ≥5 draws at temperature 0, more than one distinct answer
-came back on **76%** of tasks for `claude-opus-5` and **67%** for
-`deepseek-v4-flash`. Neither provider is meaningfully more stable than the
-other.
+Across the **16** tasks carrying ≥5 reachable, untruncated draws at temperature
+0, more than one distinct answer came back on **81%** of them for
+`claude-opus-5` and **75%** for `deepseek-v4-flash`. Neither provider is
+meaningfully more stable than the other.
+
+Counted over `kind="answer"` rows at `temperature=0` in `cache/raw_calls.*.jsonl`,
+grouped by (model, task), excluding draws that `models.is_reachable` rejects and
+those that hit `max_tokens` — the same two exclusions every other table here
+applies.
 
 This is why §2.6 exists: a benchmark that takes one draw per model per task is
 partly measuring luck, and cannot tell you how much.
@@ -214,15 +220,24 @@ uses of one budget and reports cascades losing on saturated tasks.
 
 Answered here on the decisive tasks, from draws already on disk, for $0.00:
 
-| | escalate once | best-of-9 cheap | cost of the cheap option |
+Each row uses the strongest cheap-side strategy that is actually *deployable* in
+that domain: with MBPP+'s tests you can take the best of nine draws and know
+which one passed; on maths there is no exact check, so the best you can do is
+vote.
+
+| | escalate once | 9 more cheap draws | cost of the cheap option |
 |---|---|---|---|
-| code (n=5) | **5/5** | 0/5 | 7% |
-| math (n=10) | **9/10** | 4/10 | 7% |
+| code (n=5) | **5/5** | 0/5 — best-of-9, tests | 7% |
+| math (n=10) | **9/10** | 4/10 — majority-of-9 | 7% |
 
 **Escalation wins, and it is not close.** Nine extra cheap draws at 7% of the
 cost recover none of the code tasks and fewer than half the maths ones. On the
 tasks a cascade actually escalates, the cheap rung does not have the answer at
 any sample count — the capability is missing, not the luck.
+
+An oracle best-of-9 on the maths row reaches 7/10, but picking that draw needs
+an exact check that does not exist for maths — which is the same verifier gap
+§2.8 prices, arriving from the other direction.
 
 Their result and this one do not conflict: theirs is about saturated tasks where
 both rungs already succeed, and this measures the cell where they differ, which
@@ -274,12 +289,16 @@ does real work.
 | `wide` cache | $5.5878 |
 | `claude` cache | $2.8498 |
 | `deepseek` cache | $0.0769 |
-| **total** | **$8.5145** over 5,075 real responses |
+| **total** | **$8.5146** over 5,075 real responses |
 
-The measured session accounts for **$4.2794** of that: pool screen $0.0301,
+The three rows are rounded independently and so sum to $8.5145; the total is the
+unrounded sum, $8.514596.
+
+The measured session accounts for **$4.4298** of that: pool screen $0.0301,
 code-half census $0.8804, `both_fail` redraw $0.2497, decisive redraw $0.3429,
 buy D $0.0000 (entirely cached), `deepseek` ladder $0.0769, `claude` ladder
-$2.8498.
+$2.8498. The two ladder figures are exact totals over their cache files; the
+rest are what each paid tool reported when it ran.
 
 **Cross-ladder cache reuse is worth about $1.70.** The ladder is deliberately
 absent from the cache key, so `wide`'s Opus answers serve `claude`'s top rung
