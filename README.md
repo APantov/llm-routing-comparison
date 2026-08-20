@@ -44,7 +44,7 @@ verification is exact and free. The first of them:
 ```
 1. The cascade's win - verified at the cheap rung
 --------------------------------------------------------------------------
-  query: Let f(x) = x^3 - 3x + 1. Find the sum of the squares of all real roots.
+  query: Let f(x) = x^3 - 3x + 1. Find the sum of the squares of all real roots. [...]
 
     classify  domain=math, start=cheap, verifier=self_consistency
     answer    cheap (deepseek-v4-flash) answered
