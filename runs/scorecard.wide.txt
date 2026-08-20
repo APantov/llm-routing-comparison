@@ -2,7 +2,8 @@
   !! 1 greedy response(s) hit max_tokens and are UNMEASURED, not failures.
      math-96          cheap      dropped from the cross-tab
      n falls by that many pairs. Raising models.MAX_TOKENS re-charges every
-     cached response (SHIP_PLAN.md section 1), so the task is excluded instead.
+     cached response
+     (docs/ARCHITECTURE.md (standing invariants)), so the task is excluded instead.
 
 scorecard: results.wide.jsonl  |  ladder wide  |  209 tasks classified
 
@@ -37,4 +38,4 @@ routellm           89.0%  0.001920       14       0      13      74        2    
   reconciled: every policy's correct-outcome buckets sum to the accuracy
   its result rows report.
 
-wrote scorecard.wide.json
+wrote runs/scorecard.wide.json

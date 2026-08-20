@@ -3,7 +3,7 @@
 | file | what it is | source |
 |---|---|---|
 | `math500.jsonl` | MATH-500, the full set. Only level 5 is sampled. | third party, committed |
-| `mbppplus.json` | MBPP+ with its expanded evalplus test suites. | fetched by `llm_routing/fetch_mbppplus.py`, committed |
+| `mbppplus.json` | MBPP+ with its expanded evalplus test suites. | fetched by `scripts/provenance/fetch_mbppplus.py`, committed |
 | `taskset.jsonl` | **the 417 tasks every module joins against** | built, and committed |
 
 `taskset.jsonl` is the odd one: it is *derived* from the two above rather than
@@ -20,7 +20,7 @@ git diff --stat -- data/taskset.jsonl     # expect no output
 ```
 
 The defaults reproduce the committed file exactly. That is load-bearing rather
-than tidy: until 11 August 2026 the default built a 96-task sample instead, so
+than tidy: the default once built a 96-task sample instead, so
 the quickstart in the README silently replaced the artefact every published
 number is joined against.
 

@@ -1,9 +1,8 @@
 # EXPLAINED — the whole project in plain language
 
-The no-jargon version, covering the **ideas**. For how the code is laid out and
-a trace of one real task through it, read [WALKTHROUGH.md](WALKTHROUGH.md). For
-the method and the full numbers, [METHOD.md](METHOD.md) and
-[RESULTS.md](RESULTS.md).
+The no-jargon version, covering the **ideas**. For how the code is laid out,
+read [ARCHITECTURE.md](ARCHITECTURE.md). For the method and the full numbers,
+[METHOD.md](METHOD.md) and [RESULTS.md](RESULTS.md).
 
 It assumes you know Python exists and nothing else.
 
@@ -159,7 +158,7 @@ is committed.
 
 ## 8. Why the same call is never made twice
 
-Ten policies all need "the cheap model's answer to question 7". Without care
+Nine policies all need "the cheap model's answer to question 7". Without care
 that is ten API calls returning **ten slightly different answers**, because
 these models are not deterministic even at temperature 0.
 
@@ -250,6 +249,11 @@ A cascade is that strategy forced to always start at the cheapest model. A
 predictive router is that strategy forbidden from ever taking a second step.
 Neither restriction is a good idea, and both are implemented here so the
 unrestricted version (`cascade_routing`) can be measured against them.
+
+It loses to the plain cascade on all three ladders — because the unified
+strategy needs a good guess *before* calling anything, and this task set offers
+none. That is not a failed experiment; it is the paper's own prediction about
+what happens when only the after-the-fact half works.
 
 Their main conclusion is also, independently, this project's thesis: **how good
 your quality estimator is decides whether any of this works.** They tested it by

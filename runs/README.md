@@ -17,16 +17,16 @@ That is how the current figures were produced. 0 calls reached a backend.
 |---|---|---|
 | `results.<ladder>.jsonl` | `run_eval` | one row per (task, policy) — the primary artefact |
 | `frontier.<ladder>.jsonl` | `frontier` | cost-quality curves, achievable frontiers, AUC |
-| `sweep_degraded.<ladder>.jsonl` | `sweep_degraded` | the verifier-degradation curve |
+| `sweep_degraded.wide.jsonl` | `sweep_degraded` | the verifier-degradation curve. **One ladder only** — the sweep holds the ladder fixed and varies verifier fidelity inside the code domain, so the ladder is the control rather than the variable |
 | `scorecard.<ladder>.{json,txt}` | `scorecard` | per-policy error attribution against the cross-tab |
 | `routable.<ladder>.txt` | `routable` | the cheap/expensive cross-tab |
-| `redraw.<ladder>*.json` | `scripts/redraw_decisive.py` | per-rung p̂ from multi-draw redraws — **paid for** |
-| `screen.<ladder>.<pool>.json` | `scripts/redraw_decisive.py` | a screen of a candidate task pool — **paid for** |
-| `triage.<ladder>.json` | `scripts/triage_both_fail.py` | evidence for a quarantine decision |
+| `redraw.<ladder>*.json` | `scripts/provenance/redraw_decisive.py` | per-rung p̂ from multi-draw redraws — **paid for** |
+| `screen.<ladder>.<pool>.json` | `scripts/provenance/redraw_decisive.py` | a screen of a candidate task pool — **paid for** |
+| `triage.<ladder>.json` | `scripts/provenance/triage_both_fail.py` | evidence for a quarantine decision |
 
 The ladder is in the filename because every analysis script used to write to one
 fixed path, which was correct while there was one measured ladder and wrong the
-moment there were three. On 8 August 2026 a `deepseek` run overwrote a complete
+moment there were three. A `deepseek` run once overwrote a complete
 nine-policy `wide` run with 47 rows of one policy. Every writer now takes an
 output override, and `tests/test_experiment.py` has a structural tripwire that
 fails when a new analysis script arrives without one.

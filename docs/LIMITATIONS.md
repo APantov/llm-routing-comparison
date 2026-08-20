@@ -67,7 +67,9 @@ than measured away: the fix was costed and cut.
 ## 7. `cascade_routing` is the greedy variant
 
 Dekoninck et al.'s unified strategy is implemented in its greedy form — best
-quality-per-dollar at each step — not the full algorithm.
+quality-per-dollar at each step — not the full algorithm. Its ex-ante estimator
+is also uninformative on this task set, so it runs with only its post-hoc half
+working; see [METHOD.md](METHOD.md#the-policies).
 
 ## 8. Latency is modelled, not measured
 
@@ -99,4 +101,4 @@ record how often it fires. Until then, treat per-rung accuracies in
 
 The bugs this project found in itself — each of which changed a published number,
 and each of which now has a permanent test behind it — are in
-[ENGINEERING.md](ENGINEERING.md).
+[METHOD.md](METHOD.md#bugs-this-project-found-in-itself).

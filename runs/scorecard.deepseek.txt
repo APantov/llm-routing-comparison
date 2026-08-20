@@ -3,7 +3,8 @@
      math-400         expensive  dropped from the cross-tab
      math-96          cheap      dropped from the cross-tab
      n falls by that many pairs. Raising models.MAX_TOKENS re-charges every
-     cached response (SHIP_PLAN.md section 1), so the task is excluded instead.
+     cached response
+     (docs/ARCHITECTURE.md (standing invariants)), so the task is excluded instead.
 
 scorecard: results.deepseek.jsonl  |  ladder deepseek  |  209 tasks classified
 
@@ -38,4 +39,4 @@ routellm           83.7%  0.000118        5       0       4      72        4    
   reconciled: every policy's correct-outcome buckets sum to the accuracy
   its result rows report.
 
-wrote scorecard.deepseek.json
+wrote runs/scorecard.deepseek.json

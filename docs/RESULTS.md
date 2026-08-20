@@ -3,15 +3,15 @@
 Every number here is measured on real models and replayable from `cache/` for
 $0.00. Nothing on this page is carried over from a superseded run.
 
-For how the benchmark is built, read [METHOD.md](METHOD.md). For what bounds
-these claims, [LIMITATIONS.md](LIMITATIONS.md). For the operational rules and
-the bugs the project found in itself, [ENGINEERING.md](ENGINEERING.md).
+For how the benchmark is built, read [METHOD.md](METHOD.md) — which also carries
+the quarantine rule and the bugs the project found in itself. For what bounds
+these claims, [LIMITATIONS.md](LIMITATIONS.md).
 
 ---
 
 ## 1. What was measured
 
-Ten policies over 417 tasks on three model ladders. Every response is a real
+Nine policies over 417 tasks on three model ladders. Every response is a real
 API call, committed to `cache/`, and the entire analysis regenerates offline
 for $0.00 with no API key.
 
@@ -19,7 +19,7 @@ for $0.00 with no API key.
 |---|---|
 | tasks | **417** — 357 MBPP+ code, 60 MATH-500 level 5 |
 | ladders | **3** — `wide` (flash→opus), `claude` (haiku→sonnet→opus), `deepseek` (flash→pro) |
-| policies | **10**, including an oracle bound and a cost-matched random null |
+| policies | **9**, including an oracle bound and a cost-matched random null |
 | real responses | **5,075** |
 | total spend | **$8.5145** |
 | tests | **210 passing**, plus one end-to-end reconciliation against the committed results behind `pytest -m slow` |
@@ -146,8 +146,8 @@ refuses to answer for a ladder that has none.
 > replayable from that ladder's cache, so it contributes no point to the
 > `deepseek` curve while it does to the other two. The run says so on every
 > execution (*"not replayable from this cache, so absent from the frontier
-> below"*), and it is stated here because the row above sits next to two that
-> are complete. The `deepseek` verdict rests on `cascade` against
+> below"*). Stated here because the row above sits next to two that are
+> complete: the `deepseek` verdict rests on `cascade` against
 > `always_expensive`, both of which are fully measured.
 
 ### 2.6 A sixth of the routing opportunity is noise
@@ -232,8 +232,11 @@ is the only cell a router can win.
 
 ## 3. What each policy got right and wrong
 
-`llm_routing/scorecard.py` joins each policy's decision against what the two
-rungs could actually do. `wide` ladder, 209 tasks:
+Accuracy alone cannot tell you whether a router escalated the right ten tasks or
+escalated everything. `llm_routing/scorecard.py` joins each policy's decision
+against what the two rungs could actually do. `wide` ladder, 209 tasks:
+
+![What each policy did with its escalations](../figures/scorecard.svg)
 
 | policy | acc | $/task | rescued | no-top | missed | wasted | harmful | prec |
 |---|---|---|---|---|---|---|---|---|
@@ -272,6 +275,11 @@ does real work.
 | `claude` cache | $2.8498 |
 | `deepseek` cache | $0.0769 |
 | **total** | **$8.5145** over 5,075 real responses |
+
+The measured session accounts for **$4.2794** of that: pool screen $0.0301,
+code-half census $0.8804, `both_fail` redraw $0.2497, decisive redraw $0.3429,
+buy D $0.0000 (entirely cached), `deepseek` ladder $0.0769, `claude` ladder
+$2.8498.
 
 **Cross-ladder cache reuse is worth about $1.70.** The ladder is deliberately
 absent from the cache key, so `wide`'s Opus answers serve `claude`'s top rung
@@ -325,8 +333,8 @@ Analysis entry points, each runnable as `python -m llm_routing.<name>`:
 environment. Every other entry point reads `ROUTER_MODE`.
 
 Paid tools, each of which prints a costed plan and refuses to spend without
-`--go`: `scripts/redraw_decisive.py` (redraw or screen),
-`scripts/record_missing.py` (buy the gap a replay needs).
+`--go`: `scripts/provenance/redraw_decisive.py` (redraw or screen),
+`scripts/provenance/record_missing.py` (buy the gap a replay needs).
 
 ---
 

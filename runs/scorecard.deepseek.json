@@ -3,10 +3,10 @@
   "ladder": "deepseek",
   "simulated": false,
   "cells": {
-    "inverted": 8,
     "both_ok": 166,
+    "routable": 9,
     "both_fail": 26,
-    "routable": 9
+    "inverted": 8
   },
   "policies": {
     "always_cheap": {

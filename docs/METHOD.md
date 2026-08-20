@@ -21,6 +21,7 @@ a superseded run.
 - [Running it](#running-it)
 - [Running it for real](#running-it-for-real)
 - [Serving it](#serving-it)
+- [Bugs this project found in itself](#bugs-this-project-found-in-itself)
 - [Where this sits in the literature](#where-this-sits-in-the-literature)
 
 ---
@@ -47,26 +48,108 @@ the one thing a cascade depends on and a predictive router does not have at all.
 | math | MATH-500, level 5 | 60 | exact match on the normalised answer | **proxy** — self-consistency over k samples |
 | code | MBPP+ | 357 | execute the expanded evalplus suite | **free and perfect** — just run the tests |
 
-Both difficulty settings were raised on 6 August 2026, because the probe showed
-the cheap rung solving essentially everything at the previous ones. MBPP+ is the
-same problems as sanitized MBPP with roughly 35x more test cases, so the swap
-moves exactly one variable — how thorough the marking is — and the model is
-still shown the original thin asserts as its specification. The easier maths
-floor remains one flag away: `--min-math-level 3`. See
-[DATASETS.md](DATASETS.md).
-
-Grading the code half needs **numpy**: every expanded evalplus test program
-opens with `import numpy as np` and compares floats with `np.allclose`.
-
 **No LLM judge anywhere.** Every verdict is deterministic, so results are
 reproducible byte for byte and there is no judge to calibrate.
 
+### Why these two datasets
+
+Any replacement has to satisfy two hard constraints or it breaks the experiment
+rather than improving it. **The code half must ship runnable tests** — the whole
+project rests on one domain having a free and perfect verifier, which is only
+possible because MBPP ships assert statements that can be executed. **The maths
+half must have an exact-matchable answer**, because a judge would introduce a
+calibration problem the project would then have to solve, and would make the
+results irreproducible.
+
+**MBPP+ over MBPP moves exactly one variable.** MBPP+ is the *same problems* as
+sanitized MBPP with roughly 35x more test cases each, so the task distribution is
+unchanged and the only thing that moves is how thorough the marking is.
+Demonstrated rather than asserted — on task 3 (`is_not_prime`), a solution that
+forgets the `n == 1` case **passes all four original MBPP asserts and fails the
+expanded suite**.
+
+The model is shown the original thin asserts as its specification and graded
+against the expanded suite; both are carried in `grader_payload`. Putting the
+expanded suite in the prompt would be ten kilobytes of fuzzed input/output pairs
+— an absurd prompt and most of an answer key — and would change the task rather
+than the marking.
+
+**A few tasks must be dropped, and the set is platform-specific.** MBPP+'s
+assertion helper only reaches `np.allclose` when the expected value is a float or
+a flat sequence of floats. For a nested tuple or a complex number it falls
+through to exact `==`, so the verdict turns on whether your libm matches the
+machine the expectations were generated on. Task 590 (`polar_rect`, expected
+`(tuple, complex)`) passes on Linux and fails on Windows.
+`scripts/provenance/fetch_mbppplus.py` therefore validates every reference
+solution against its own expanded suite **on the machine that will run the
+evaluation**, and drops the failures with a reason. Dropping is not tidying: the
+mock emits the reference as its "correct" answer, so a task whose own reference
+fails would have every mock-correct answer graded wrong.
+
+```bash
+python scripts/provenance/fetch_mbppplus.py                 # writes data/mbppplus.json
+python scripts/provenance/fetch_mbppplus.py --validate-only # re-check without downloading
+```
+
+Grading the code half therefore needs **numpy**: every expanded evalplus test
+program opens with `import numpy as np` and compares floats with `np.allclose`.
+See `pyproject.toml`, extra `code`. Source:
+<https://huggingface.co/datasets/evalplus/mbppplus>
+
+**MATH-500 level 5 is a difficulty floor.** Level 5 alone leaves 134 candidates,
+comfortably more than the 60 sampled. It was raised from levels 3–5 for one
+reason: the probe showed the cheap rung solving 10 out of 10 at the old setting,
+which leaves a router nothing to decide.
+
+That had a known cost, and it cost more than expected. A single level makes
+`difficulty_proxy` constant across the maths half, so the shipped `level` field
+carries no signal at all — which is what killed the original hand-written
+predictive policy. Its predicate `level >= 5` was true for every maths task, so
+it was `always_expensive` on that half by construction while being reported as a
+router. Predictive routing is now measured with `llm_router` and `routellm`,
+neither of which reads a difficulty label. Recoverable with `--min-math-level 3`,
+which restores two distinct levels.
+
+**What was rejected, and why:**
+
+| dataset | why not |
+|---|---|
+| **GSM8K** | current cheap models score in the low 90s, leaving a cascade nothing to route |
+| **BigCodeBench** (1140 tasks) | genuinely harder, but its `test` field is a full `unittest` class rather than a list of asserts, and its tasks import real third-party libraries — the grader's subprocess would need them installed, ending the "runs on a bare interpreter" property |
+| **LiveCodeBench** | contamination-controlled by release date, which is attractive, but it is competitive programming: stdin/stdout pairs rather than asserts, so the grader would need rewriting rather than adapting |
+| **Omni-MATH** (4.4K olympiad) | the real upgrade if MATH-500 saturates, and it ships a `difficulty` float 4–10 that would restore a predictive router's signal. Deferred because some answers are symbolic expressions with free variables, where exact match is fragile in a way MATH-500's mostly-numeric answers are not |
+| **AIME 2025** (30 problems) | integer answers make exact match trivially clean, and it is very hard — but too small to be the maths half alone |
+
+**After any swap, re-check three things in order.** First
+`python -m llm_routing.sanity_check` — the graders must still score every
+reference answer at full marks; on a new maths set this is the step that catches
+unmatched answer formats, and it exits non-zero so it cannot be skipped by
+accident. Then the two-arm probe (`run_eval --policy always_cheap --policy
+always_expensive --split all`, then `routable --real`), because a new dataset
+changes the routable fraction and if there is nothing to route there is nothing
+to measure. Only then, the full run. Change one thing at a time: each step moves
+the failure rate, and doing two together means not knowing which one worked — the
+same confound the `cascade_degraded` design exists to avoid.
+
+### The quarantine rule
+
 **13 tasks are quarantined as unpassable-by-specification**, each with the
 disputed input recorded as evidence in `llm_routing.build_taskset.QUARANTINED`.
-The bar for quarantining is deliberately hard to clear — every rung's multi-draw
-p̂ must be exactly 0 — because getting it wrong is expensive in both directions.
-[ENGINEERING.md](ENGINEERING.md) has the full rule and the reversal that motivated
-it.
+
+A `both_fail` task is either genuinely hard or broken by its own specification,
+and the cross-tab cannot tell them apart. Getting it wrong is expensive both
+ways: an unpassable task silently caps every policy, and deleting a
+hard-but-solvable one removes the signal the experiment exists to measure. So
+the bar is deliberately hard to clear — **a task may be quarantined only if every
+rung's multi-draw p̂ is exactly 0.** One greedy draw cannot establish that.
+
+The bar earns its strictness. Redrawing all 24 `both_fail` candidates before
+adjudicating cost $0.25 and rescued three that a single draw had condemned —
+including `codeplus-305`, whose top rung solves it half the time, which makes it
+precisely a *routable* task rather than a hopeless one. `TestQuarantine` enforces
+the rule against the historical data, and
+`scripts/provenance/triage_both_fail.py` gathers the evidence and deliberately
+refuses to make the call itself.
 
 Half the set is held out. `llm_routing/splits.py` splits it deterministically,
 stratified by domain and difficulty; thresholds and quality estimators are
@@ -105,7 +188,7 @@ opportunity down to one model having a bad draw (13.5% → 11.3%) — see
 
 The price ratio between rungs drives the whole economics, so the ladder is
 selected rather than hard-coded. Prices and API contracts were verified against
-provider docs on 2026-07-30, at list rates — promotional pricing is deliberately
+provider docs, at list rates — promotional pricing is deliberately
 ignored, because an experiment whose cost axis expires is not reproducible.
 
 | `ROUTER_LADDER` | rungs | list | effective | realized |
@@ -176,7 +259,7 @@ none.
 
 ## The policies
 
-Ten policies in two families, plus the fixed rungs and two baselines.
+Nine policies in two families, plus the fixed rungs and two baselines.
 
 | policy | family | what it does |
 |---|---|---|
@@ -190,7 +273,7 @@ Ten policies in two families, plus the fixed rungs and two baselines.
 | `oracle` | bound | hindsight-optimal. Bounds how good any router could be |
 
 A hand-written `predictive` policy — routing on MATH-500's shipped difficulty
-level — was **deleted on 8 August 2026**. Under `MIN_MATH_LEVEL = 5` that level
+level — was **deleted**. Under `MIN_MATH_LEVEL = 5` that level
 is constant, so the policy sent all 60 maths tasks to the expensive rung and was
 `always_expensive` on the maths half by construction while being reported as a
 router. Predictive routing is half of this repository's subject and has not gone
@@ -217,6 +300,15 @@ Four of these exist for reasons worth stating outright:
   It differs from `cascade` in two ways that matter: it need not start at the
   bottom rung, and it need not climb one rung at a time. What is implemented
   here is their **greedy** variant, not the full algorithm.
+
+  **It does not win here, and that is the point of measuring it.** It trails the
+  plain `cascade` on every ladder — 95.2% against 95.7% on `wide`, 96.2% against
+  96.7% on `claude`, 84.2% against 86.6% on `deepseek`. The paper's result turns
+  on a good **ex-ante** quality estimator, and this task set has none: the only
+  pre-call feature available was constant (`DECISION #4`), so `_Q_EXANTE` carries
+  a domain prior and an empty slot. Read these rows as the unified strategy with
+  only its post-hoc half working — which is the paper's own prediction. Every
+  figure above is in `runs/results.<ladder>.jsonl`.
 - **`cascade_degraded` is the experiment, not a variant.** With only the two
   natural verifiers, verifier quality has two levels and they are perfectly
   confounded with task domain — perfect/code/MBPP+/asserts/free versus
@@ -382,7 +474,7 @@ one, re-run, and the report shows what moved.
 1. **Model ladder** (`models.py`) — the price ratio drives the whole economics
 2. **Self-consistency k** (`policies.py`) — failure detection against cost, linear
 3. **Agreement threshold** (`policies.py`) — when to accept the cheap answer
-4. ~~**Predictive heuristic**~~ — **retracted 8 August 2026**, tombstoned in
+4. ~~**Predictive heuristic**~~ — **retracted**, tombstoned in
    place rather than renumbered. The feature was constant; see `policies.py`
 5. **Verifier corruption rate** (`policies.py`) — the manipulated variable
 6. **Random baseline rate** (`policies.py`) — the null, anchored to `llm_router`
@@ -481,8 +573,8 @@ ROUTER_MAX_SPEND_USD=8 ROUTER_MODE=real python -m llm_routing.run_eval
 ```
 
 Two paid tools each print a costed plan and refuse to spend without `--go`:
-`scripts/redraw_decisive.py` (redraw or screen a cell) and
-`scripts/record_missing.py` (buy exactly the calls a full replay is missing).
+`scripts/provenance/redraw_decisive.py` (redraw or screen a cell) and
+`scripts/provenance/record_missing.py` (buy exactly the calls a full replay is missing).
 
 Every response from a paid run lands in `cache/raw_calls.<ladder>.jsonl`, one
 file per ladder so they never mix. Afterwards everything is free forever, and
@@ -522,6 +614,44 @@ Four tools (`route_query`, `estimate_cost`, `compare_policies`,
 client through choosing a policy. `ROUTER_MODE=replay` is the safe thing to
 register: it cannot spend money. [ARCHITECTURE.md](ARCHITECTURE.md) covers what
 the serving layer had to solve that the benchmark did not.
+
+## Bugs this project found in itself
+
+Kept because each one changed a published number, and because the mechanism that
+caught it is now a permanent test.
+
+**A ceiling that was not a ceiling.** The oracle chose between the cheap and
+expensive answers, but the maths cascade also had majority-vote-over-5-samples
+available — so the cascade scored *above* the supposed maximum, invalidating
+every "fraction of headroom captured" figure. `run_eval` now prints a bound
+check every run.
+
+**A regression gate that only tested `grade(GT, GT)`.** Feeding ground truth
+back into `\boxed{}` proved nothing, and seven correct answers were being graded
+wrong because the normaliser could not match them. `sanity_check` now checks
+equivalent formattings and near-miss wrong answers too.
+
+**A task quarantined as unpassable that was the most valuable kind of task.**
+`codeplus-305` was deleted as hopeless while a redraw file in the same commit
+recorded its expensive rung solving it half the time — precisely a *routable*
+task. The rule is now that every rung's multi-draw p̂ must be exactly 0, and a
+test enforces it against the historical data.
+
+**One fixed output path shared by three ladders.** A `deepseek` run overwrote a
+complete nine-policy `wide` run with 47 rows of one policy. Every writer now
+takes an output override, and a structural test fails when a new analysis script
+arrives without one.
+
+**A cross-tab that read empty for a fully measured ladder.** The ladder is
+deliberately absent from the cache key, so a ladder's responses are not all in
+its own file. Reading one file returned zero classified tasks; rows are now
+matched to rungs by model, which is what the cache actually keys on.
+
+**A quickstart that destroyed its own dataset.** `build_taskset`'s default built
+a 96-task sample and overwrote the committed 417-task set, so following the
+README replaced the artefact every published number is joined against. The
+default is now the full pool, and it reproduces the committed file byte for
+byte.
 
 ## Where this sits in the literature
 
