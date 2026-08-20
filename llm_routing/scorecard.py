@@ -1,18 +1,12 @@
 """Per-policy error attribution: what each router got right, and what it got wrong.
 
-WHY THIS EXISTS
----------------
-The rest of the analysis in this repo reports policies in aggregate - accuracy,
-cost per task, escalation rate (`run_eval.report`), skill against a cost-matched
-null (`run_eval.routing_skill`), significance (`stats.py`), cost-quality curves
-(`frontier.py`). All of that answers "which policy is better". None of it answers
-"what did this policy actually do wrong", and those are different questions: two
-routers can reach the same accuracy at the same price by making opposite
+The rest of the analysis reports policies in aggregate and answers "which policy
+is better". None of it answers "what did this one do wrong", and those differ:
+two routers can reach the same accuracy at the same price by making opposite
 mistakes in equal numbers.
 
-`routable.py` already establishes that only some tasks can carry routing
-information at all, by crossing the cheap rung's verdict with the expensive
-rung's:
+`routable.py` establishes that only some tasks carry routing information at all,
+by crossing the cheap rung's verdict with the expensive rung's:
 
     both_ok     cheap right, expensive right   any router scores 1
     routable    cheap wrong, expensive right   the ONLY cell routing can win
@@ -33,16 +27,11 @@ turns a percentage into a named account:
 $0.31 escalating 21 tasks the cheap rung already had, and escalated 2 tasks it
 then got wrong".
 
-Two things to read carefully rather than quote:
-
-  The cross-tab is a property of the LADDER, not of the policy, so a scorecard is
-  only comparable within one ladder's results file. Different ladders are
-  different models.
-
-  A single-draw cross-tab treats a flaky task as decided. `redraw.<ladder>.json`
-  measures how much of the routable cell is reproducible - about two thirds of
-  it on the wide ladder - so treat the rescue counts as being about this
-  measurement rather than about an infinitely repeated one.
+Two caveats. The cross-tab is a property of the LADDER, not the policy, so a
+scorecard is only comparable within one ladder's results file. And a single-draw
+cross-tab treats a flaky task as decided: `redraw.<ladder>.json` measures how much
+of the routable cell reproduces - about two thirds on `wide` - so read the rescue
+counts as being about this measurement, not an infinitely repeated one.
 
     python -m llm_routing.scorecard                    # results.<ladder>.jsonl
     python -m llm_routing.scorecard --results runs/results.claude.jsonl
@@ -94,17 +83,16 @@ CORRECT_OUTCOMES = {
 def outcome_of(cell, used_expensive, correct):
     """What this policy did on this task, and whether it was a mistake.
 
-    THE THIRD ACTION. An earlier version of this read the decision as binary -
-    escalated or not - and got the oracle wrong: it rescued `math-422` and
-    `math-432`, both in the `routable` cell, with `calls = ['cheap'] * 5`. That
-    is cheap-rung SELF-CONSISTENCY, a third action that costs five cheap calls
-    and no expensive one, and the binary reading filed both as missed rescues
-    while the same rows said `correct: true`.
+    THE THIRD ACTION. Reading the decision as binary - escalated or not - gets
+    the oracle wrong. It rescues `math-422` and `math-432`, both in the `routable`
+    cell, with `calls = ['cheap'] * 5`: that is cheap-rung SELF-CONSISTENCY, a
+    third action costing five cheap calls and no expensive one. A binary reading
+    files both as missed rescues while the same rows say `correct: true`.
 
     So the cell is a prediction and `correct` is the observation, and where they
     disagree the observation wins. Those disagreements are not noise to be
     smoothed over - `rescued_without_top_rung` is the measured size of the effect
-    `scripts/resample_vs_reroute.py` exists to ask about, which is whether
+    `scripts/provenance/resample_vs_reroute.py` exists to ask about, which is whether
     majority-of-k substitutes for escalating.
     """
     if used_expensive:
@@ -115,18 +103,13 @@ def outcome_of(cell, used_expensive, correct):
             "inverted": ("harmful_escalation", True),
         }[cell]
     if cell in ("routable", "both_fail"):
-        # The cross-tab says one greedy cheap call fails here and the TOP rung
-        # is the only thing that fixes it. Getting it right without reaching the
-        # top rung means something else did the work, and on this repo's data
-        # there are two such mechanisms:
-        #
-        #   cheap-rung self-consistency - the oracle recovers math-422 and
-        #   math-432 with calls = ['cheap'] * 5;
-        #
-        #   a MIDDLE rung - on the three-rung claude ladder always_mid solves 12
-        #   routable tasks, and it neither escalates nor resamples. Calling that
-        #   "resampling" was wrong, which is why this bucket is named for what
-        #   it is not rather than for one guess at what it is.
+        # The cross-tab says one greedy cheap call fails here and only the TOP
+        # rung fixes it, so getting it right without reaching the top means
+        # something else did the work. Two mechanisms do, on this data:
+        # cheap-rung self-consistency (the oracle recovers math-422 and math-432
+        # with calls = ['cheap'] * 5), and a MIDDLE rung (on the three-rung
+        # claude ladder always_mid solves 12 routable tasks, escalating and
+        # resampling neither). Hence a bucket named for what it is NOT.
         if correct:
             return "rescued_without_top_rung", False
         return ("missed_rescue", True) if cell == "routable" else \
@@ -254,14 +237,10 @@ def main():
     # SET THE LADDER BEFORE IMPORTING models, VIA run_eval.
     #
     # `models` reads ROUTER_LADDER at module scope and builds MODELS/TIERS once.
-    # Scoring results.claude.jsonl while the environment still said `wide` made
-    # every response fail models.is_reachable - the model ids did not match the
-    # ladder - and the cross-tab came back with 0 tasks in it, which then
-    # divided by zero rather than saying anything useful.
-    #
-    # Reading the ladder out of the results file first and setting it here makes
-    # the tool correct whatever the environment says, which matters because the
-    # ladder a results file was measured on is a property of the file.
+    # Scoring results.claude.jsonl with the environment still on `wide` fails
+    # models.is_reachable for every response, and the cross-tab comes back empty
+    # and divides by zero. The ladder a results file was measured on is a
+    # property of the file, so it is read from there rather than the environment.
     if os.environ.get("ROUTER_LADDER") != ladder:
         os.environ["ROUTER_LADDER"] = ladder
     from llm_routing import run_eval

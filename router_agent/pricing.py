@@ -10,7 +10,7 @@ the price table are shared. That keeps one price table in the repository, which
 is what makes a dollar figure from the router comparable to a dollar figure
 from `run_eval.py`.
 
-Output lengths are calibrated on measurement, not on a guess. The 6 August 2026
+Output lengths are calibrated on measurement, not on a guess. The two-arm
 probe metered 318 real responses and found the modelled 80-120 tokens in the
 original cost estimate to be wrong by roughly 6x on hard maths - which is why
 that probe cost $0.92 against a $0.44 projection. The constants below are the
@@ -22,7 +22,7 @@ from __future__ import annotations
 from llm_routing import models
 
 # Mean OUTPUT tokens per answer, measured on the `wide` ladder during the
-# 6 August 2026 two-arm probe (docs/RESULTS.md §1, "What the probe cost").
+# two-arm probe (docs/RESULTS.md §1, "What the probe cost").
 #
 #   maths  650  level-5 MATH500 problems produce long derivations
 #   code    55  MBPP+ solutions are short functions

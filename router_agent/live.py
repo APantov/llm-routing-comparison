@@ -1,48 +1,29 @@
 """The bridge: an arbitrary query becomes something the benchmark can run.
 
-Everything in the research core takes a *task dict* - a row of `taskset.jsonl`
-carrying a prompt, a domain, and a `grader_payload` holding the right answer.
-That shape is what `models.call` keys its cache on, what `graders.grade` marks
-against, and what `policies.py` routes.
+The research core takes a *task dict* - a row of `taskset.jsonl` with a prompt, a
+domain, and a `grader_payload` holding the right answer. That shape is what
+`models.call` keys its cache on, `graders.grade` marks against, and `policies.py`
+routes. A served query has a prompt and nothing else, so this module manufactures
+the smallest task dict the existing machinery accepts, and serving reuses the
+benchmark's client, price table, cache and cost accounting.
 
-A served query has a prompt and nothing else. No answer, no difficulty label,
-no asserts. This module manufactures the smallest task dict that the existing
-machinery will accept, so that serving reuses the benchmark's model client,
-price table, response cache and cost accounting rather than reimplementing
-them.
-
---------------------------------------------------------------------------
-The asymmetry this module exists to make visible
---------------------------------------------------------------------------
-
-Two things the benchmark's policies read simply do not exist in production, and
-pretending otherwise is how a routing result stops replicating:
+TWO THINGS THE BENCHMARK READS THAT PRODUCTION DOES NOT HAVE, and pretending
+otherwise is how a routing result stops replicating:
 
 **1. Ground truth.** `graders.grade` needs the answer. Serving has none, so
-nothing here reports correctness - only `verified`, which is a verifier's
-opinion. `verifiers.py` is where that distinction is enforced.
+nothing here reports correctness - only `verified`, a verifier's opinion.
+`verifiers.py` enforces that distinction.
 
-**2. The difficulty label.** The benchmark used to route maths on
-`predict_features["level"] >= 5` - MATH500's own annotation, shipped with the
-dataset and written by a human who had already solved the problem. A user's
-query arrives with no such field and never will.
+**2. The difficulty label.** MATH500 ships `level`, written by a human who had
+already solved the problem; a user's query never carries one. That is worse than
+a caveat: with the maths half restricted to level 5 the label is CONSTANT, which
+made the benchmark's old `predictive` policy `always_expensive` on 60% of the
+task set (policies.py DECISION #4). The serving heuristic below reads only the
+query text, which is all a real router ever has.
 
-That asymmetry was stated here as a caveat, and on 8 August 2026 it turned out
-to be worse than a caveat. With the maths half restricted to level 5, the label
-was CONSTANT, so the benchmark's `predictive` policy was not routing at all -
-it was `always_expensive` on 60% of the task set. The policy has been deleted
-(policies.py DECISION #4) and predictive routing in the benchmark is now
-represented by `llm_router` and `routellm`, neither of which reads a label.
-
-The serving heuristic below never had that problem and no longer has the branch
-that could import it: it reads only the query text, which is all a real router
-ever has.
-
-This cuts in the cascade's favour and it is not a thumb on the scale - it is a
-real structural difference between the two architectures. A cascade needs no
-difficulty label, because it finds out by trying. That is precisely the
-property the benchmark's framing is about, and it is the reason `cascade` is
-the default policy in `config.py`.
+This cuts in the cascade's favour, and it is a real structural difference rather
+than a thumb on the scale: a cascade needs no difficulty label because it finds
+out by trying. That is why `cascade` is the default in `config.py`.
 """
 
 from __future__ import annotations
@@ -209,15 +190,14 @@ def synthesize_task(
 # Serving-mode difficulty heuristic
 # ---------------------------------------------------------------------------
 
-# Inherited from the benchmark's deleted PREDICTIVE_CODE_CHARS, which was
-# calibrated to put the code half near the maths half's escalation rate.
+# An UNTUNED DEFAULT, not a measurement. It carries over from the benchmark's
+# deleted predictive heuristic, where it was calibrated to put the code half near
+# the maths half's escalation rate; that anchor is gone and this was not re-tuned.
 #
-# Kept at that value rather than re-tuned, and it should be read as an untuned
-# default rather than a measurement. The constant it was matched to is gone, and
-# the benchmark's own notes were blunt that prompt length is the least bad of a
-# weak set of pre-call features: measured on the probe it separates "the cheap
-# rung fails" at AUC 0.688 on the code half, and only 0.586 for the question that
-# actually matters, "would escalating fix it". See docs/LIMITATIONS.md.
+# Prompt length is the least bad of a weak set of pre-call features: measured on
+# the probe it separates "the cheap rung fails" at AUC 0.688 on the code half, and
+# only 0.586 for the question that actually matters, "would escalating fix it".
+# See docs/LIMITATIONS.md.
 _LONG_PROMPT_CHARS = 100
 
 _HARD_MARKERS = (
@@ -230,7 +210,7 @@ _HARD_MARKERS = (
 def predict_is_hard_live(task: dict) -> bool:
     """The deployable predictive heuristic: query text only, always.
 
-    QUERY TEXT ONLY IS NOW UNCONDITIONAL. Until 8 August 2026 this function had
+    QUERY TEXT ONLY IS NOW UNCONDITIONAL. This function used to have
     a branch: when a task carried a `level` field it delegated to the
     benchmark's `policies.predict_is_hard`, so that the serving heuristic and
     the benchmark policy could not drift apart on evaluation tasks.

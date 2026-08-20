@@ -29,31 +29,29 @@ from llm_routing import response_cache
 from llm_routing import splits
 from llm_routing.policies import POLICIES, POLICY_DOMAINS
 
-# One file per ladder, always. There is no unsuffixed `results.jsonl`:
-# it used to be a copy of whichever ladder ran last, which is a second
+# One file per ladder, always. There is deliberately no unsuffixed
+# `results.jsonl`: it would be a copy of whichever ladder ran last, and a second
 # source of truth that can silently disagree with the first.
 RESULTS = paths.RUNS / f"results.{models.LADDER}.jsonl"
 
 # Hard spend cap, enforced in code rather than by willpower.
 #
-# It MOVED on 9 August 2026, from a check in this module's policy loop to
-# `models.call`, next to the one line that can charge a card. The old placement
-# only covered the loop, so everything spent before it - the llm_router routing
-# pre-pass, estimator fitting on the calibration half - was outside the cap.
+# It lives in `models.call`, next to the one line that can charge a card, rather
+# than in this module's policy loop. A check in the loop would miss everything
+# spent before it - the llm_router routing pre-pass, estimator fitting on the
+# calibration half.
 #
-# Re-exported under the old name because this is where a reader looks for it,
-# and because the README and docs/RESULTS.md point at `run_eval.MAX_SPEND_USD`.
+# Re-exported under this name because this is where a reader looks for it, and
+# because the README and docs/RESULTS.md point at `run_eval.MAX_SPEND_USD`.
 #
-# PER RUN, not per project: a runaway guard, sitting above the largest planned
-# run and far below the funded card, so a bug costs one run rather than the
-# budget. $20 -> $3 on 8 August, $3 -> $5 on 9 August. The $5 is set against
-# docs/RESULTS.md section 4 (what it cost), whose largest single buy is E at ~$2.64 and whose whole
-# sequence is ~$4.0; $3 would have bound partway through E, which is the worst
-# place for a cap to bind - not a bug, just a plan the guard had not been told
-# about.
+# PER RUN, not per project: a runaway guard sitting above the largest planned run
+# and far below the funded card, so a bug costs one run rather than the budget.
+# $5 is set against docs/RESULTS.md section 4, whose largest single buy is ~$2.64
+# and whose whole sequence is ~$4.0 - a cap that binds partway through a buy is
+# the worst place for one to bind.
 #
-# Override per run rather than editing anything - a cap that is routinely
-# edited is not a cap:
+# Override per run rather than editing it; a cap that is routinely edited is not
+# a cap:
 #
 #     ROUTER_MAX_SPEND_USD=8 ROUTER_MODE=real python -m llm_routing.run_eval
 MAX_SPEND_USD = models.MAX_SPEND_USD
@@ -65,16 +63,10 @@ MAX_SPEND_USD = models.MAX_SPEND_USD
 # reaches through `models.` at except time instead. The float above is safe to
 # alias because it is a value, and a reload reads the same environment variable.
 
-# ---------------------------------------------------------------------------
-# The pilot gate: the band the cheap-model failure rate has to land in for the
-# task set to be worth running at all.
-#
-# Below the floor, the cheap model is nearly always right and a cascade has
-# almost nothing to route, so every policy collapses towards always_cheap. Above
-# the ceiling, the cheap model is nearly always wrong, the cascade escalates
-# everything, and every policy collapses towards always_expensive. Routing
-# decisions only carry information in between.
-# ---------------------------------------------------------------------------
+# The pilot gate: the band the cheap-model failure rate must land in for the task
+# set to be worth running. Below the floor every policy collapses towards
+# always_cheap, above the ceiling towards always_expensive. Routing decisions
+# only carry information in between.
 FAILURE_RATE_FLOOR = 0.20
 FAILURE_RATE_CEILING = 0.55
 
@@ -207,7 +199,7 @@ def provenance(simulated=None):
 
     Pass `simulated` when the caller knows what actually served the row - see
     run(), which measures it per row from models.call_stats. The fallback below
-    is a guess from the run mode, and on 7 August 2026 it guessed wrong for 370
+    is a guess from the run mode, and it once guessed wrong for 370
     rows: it asks whether the real cache FILE exists, which says nothing about
     whether any given response came out of it.
     """
@@ -306,14 +298,11 @@ def run(tasks):
             try:
                 res = fn(task)
             except models.ReplayMiss:
-                # Drop the policy ENTIRELY, including rows already collected for
-                # it, rather than scoring it on whichever tasks happened to be
-                # cached. A partially-replayed policy is measured on a biased
-                # subset - the tasks some earlier run chose to record - and would
-                # be reported next to fully-scored policies as if comparable.
-                # `applicable` already keeps routellm out on exactly this
-                # reasoning; this is the same rule applied at call time, where a
-                # missing recording is the thing that reveals the problem.
+                # Drop the policy ENTIRELY, rows already collected included,
+                # rather than scoring it on whichever tasks happened to be cached:
+                # a partially-replayed policy is measured on a biased subset and
+                # reported next to fully-scored ones as if comparable. Same rule
+                # `applicable` applies to routellm, at call time.
                 uncached[name] = task["id"]
                 continue
             attributed += res.cost_usd
@@ -385,15 +374,11 @@ def routing_skill(by_policy):
 
         skill = (acc_router - null_at_router's_cost) / (acc_oracle - null)
 
-    THE NULL IS COMPUTED AT EACH POLICY'S OWN SPEND, changed 8 August 2026.
+    THE NULL IS COMPUTED AT EACH POLICY'S OWN SPEND.
 
-    It used to be `random_matched`'s accuracy for everybody. That was only ever
-    valid for one policy - the one `random_matched` was rate-matched to - and it
-    quietly compared every other policy against a null at somebody else's
-    spending level. Both cascades were being scored against a null matched to the
-    predictive heuristic's rate, which was never the intent. Deleting that
-    heuristic and putting `routellm` on a fixed threshold removed the last reason
-    to pretend one null fits all.
+    Using `random_matched`'s accuracy for everybody is only valid for the one
+    policy it is rate-matched to; every other policy would be compared against a
+    null at somebody else's spending level, which is not a skill measurement.
 
     The null for a one-shot router that spends C is closed-form: randomising
     between the two rungs at probability p costs C_cheap + p*(C_exp - C_cheap)
@@ -462,14 +447,12 @@ def routing_skill(by_policy):
             if lo is None:
                 continue
             label = domain or "all"
-            # The ratio needs headroom to be meaningful, and "meaningful" here
-            # has a natural unit: one task, worth 1/n of accuracy. A policy that
-            # spends near always_expensive gets a null that sits within a task or
-            # two of the oracle, and then a single task flipping moves the ratio
-            # by more than the entire headroom - which is how a coin flip prints
-            # -417% and looks like a finding. Report n/a instead. This is a
-            # property of the policy's SPENDING LEVEL, not of its skill: at that
-            # budget there is almost nothing left for any router to win.
+            # The ratio needs headroom, measured in its natural unit: one task,
+            # worth 1/n of accuracy. A policy spending near always_expensive gets
+            # a null within a task or two of the oracle, and one task flipping
+            # then moves the ratio by more than the whole headroom - which is how
+            # a coin flip prints -417% and looks like a finding. Report n/a: this
+            # is a property of the SPENDING LEVEL, not of skill.
             headroom = hi - lo
             if headroom < 1.0 / max(n, 1) + 1e-12:
                 skill = "     n/a"
@@ -531,13 +514,10 @@ def report(rows):
     for r in rows:
         by_policy[r["policy"]].append(r)
 
-    # Roughly a cost ladder, so the table reads bottom-to-top on spend. Built
-    # from models.TIERS rather than listed, so it adapts to the loaded ladder.
-    #
-    # random_matched sits immediately before the predictive family - routellm and
-    # llm_router - because it is what they have to beat before their accuracy
-    # means anything. The cascades follow, so the two architectures are adjacent
-    # blocks rather than interleaved.
+    # Roughly a cost ladder, so the table reads bottom-to-top on spend, and built
+    # from models.TIERS so it adapts to the loaded ladder. random_matched sits
+    # immediately before the predictive family it is what they must beat, and the
+    # cascades follow, so the two architectures are adjacent blocks.
     order = (
         ["always_cheap", "random_matched", "routellm", "llm_router",
          "cascade_degraded", "cascade_routing"]
@@ -618,7 +598,8 @@ def report(rows):
         print("  ACCURACY restates models.MOCK_ROUTER_SKILL and measures nothing.")
         if models.MODE == "mock":
             print("  The PERCENTAGES are softer than the dollar figure: mock answer calls")
-            print("  emit a fixed 80/120 output tokens, well under a real reply, so the")
+            print(f"  emit a flat {models.MOCK_TOKENS_OUT[models.TIERS[0]]} output tokens, "
+                  f"well under a real reply, so the")
             print("  router's share of a real answer call will be smaller than shown.")
             print("  Quote the absolute cost from a real run, not these ratios.")
 
@@ -772,7 +753,8 @@ def report(rows):
         print(
             "   These are MISSING measurements, not capability failures. Raising\n"
             "   models.MAX_TOKENS re-charges every cached response (see\n"
-            "   docs/ENGINEERING.md), so exclude the task or accept the row as\n"
+            "   docs/ARCHITECTURE.md (standing invariants)), so exclude the task\n"
+            "   or accept the row as\n"
             "   unmeasured -\n"
             "   do not read it as the model getting the answer wrong."
         )
@@ -820,8 +802,8 @@ def guard_regression(rows, force: bool):
     hazard is visible: policies are dropped mid-run by ReplayMiss, so a command
     that asks for all nine can legitimately finish with one.
 
-    That is not hypothetical. On 8 August 2026 `ROUTER_LADDER=deepseek python
-    run_eval.py` - with ROUTER_MODE=replay set in .env - found cached data for
+    That is not hypothetical. `ROUTER_LADDER=deepseek python run_eval.py` -
+    with ROUTER_MODE=replay set in .env - once found cached data for
     always_cheap only (the deepseek and wide ladders share a bottom rung, so the
     cross-ladder cache served it) and dropped the other eight. It overwrote a
     complete nine-policy wide run with 47 rows of one policy. guard_clobber
@@ -974,16 +956,15 @@ def main():
             file=sys.stderr,
         )
 
-    # Fit cascade_routing's quality estimators on the CALIBRATION half only. This
-    # uses ground truth, which is what a calibration split is for; doing it on the
-    # reporting tasks would make the policy's numbers a measure of its hindsight.
+    # Fit on the CALIBRATION half only. Fitting uses ground truth, which is what
+    # a calibration split is for; on the reporting tasks it would make the
+    # policy's numbers a measure of its hindsight.
     #
-    # ONLY WHEN A POLICY ACTUALLY NEEDS THEM. Fitting is not free: it calls EVERY
-    # rung on every calibration task, top rung included. Doing that unconditionally
-    # made `--policy always_cheap` - the difficulty probe, whose whole point is to
-    # be the cheapest possible real call - quietly spend most of its money on the
-    # expensive tier it was never meant to touch. Measured on the shipped set:
-    # 318 backend calls instead of 100, of which 49 were to the top rung.
+    # ONLY WHEN A POLICY NEEDS THEM. Fitting calls EVERY rung on every calibration
+    # task, top rung included. Unconditionally, that makes `--policy always_cheap`
+    # - the difficulty probe, whose point is to be the cheapest possible real run
+    # - spend most of its money on the expensive tier: 318 backend calls instead
+    # of 100, 49 of them to the top rung.
     needs_fit = any(n in POLICIES for n in policies.NEEDS_ESTIMATORS)
     fit_failed = None
     if calibration and needs_fit:
@@ -1034,13 +1015,11 @@ def main():
         print("cascade_routing: SKIPPED - calibration half is empty", file=sys.stderr)
 
     # Match the random baseline's spend to llm_router's on the REPORTING tasks,
-    # before anything runs. Doing it afterwards would compare against a rate
-    # measured on a different task set. See policies.py DECISION #6.
-    #
-    # The pre-pass reads the same cached routing calls policy_llm_router will
-    # make, so it costs nothing. In replay a missing one raises ReplayMiss, and
-    # the null then falls back to its declared rates - loudly, because a null
-    # that is silently at the wrong spend is worse than no null at all.
+    # before anything runs - doing it afterwards compares against a rate measured
+    # on a different task set (policies.py DECISION #6). The pre-pass reads the
+    # same cached routing calls, so it costs nothing; in replay a miss falls back
+    # to the declared rates LOUDLY, because a null silently at the wrong spend is
+    # worse than no null.
     decisions = None
     try:
         decisions = policies.llm_router_decisions(report_tasks)

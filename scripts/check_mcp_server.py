@@ -73,7 +73,7 @@ async def main() -> int:
               f"cascade vs always-best {v['cascade_vs_always_best_pct']:+}%  "
               f"from {v['economics_source']}")
         # Checks that the verdict is TRACEABLE, not that it is a particular
-        # word. This asserted `route` for deepseek until 11 August 2026, from a
+        # word. This used to assert `route` for deepseek, from a
         # mock-era constant the measurement later contradicted - the real
         # frontier for that ladder says cascade, by 4.4%.
         if v["verdict"] not in ("route", "cascade"):

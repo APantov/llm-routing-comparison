@@ -38,18 +38,15 @@ from pathlib import Path
 
 from llm_routing import paths
 
-# ---------------------------------------------------------------------------
-# Target band for the routable fraction.
+# Target band for the routable fraction. NOT the pilot gate's failure rate, and
+# the difference is the point of this file: the gate measures P(cheap fails),
+# this measures P(cheap fails AND expensive succeeds). The gap between them is
+# everything the expensive rung cannot fix.
 #
-# NOT the same quantity as the pilot gate's failure rate, and the difference is
-# the point of this file. The gate measures P(cheap fails); this measures
-# P(cheap fails AND expensive succeeds). The first is an upper bound on the
-# second, and the gap between them is everything the expensive rung cannot fix.
-#
-# 0.15 floor: below this the whole experiment has under 15 points of dynamic
-# range, so a 5-point difference between routers needs n in the thousands.
-# 0.45 ceiling: above this the cheap rung is failing so often that always_cheap
-# is not a serious baseline and the interesting comparison stops being routing.
+# Below the 0.15 floor the experiment has under 15 points of dynamic range, so a
+# 5-point difference between routers needs n in the thousands. Above the 0.45
+# ceiling always_cheap is not a serious baseline and the interesting comparison
+# stops being routing.
 ROUTABLE_FLOOR = 0.15
 ROUTABLE_CEILING = 0.45
 
@@ -168,24 +165,18 @@ def real_verdicts(tasks, ladder):
     from llm_routing import response_cache
     from llm_routing.graders import grade
 
-    # EVERY file the cache would serve this ladder from, not just its own.
+    # EVERY file the cache would serve this ladder from, not just its own. The
+    # ladder is absent from the cache key, so a response bought for one ladder
+    # serves any ladder whose rung uses the same model - which is what makes
+    # three ladders affordable.
     #
-    # The ladder is deliberately absent from the cache key, so a response bought
-    # for one ladder serves any ladder whose rung uses the same model. That is
-    # what makes three ladders affordable - `wide`'s Opus answers are `claude`'s
-    # top rung, and `wide`'s flash answers are `deepseek`'s bottom rung.
+    # Reading only raw_calls.<ladder>.jsonl therefore sees a smaller set than the
+    # experiment does: raw_calls.claude.jsonl holds haiku and sonnet but no Opus,
+    # so no task has both rungs and the cross-tab comes back empty for a fully
+    # measured ladder.
     #
-    # Reading only raw_calls.<ladder>.jsonl therefore sees a DIFFERENT and
-    # smaller set of responses than the experiment does. Concretely, on
-    # 10 August 2026: raw_calls.claude.jsonl held haiku and sonnet but no Opus,
-    # so no task had both rungs and the cross-tab came back with zero tasks in
-    # it, for a ladder that was fully measured.
-    #
-    # This is the second time this function has been wrong by reading raw files
-    # instead of going through the cache's own view (see models.is_reachable
-    # below, added when it was grading responses stranded at max_tokens=2048).
-    # The rule both fixes point at: if the experiment would not serve it, do not
-    # grade it - and if the experiment WOULD serve it, do not miss it.
+    # The rule, which models.is_reachable below also enforces: if the experiment
+    # would not serve it, do not grade it - and if it WOULD, do not miss it.
     cache_files = [p for p in (response_cache._sibling_real_paths(ladder)
                                + [paths.CACHE / f"raw_calls.{ladder}.jsonl"])
                    if p.exists()]
@@ -196,21 +187,16 @@ def real_verdicts(tasks, ladder):
     truncated = []
     orphans = 0
     # Map responses to THE REQUESTED ladder's rungs by MODEL, never by the
-    # recorded `tier`. A row's tier label belongs to the ladder it was recorded
-    # under: `wide`'s "expensive" is Opus, `deepseek`'s "expensive" is v4-pro.
-    # Reading the label across files would file Opus answers as the deepseek
-    # ladder's top rung and silently compare two different models.
+    # recorded `tier`: a row's tier label belongs to the ladder it was recorded
+    # under, so `wide`'s "expensive" is Opus and `deepseek`'s is v4-pro. Reading
+    # the label across files silently compares two different models.
     #
     # Model identity is the right key because it is what the CACHE keys on -
-    # `response_cache.make_key` hashes the model id and has never heard of a
-    # tier. Matching the way the cache matches is what makes this agree with
-    # what the experiment actually serves.
+    # `response_cache.make_key` has never heard of a tier.
     #
-    # Built from `models.LADDERS[ladder]` - the ARGUMENT - and not from
-    # `models.TIERS`, which is whichever ladder the process happens to have been
-    # imported under. Those two disagree whenever a caller asks for a ladder
-    # other than the configured one, and this function's whole signature
-    # promises it will answer for the ladder it was passed.
+    # Built from `models.LADDERS[ladder]`, the ARGUMENT, not `models.TIERS`,
+    # which is whichever ladder the process was imported under. The two disagree
+    # whenever a caller asks for a ladder other than the configured one.
     rung_names = models._TIER_NAMES.get(len(models.LADDERS[ladder]))
     if rung_names is None:
         raise ValueError(f"no rung names for a {len(models.LADDERS[ladder])}-rung ladder")
@@ -245,18 +231,15 @@ def real_verdicts(tasks, ladder):
             continue
         if models.is_truncated(d):
             # LEFT UNMEASURED rather than graded False. A response cut off at
-            # max_tokens never reached its \boxed{}, so the grader would score
-            # it wrong for a reason that is not about the model - and a wrong
-            # CHEAP verdict here puts the task in `routable`, inflating the
-            # headline this file computes.
-            #
-            # Concretely, before this: math-96's cheap draw was truncated, so
-            # the cross-tab called it routable. Ten fresh cheap draws get it
-            # right 10 times out of 10. It was never a routing opportunity.
+            # max_tokens never reached its \boxed{}, so grading it wrong is a
+            # statement about the cap, not the model - and a wrong CHEAP verdict
+            # puts the task in `routable`, inflating this file's headline.
+            # math-96 was called routable that way; ten fresh cheap draws get it
+            # right 10 out of 10.
             #
             # Dropping the tier drops the TASK, because crosstab needs both
-            # rungs. That is the correct arithmetic: an unmeasured pair cannot
-            # be classified into any of the four cells.
+            # rungs. That is the correct arithmetic: an unmeasured pair cannot be
+            # classified into any of the four cells.
             truncated.append((d["task_id"], tier))
             continue
         out[d["task_id"]][tier] = grade(task, d["text"])
@@ -270,8 +253,8 @@ def real_verdicts(tasks, ladder):
         for task_id, tier in sorted(truncated):
             print(f"     {task_id:<16} {tier:<10} dropped from the cross-tab")
         print(f"     n falls by that many pairs. Raising models.MAX_TOKENS "
-              f"re-charges every\n     cached response (docs/ENGINEERING.md section "
-              f"1), so the task is excluded instead.")
+              f"re-charges every\n     cached response\n     "
+              f"(docs/ARCHITECTURE.md (standing invariants)), so the task is excluded instead.")
     return out
 
 
@@ -306,7 +289,7 @@ def review_queue(verdicts, by_id, lo_tier="cheap", hi_tier="expensive"):
 
     Every both_fail task is one of two things, and the cross-tab cannot tell
     them apart: a genuinely hard task, or a task whose expected answer is not
-    derivable from its prompt. On 8 August 2026 all four both_fail code tasks
+    derivable from its prompt. At one point all four both_fail code tasks
     turned out to be the second kind, and because they were also ALL of
     always_expensive's failures they were setting the ceiling for every policy
     in the project. Nobody looked, because "both models failed" reads as

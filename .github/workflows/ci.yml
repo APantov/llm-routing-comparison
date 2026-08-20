@@ -45,7 +45,7 @@ jobs:
 
       - name: Regression gate
         # Exits non-zero if a grader is broken OR too lax. This is the gate
-        # that failed to catch a real grader bug in July 2026 by only testing
+        # that failed to catch a real grader bug by only testing
         # grade(GT, GT); it now checks equivalent formattings and near-misses.
         run: python -m llm_routing.sanity_check
 

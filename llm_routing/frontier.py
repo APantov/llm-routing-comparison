@@ -1,40 +1,32 @@
 """Cost-quality frontiers, and a single number to compare them by.
 
-WHY A CURVE AND NOT A TABLE ROW
--------------------------------
-Every policy in this repo has a knob. `cascade` has an agreement threshold,
-`routellm` has a score threshold, `cascade_routing` has lambda, and the random
-baseline has its escalation rate. Turning any of them buys accuracy with money.
+WHY A CURVE AND NOT A TABLE ROW. Every policy here has a knob - `cascade` an
+agreement threshold, `routellm` a score threshold, `cascade_routing` lambda, the
+random baseline its escalation rate - and turning any of them buys accuracy with
+money. So comparing two policies at one setting each compares two arbitrary
+points, and the winner changes with either knob. That is the commonest way
+routing results mislead: "our router beat the cascade" usually means "our router
+was tuned to spend more".
 
-So comparing two policies at one setting each compares two arbitrary points, and
-the winner can be changed by turning either knob. That is the single most common
-way routing results mislead: "our router beat the cascade" usually means "our
-router was tuned to spend more". run_eval's table has exactly this problem, which
-is why the routing-skill column exists to partly correct for it.
-
-The fix is standard in the routing literature. Sweep each knob across its whole
-range, plot accuracy against cost, and compare the resulting CURVES. RouterBench
-(arXiv:2403.12031) formalises this as a cost-quality convex hull with an
-area-under-curve summary; Dekoninck et al. (arXiv:2410.10347) report AUC over
-swept lambda for the same reason. This module does that here.
+The fix is standard: sweep each knob across its range, plot accuracy against
+cost, compare the CURVES. RouterBench (arXiv:2403.12031) formalises this as a
+cost-quality convex hull with an AUC summary; Dekoninck et al.
+(arXiv:2410.10347) report AUC over swept lambda for the same reason.
 
     python -m llm_routing.frontier
     python -m llm_routing.frontier --split all --points 15
 
 WHAT IS COMPUTED
 ----------------
-1. Each policy's own operating points, from sweeping its knob.
-2. Its ACHIEVABLE frontier: the upper convex hull of those points. The hull, not
-   just the staircase, because any point on the segment between two achievable
-   operating points is itself achievable by randomising between them. That is a
-   real construction, not a smoothing convenience.
-3. AUC: the area under that hull across a cost interval shared by every policy,
-   divided by the width of the interval. It has the units of accuracy, and it
-   reads as "average accuracy this policy delivers across the whole budget
-   range". Higher is better.
-4. The same number for the random baseline, and the difference. That difference is
-   the honest headline: how much accuracy the policy buys, at matched spend,
-   across every budget rather than at one convenient budget.
+1. Each policy's operating points, from sweeping its knob.
+2. Its ACHIEVABLE frontier: the upper convex HULL of those points, not the
+   staircase - any point between two achievable operating points is itself
+   achievable by randomising between them.
+3. AUC: area under that hull across a cost interval shared by every policy,
+   divided by the interval width. Units of accuracy; reads as "average accuracy
+   across the whole budget range".
+4. The same for the random baseline, and the difference - the honest headline:
+   accuracy bought at matched spend across every budget, not one convenient one.
 
 Free, because of the response cache: every point in every sweep reuses the same
 model responses.
@@ -114,18 +106,12 @@ def sweep_cascade(tasks, _n_points):
     return out
 
 
-# `sweep_predictive` was removed on 8 August 2026 with the policy it swept.
-#
-# Worth recording WHY it was not merely unused but wrong. It picked per-domain
-# thresholds to hit a target escalation rate, drawn from the values actually
-# present in the task set. On the math half those values were {5} - a single
-# level, because MIN_MATH_LEVEL = 5 - so the sweep had exactly two attainable
-# points there, rate 0 and rate 1, and could not trace a curve at all.
-#
-# The report that came out of it, "predictive contributes no point to the
-# frontier", was therefore a description of a degenerate sweep rather than a
-# finding about predictive routing. The predictive family is now represented by
-# sweep_routellm below, whose knob is a continuous score threshold.
+# `sweep_predictive` went with the policy it swept, and was wrong rather than
+# merely unused: it picked per-domain thresholds from the values present in the
+# task set, and on the math half those are {5} because MIN_MATH_LEVEL = 5. Two
+# attainable points, no curve - so "predictive contributes no point to the
+# frontier" described a degenerate sweep rather than predictive routing. The
+# family is now represented by sweep_routellm, whose knob is continuous.
 
 
 def sweep_routellm(tasks, n_points):
@@ -150,10 +136,10 @@ def sweep_routellm(tasks, n_points):
 def sweep_cascade_routing(tasks, n_points):
     """Sweep lambda, the price of quality in dollars.
 
-    Geometric rather than linear, because lambda multiplies a cost measured in
-    thousandths of a dollar against a quality in [0, 1]. The behaviour changes
-    over orders of magnitude, so a linear grid would put almost every point in the
-    region where lambda is large enough that nothing is ever worth buying.
+    Geometric rather than linear: lambda multiplies a cost in thousandths of a
+    dollar against a quality in [0, 1], so the behaviour changes over orders of
+    magnitude and a linear grid would put almost every point in the region where
+    nothing is ever worth buying.
 
     lambda = 0 means money is free, so the policy climbs to the top tier. Very
     large lambda means quality is worthless, so it stops at the cheapest.
@@ -290,9 +276,9 @@ def main():
             policies.fit_estimators(calibration)
         except models.ReplayMiss as exc:
             # Same rule as run_eval: sit the estimator-dependent families out
-            # rather than take the whole sweep down with them. SWEEPS is
-            # filtered below on ESTIMATORS_FITTED, which fit_estimators leaves
-            # False when it raises.
+            # rather than take the whole sweep down with them. SWEEPS is filtered
+            # on ESTIMATORS_FITTED, which fit_estimators leaves False when it
+            # raises.
             print(f"cascade_routing: SKIPPED - estimators cannot be fitted from "
                   f"this cache.\n  {str(exc).splitlines()[0]}", file=sys.stderr)
     policies.calibrate_random_rates(tasks)

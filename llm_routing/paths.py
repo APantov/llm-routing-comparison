@@ -1,16 +1,9 @@
 """Every filesystem location this project reads or writes, resolved once.
 
-Before the 11 August 2026 restructure the research modules sat at the repository
-root, so `Path(__file__).parent` *was* the root and each module spelled out its
-own anchor. Now they sit one directory down, and that idiom would silently
-resolve to `llm_routing/` - finding no `data/`, no `cache/`, and no `.env`.
-Silently, because most of the callers treat a missing file as "not built yet"
-rather than as an error, so the failure would look like an empty run instead of
-a broken path.
-
-One anchor, therefore, and every module imports it rather than deriving it.
-Moving a directory is then a one-line edit here instead of a hunt through
-sixteen modules.
+One anchor, imported rather than derived. `Path(__file__).parent` in any module
+here resolves to `llm_routing/`, finding no `data/`, no `cache/` and no `.env` -
+and silently, because most callers treat a missing file as "not built yet" rather
+than an error, so the failure looks like an empty run instead of a broken path.
 
 THE THREE CLASSES OF PATH, which are kept apart on purpose:
 

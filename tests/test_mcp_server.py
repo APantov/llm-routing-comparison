@@ -64,7 +64,7 @@ class TestTools:
     async def test_explain_routing_returns_the_verdict(self, server):
         """The tool serves whatever that ladder's frontier measured.
 
-        Pinned to "route" for deepseek until 11 August 2026, from a mock-era
+        Pinned to "route" for deepseek at one point, from a mock-era
         constant that the measurement later contradicted. What the tool owes a
         caller is a verdict traceable to a real run, not a particular one.
         """

@@ -108,7 +108,7 @@ class TestPredictIsHardLive:
         """A shipped `level` must not change the verdict. The inverse of the
         test this replaces, and it encodes why the benchmark policy was deleted.
 
-        Until 8 August 2026 this function delegated to policies.predict_is_hard
+        This function used to delegate to policies.predict_is_hard
         whenever a `level` was present, so the "query text only" promise held
         only for queries that happened to lack the field. That predicate read a
         difficulty annotation written by someone who had already solved the

@@ -75,8 +75,8 @@ Homepage = "https://github.com/APantov/llm-routing-comparison"
 # Two packages, one arrow: `router_agent` imports `llm_routing`, never the
 # reverse, and CI has a job whose only purpose is to keep it that way.
 #
-# `llm_routing` was a flat set of modules at the repository root until
-# 11 August 2026. Each is still runnable on its own and still reads top to
+# `llm_routing` was a flat set of modules at the repository root before the
+# restructure. Each is still runnable on its own and still reads top to
 # bottom - `python -m llm_routing.run_eval` - and importantly that still needs
 # no install and no PYTHONPATH, which is what the bare-interpreter CI job
 # checks.

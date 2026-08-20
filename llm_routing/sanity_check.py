@@ -11,8 +11,8 @@ into a pre-commit hook or CI.
 
 THREE checks, and the third exists because the first two are not enough. Feeding
 the ground-truth answer back into \\boxed{} only ever tests grade(GT, GT), which
-passes by construction however broken the normaliser is. On 6 August 2026 this
-file printed 60/60 while the maths grader was rejecting `1+\\sqrt{19},1-\\sqrt{19}`
+passes by construction however broken the normaliser is. This file once
+printed 60/60 while the maths grader was rejecting `1+\\sqrt{19},1-\\sqrt{19}`
 against a ground truth of `1\\pm\\sqrt{19}` - seven such false negatives in one
 100-task probe, five of them on the expensive model, costing it five accuracy
 points that were reported as a capability result.
@@ -30,7 +30,7 @@ from llm_routing import paths
 from llm_routing.graders import grade
 
 # (ground truth, a DIFFERENTLY FORMATTED but correct answer). Must grade True.
-# Every pair here is a real case observed in the 6 August 2026 probe.
+# Every pair here is a real case observed in the two-arm probe.
 EQUIVALENT = [
     (r"1 \pm \sqrt{19}", r"1+\sqrt{19},\ 1-\sqrt{19}"),
     (r"3 \pm 2 \sqrt{2}", r"3+2\sqrt{2},\; 3-2\sqrt{2}"),
@@ -39,9 +39,9 @@ EQUIVALENT = [
     (r"\$18.90", r"18.90"),
     (r"3R^2", r"AF^2+BF^2+CF^2 = 3R^2"),
     (r"(3,4]", r"3 < \lambda \le 4"),
-    # Redundant braces on superscripts and subscripts. The 6 August fix caught
-    # \sqrt and \frac but not ^ and _, so this class survived it; found by audit
-    # on 8 August 2026. math-481's shipped answer is literally `8n^2 + 4n + 1`,
+    # Redundant braces on superscripts and subscripts. The first grader fix
+    # caught \sqrt and \frac but not ^ and _, so this class survived it and was
+    # found by a later audit. math-481's shipped answer is literally `8n^2 + 4n + 1`,
     # and `8n^{2}+4n+1` is an equally natural way for a model to write it.
     (r"8n^2 + 4n + 1", r"8n^{2}+4n+1"),
     (r"3R^2", r"3R^{2}"),

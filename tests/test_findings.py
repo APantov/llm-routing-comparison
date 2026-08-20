@@ -1,7 +1,7 @@
 """The findings module, and the guarantee that it never invents a number.
 
 These tests are regression protection for a specific failure this repository
-has already had once: on 6 August 2026 a grader bug moved the routable fraction
+has already had once: a grader bug moved the routable fraction
 from 13.0% to 15.0%. Any figure that had been transcribed into source would
 have silently kept saying 13% - so `findings` recomputes from the committed
 data, and these tests check that the recomputation still matches the documented
@@ -31,7 +31,7 @@ class TestProbe:
         """The probe figures the docs quote, against a regenerable snapshot.
 
         These used to be literals in this file, and they went stale twice: once
-        when the 6 August task-set rebuild moved every magnitude, and again when
+        when the task-set rebuild moved every magnitude, and again when
         the code half was rebuilt from 35 tasks to 366. Both times the test
         failed for the right reason and taught nothing, because a pinned
         magnitude cannot distinguish "the measurement moved" from "the
@@ -43,14 +43,14 @@ class TestProbe:
         changes, and what is asserted here is that nothing has drifted since
         someone last looked.
 
-            python scripts/freeze_probe.py      # after a task-set change
+            python scripts/provenance/freeze_probe.py      # after a task-set change
         """
         probe = findings.load_probe()
         if probe is None:
             pytest.skip("results.probe.jsonl not present in this checkout")
         snap_path = REPO_ROOT / "tests" / "frozen_probe.json"
         if not snap_path.exists():
-            pytest.skip("no frozen_probe.json; run scripts/freeze_probe.py")
+            pytest.skip("no frozen_probe.json; run scripts/provenance/freeze_probe.py")
         snap = json.loads(snap_path.read_text(encoding="utf-8"))
 
         got = {
@@ -62,13 +62,13 @@ class TestProbe:
             f"  frozen: {snap['cells']}\n"
             f"  now:    {got}\n"
             f"  If the task set changed on purpose, re-freeze:\n"
-            f"    python scripts/freeze_probe.py --go"
+            f"    python scripts/provenance/freeze_probe.py --go"
         )
         for key, want in snap["rates"].items():
             assert getattr(probe, key) == pytest.approx(want, abs=0.001), key
 
     def test_probe_holds_no_quarantined_rows(self):
-        """The probe was purged on 9 August 2026, not filtered.
+        """The probe was purged, not filtered.
 
         load_probe has no quarantine logic in it any more - there is nothing
         left to screen. If a broken task reappeared in this file it would be
@@ -91,7 +91,7 @@ class TestProbe:
             pytest.skip("results.probe.jsonl not present in this checkout")
         snap_path = REPO_ROOT / "tests" / "frozen_probe.json"
         if not snap_path.exists():
-            pytest.skip("no frozen_probe.json; run scripts/freeze_probe.py")
+            pytest.skip("no frozen_probe.json; run scripts/provenance/freeze_probe.py")
         snap = json.loads(snap_path.read_text(encoding="utf-8"))
         lo, hi = probe.ci95()
         assert lo == pytest.approx(snap["ci95"][0], abs=0.1)
@@ -110,23 +110,23 @@ class TestProbe:
             pytest.skip("results.probe.jsonl not present in this checkout")
         snap_path = REPO_ROOT / "tests" / "frozen_probe.json"
         if not snap_path.exists():
-            pytest.skip("no frozen_probe.json; run scripts/freeze_probe.py")
+            pytest.skip("no frozen_probe.json; run scripts/provenance/freeze_probe.py")
         snap = json.loads(snap_path.read_text(encoding="utf-8"))
         for domain, want in snap["by_domain"].items():
             assert probe.by_domain[domain]["routable_pct"] == pytest.approx(
                 want["routable_pct"], abs=0.1), domain
-        # RETRACTED 8 August 2026: "code is the harder domain" was an artefact.
+        # RETRACTED: "code is the harder domain" was an artefact.
         # All 5 of its both_fail tasks were unpassable, not hard, so the code
         # half now has ZERO both_fail and a 100% rescue rate - the clean cascade
         # structure. Pinned here because it is the claim most likely to creep
-        # back into the docs. See docs/ENGINEERING.md (the quarantine rule).
+        # back into the docs. See docs/METHOD.md (the quarantine rule).
         for domain, want in snap["by_domain"].items():
             assert probe.by_domain[domain]["both_fail"] == want["both_fail"], (
                 f"{domain} both_fail moved from {want['both_fail']} to "
                 f"{probe.by_domain[domain]['both_fail']}. Every both_fail task "
                 f"is either genuinely hard or unpassable-by-spec, and an "
                 f"unpassable one silently caps every policy - adjudicate before "
-                f"re-freezing. scripts/triage_both_fail.py builds the queue.")
+                f"re-freezing. scripts/provenance/triage_both_fail.py builds the queue.")
 
     def test_never_reports_simulated_rows_as_measured(self, tmp_path):
         """A mock row must not be able to contaminate a 'measured' figure."""
@@ -181,8 +181,8 @@ class TestRatioVerdict:
         """The economics come from that ladder's own frontier run, always.
 
         This test used to assert a SIGN per ladder - deepseek routes, claude and
-        wide cascade - taken from constants recorded from mock runs on 30 July
-        2026. When all three ladders were finally measured, two of the three
+        wide cascade - taken from constants recorded from early mock runs.
+        When all three ladders were finally measured, two of the three
         were backwards: on real models the cascade is cheaper at deepseek's
         3.11x and DEARER at claude's 6.5x.
 
@@ -211,8 +211,8 @@ class TestRatioVerdict:
     def test_every_verdict_declares_where_it_came_from(self):
         """The flag must track its source, not pin the project to a moment.
 
-        This asserted `economics_simulated is True` unconditionally until
-        August 2026, which encoded "the economics have never been run against
+        This used to assert `economics_simulated is True` unconditionally,
+        which encoded "the economics have never been run against
         real models" as if it were an invariant. It is a fact about the
         project's state, and the first replay or real frontier run falsifies
         it - so the test would have gone red at precisely the moment the
@@ -231,7 +231,7 @@ class TestRatioVerdict:
     def test_real_accuracy_data_tracks_the_frontier_file(self):
         """True exactly when this ladder's frontier came from real responses.
 
-        Pinned to `wide` alone until 11 August 2026, which encoded "only one
+        Pinned to `wide` alone at one point, which encoded "only one
         ladder has ever been measured" as though it were an invariant. Three
         have been.
         """

@@ -23,23 +23,20 @@
                    └──────┴──────────── stop ────────────┘
                         answer
 
-**Why this is a graph and not a `while` loop.** The edge from `escalate` back
-to `answer` is a cycle, and it is the reason LangGraph earns its place here
-rather than being decoration over a loop:
+**Why a graph and not a `while` loop.** The `escalate` -> `answer` edge is a
+cycle, and it is what makes LangGraph earn its place:
 
-  * **Checkpointing across the cycle.** State is persisted at every step, so a
-    run that pauses mid-cascade resumes on the rung it stopped at rather than
-    restarting and re-paying for the cheap call.
-  * **The interrupt is inside the loop.** Human approval is needed *before an
-    escalation*, which is a point in the middle of the iteration, not before or
-    after it. A `while` loop would have to hand-roll suspend and resume; here
-    `interrupt()` suspends the graph and `Command(resume=...)` continues it.
-  * **The trace is structural.** Every lap appends to the reducer-backed
-    channels, so "why did this cost 40 cents" is answered by reading state, not
-    by correlating log lines.
+  * **Checkpointing across the cycle** - state persists at every step, so a run
+    that pauses mid-cascade resumes on the rung it stopped at instead of
+    re-paying for the cheap call.
+  * **The interrupt is inside the loop.** Approval is needed *before an
+    escalation*, mid-iteration. A `while` loop would hand-roll suspend/resume;
+    here `interrupt()` suspends and `Command(resume=...)` continues.
+  * **The trace is structural** - every lap appends to reducer-backed channels,
+    so "why did this cost 40 cents" is answered by reading state.
 
-The graph is compiled once per (checkpointer, approval) combination and cached,
-because compilation is not free and the shape never varies with the query.
+Compiled once per (checkpointer, approval) pair and cached: compilation is not
+free and the shape never varies with the query.
 """
 
 from __future__ import annotations

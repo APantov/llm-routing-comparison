@@ -1,12 +1,11 @@
 """MCP server: the routing engine, exposed as tools any MCP client can call.
 
-Why this is worth exposing over MCP rather than leaving as a library: an agent
-that calls models is already making routing decisions, implicitly and usually
-badly - it picks one model in its config and uses it for everything. Handing it
-a `route_query` tool turns that into an explicit, priced, auditable decision,
-and one that reports what it spent.
+Worth exposing over MCP rather than leaving as a library because an agent that
+calls models is already routing, implicitly and usually badly - one model in its
+config, used for everything. A `route_query` tool makes that explicit, priced and
+auditable, and reports what it spent.
 
-The server offers all three MCP primitives, each for a distinct reason:
+All three MCP primitives, each for a distinct reason:
 
     tools      actions with side effects and cost - routing, comparing
     resources  the benchmark's findings, read-only, addressable by URI
@@ -386,8 +385,8 @@ def policies_resource() -> str:
                 "text alone. Do not read the benchmark's old `predictive` row "
                 "as a measurement of it: that policy routed on a shipped "
                 "difficulty label which was constant across the maths half, "
-                "making it always_expensive there, and it was deleted on "
-                "2026-08-08. The benchmark now measures this architecture with "
+                "making it always_expensive there, and it has since been "
+                "deleted. The benchmark now measures this architecture with "
                 "`llm_router` and `routellm`."
             ),
         },

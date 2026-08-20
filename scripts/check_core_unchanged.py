@@ -103,8 +103,8 @@ def main() -> int:
                   f"serving-only `code_untested` prompt", file=sys.stderr)
             return 1
 
-    # models.py moved from the repository root into llm_routing/ on
-    # 11 August 2026. Both locations are tried, newest first, so `--ref` still
+    # models.py moved from the repository root into llm_routing/ during the
+    # package restructure. Both locations are tried, newest first, so `--ref` still
     # reaches revisions from either side of that move - which is the whole
     # point of being able to name a revision.
     original = None

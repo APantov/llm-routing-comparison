@@ -1,4 +1,4 @@
-"""The experiment: 17 modules that build the task set, run the policies, and
+"""The experiment: 16 modules that build the task set, run the policies, and
 work out whether the differences between them are real.
 
 Each one is still runnable on its own and still reads top to bottom - that has

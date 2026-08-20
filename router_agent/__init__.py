@@ -1,24 +1,18 @@
 """A cost-aware LLM routing service, built on the benchmark next door.
 
-The repository root is an experiment: it measures *when* cascade routing beats
-predictive routing, and finds that the answer is governed by the price ratio
-between rungs and by the quality of the verifier. This package is the other
-half - the deployable thing that implements those findings and can be pointed
-at a real query.
+`llm_routing` measures *when* cascade routing beats predictive routing; this
+package is the deployable half that implements the findings.
 
-The two halves share one substrate on purpose. `router_agent` does not open its
-own HTTP connections, keep its own price table, or define its own notion of a
-model tier: it calls `models.call`, exactly as `policies.py` does. That is what
-buys three properties which are otherwise very hard to get in a serving layer:
+The two share one substrate on purpose. `router_agent` opens no HTTP connections,
+keeps no price table and defines no notion of a model tier: it calls
+`models.call`, exactly as `policies.py` does. Three properties follow:
 
-  * **Cost accounting that matches the benchmark.** Same verified price tables,
-    same tokenizer-asymmetry handling, same arithmetic. A dollar figure the
-    router reports means the same thing as a dollar figure in the paper tables.
+  * **Cost accounting that matches the benchmark.** Same price tables, same
+    tokenizer-asymmetry handling, same arithmetic - so a dollar figure here
+    means what a dollar figure in the tables means.
   * **Replay.** `ROUTER_MODE=replay` serves the whole agent from the 5,075 real
-    responses committed under `cache/`. The demo runs end to end, against real
-    model output, with no API key and at zero cost.
-  * **One place where money is spent.** Auditing what a run costs means reading
-    one function, not grepping a package.
+    responses under `cache/`: end to end, no API key, zero cost.
+  * **One place where money is spent** - one function to audit, not a package.
 
 Layout, in dependency order:
 
@@ -33,11 +27,10 @@ Layout, in dependency order:
     cli.py         `llm-router "query"`
     mcp_server.py  the same engine, exposed over MCP
 
-Import cost is deliberate: `import router_agent` pulls in nothing heavy, so the
-research core keeps its bare-interpreter property. LangGraph is imported by
-`graph.py` and the MCP SDK by `mcp_server.py`, both at first use — and this
-package deliberately re-exports nothing, so importing it can never pull either
-of them in by accident. Import what you need from the module that defines it:
+`import router_agent` pulls in nothing heavy: LangGraph is imported by
+`graph.py` and the MCP SDK by `mcp_server.py`, both at first use, and this
+package re-exports nothing so importing it cannot pull either in by accident.
+Import what you need from the module that defines it:
 
     from router_agent.config import RouterConfig
     from router_agent.engine import route

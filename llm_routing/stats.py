@@ -1,17 +1,13 @@
 """Paired significance testing over results.jsonl.
 
-WHY THIS EXISTS
----------------
-At this n, one task is roughly two percentage points, and the gaps between
-adjacent policies in the report are of that order. Without a test, "policy A beat
-policy B by two points" is not a claim about routing - it is a claim about which
-tasks happened to be sampled.
+At this n one task is roughly two percentage points, and adjacent policies in
+the report differ by that order - so without a test, "A beat B by two points" is
+a claim about which tasks happened to be sampled.
 
-PAIRED, not unpaired, and that is the whole point of the response cache. Every
-policy answered the SAME tasks using the SAME cached model responses, so the
-comparison can condition on the task and throw away the between-task variance,
-which is much larger than the between-policy variance. An unpaired t-test on these
-numbers would be both wrong and far less powerful.
+PAIRED, not unpaired, which is the whole point of the response cache: every
+policy answered the SAME tasks from the SAME cached responses, so the comparison
+conditions on the task and discards the between-task variance, which is much
+larger than the between-policy variance.
 
 Two tests, because they answer different questions:
 
@@ -61,17 +57,15 @@ BOOTSTRAP_SEED = 0
 # problem, so the default is a short list of pre-registered questions rather than
 # all 78 pairs mined for whichever came out significant.
 #
-# Re-based on 8 August 2026: `predictive` was deleted, and five of the eight
-# pairs named it. `llm_router` takes its place as the predictive family's
-# representative, because it is the member that runs in every mode.
+# `llm_router` represents the predictive family here, because it is the member
+# that runs in every mode.
 #
-# ONLY THE FIRST PAIR IS COST-MATCHED. random_matched is calibrated to
-# llm_router's escalation rate, so that one comparison holds spend roughly fixed
-# and isolates skill. Every other pair compares policies at DIFFERENT spending
-# levels - routellm now runs at a fixed threshold, and the cascades spend what
-# they spend. McNemar is blind to cost, so the accuracy verdict alone is not a
-# recommendation: read it next to the d_cost column, which this module prints for
-# every pair. run_eval's routing-skill table is the cost-adjusted view.
+# ONLY THE FIRST PAIR IS COST-MATCHED: random_matched is calibrated to
+# llm_router's escalation rate, so that one holds spend roughly fixed and
+# isolates skill. Every other pair compares policies at DIFFERENT spending
+# levels. McNemar is blind to cost, so the accuracy verdict alone is not a
+# recommendation - read it next to the d_cost column this module prints, and
+# run_eval's routing-skill table for the cost-adjusted view.
 DEFAULT_PAIRS = [
     # Does the LLM-as-router beat a coin flip at its own spend? The null
     # hypothesis, and the one genuinely cost-matched comparison here.
@@ -83,10 +77,10 @@ DEFAULT_PAIRS = [
     # The project's headline architecture comparison, cascading vs predictive.
     ("cascade", "llm_router"),
     # Does verifying beat simply always paying for the best model?
-    ("cascade", "always_expensive"),
-    # Does the unified policy beat each of the two it unifies?
     ("cascade_routing", "cascade"),
     ("cascade_routing", "llm_router"),
+    ("cascade", "always_expensive"),
+    # Does the unified policy beat each of the two it unifies?
     # Is routing at all better than not routing? The floor.
     ("llm_router", "always_cheap"),
 ]
@@ -192,7 +186,7 @@ def compare(a_name, b_name, full, n_resamples):
 def verdict(r):
     """A one-line reading, written to be hard to over-claim from.
 
-    Always mentions cost. Since 8 August 2026 only one pre-registered pair is
+    Always mentions cost. Only one pre-registered pair is now
     cost-matched, so "A is more accurate" on its own is an invitation to quote a
     win that was bought rather than earned. If A wins on accuracy while spending
     more, the price is part of the finding and is stated in the same sentence.

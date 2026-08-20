@@ -1,15 +1,10 @@
 """
 Objective graders. There is no LLM judge anywhere in this project.
 
-Every task is scored deterministically, which buys three things:
-
-  - no judge to calibrate, and no judge bias to argue about
-  - no golden set to hand-label
-  - byte-for-byte reproducible verdicts
-
-That requirement is the single biggest reason the two task domains were chosen
-as they were: MATH500 answers can be compared as normalised strings, and MBPP
-solutions can be executed against shipped asserts.
+Every task is scored deterministically: no judge to calibrate, no golden set to
+hand-label, byte-for-byte reproducible verdicts. That requirement is the biggest
+reason the two domains are what they are - MATH500 answers compare as normalised
+strings, and MBPP solutions execute against shipped asserts.
 
 Two graders are registered:
 
@@ -29,29 +24,18 @@ from pathlib import Path
 # between an accidental infinite loop and a hung evaluation run.
 CODE_TIMEOUT_S = 10
 
-# ---------------------------------------------------------------------------
-# Memoisation of grade().
+# Memoisation of grade(), which is pure - the same response cannot grade two
+# ways. Two hot paths grade twice: the code cascade grades inside verify_code and
+# again after acceptance, and the degradation sweep replays the same cheap
+# responses at every corruption level and repeat (tens of thousands of subprocess
+# launches for a few hundred distinct answers).
 #
-# grade(task, response) is a pure function, so grading the same response twice
-# cannot produce two different verdicts. Two places do exactly that, and both
-# are hot:
-#
-#   1. The code cascade grades once inside verify_code and once again in the
-#      cascade after acceptance, launching the subprocess grader twice per task
-#      for a verdict that cannot differ.
-#   2. The degradation sweep replays the same cheap responses at every
-#      corruption level, for every repeat. Un-memoised that is tens of
-#      thousands of subprocess launches to re-derive a few hundred distinct
-#      answers.
-#
-# The assumption underneath: candidate code is deterministic. It holds here
-# because MBPP reference solutions are pure functions and the mock emits either
-# the reference solution or a stub. A real model that returned code reading the
-# clock or calling random() would have its flakiness hidden by this memo rather
+# It assumes candidate code is deterministic, which holds here because MBPP
+# references are pure functions and the mock emits the reference or a stub. Code
+# that read the clock or called random() would have its flakiness hidden rather
 # than surfaced, so the memo can be switched off:
 #
 #     ROUTER_GRADE_MEMO=0 python -m llm_routing.run_eval
-# ---------------------------------------------------------------------------
 MEMO_ENABLED = os.environ.get("ROUTER_GRADE_MEMO", "1") not in ("0", "false", "no")
 _memo = {}
 
@@ -99,7 +83,7 @@ def _canon_latex(s):
     where a backslash command ends needs a parser, and `^\circ` is already
     stripped by normalize_math_answer before this runs.
 
-    The superscript case was missed by the 6 August grader fix, which caught
+    The superscript case was missed by the first grader fix, which caught
     \sqrt and \frac but not ^ and _. See docs/LIMITATIONS.md.
     """
     s = re.sub(r"\\sqrt(?!\{)(\\?[A-Za-z0-9])", r"\\sqrt{\1}", s)
@@ -129,7 +113,7 @@ def normalize_math_answer(s):
     s = s.strip()
     # \$ before $: MATH500 writes currency as \$18.90, and stripping the dollar
     # alone leaves the escaping backslash behind. That bug graded a correct
-    # `18.90` as wrong on 6 August 2026.
+    # `18.90` as wrong.
     s = s.replace(r"\$", "").replace("$", "")
     s = s.replace(r"\!", "").replace(r"\,", "").replace(r"\;", "").replace(r"\ ", "")
     s = s.replace(r"\left", "").replace(r"\right", "")
@@ -231,7 +215,7 @@ def answer_variants(s):
     ADDED, never substituted, so the plain normalised string is always present
     and nothing that matched before can stop matching.
 
-    Each rule below was put here by a specific real failure in the 6 August 2026
+    Each rule below was put here by a specific real failure in the two-arm
     probe, where the grader scored a correct answer as wrong:
 
       \pm expansion     `1\pm\sqrt{19}` vs `1+\sqrt{19}, 1-\sqrt{19}`
@@ -360,7 +344,7 @@ def grade_test_program(response: str, payload: dict) -> bool:
     the harness is no longer the benchmark.
 
     Consequence worth stating plainly: these programs `import numpy`, so grading
-    the code half now needs numpy installed. See fetch_mbppplus.py.
+    the code half now needs numpy installed. See scripts/provenance/fetch_mbppplus.py.
     """
     code = _strip_code_fences(response)
     program = code + "\n" + payload["test_program"]

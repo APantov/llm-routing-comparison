@@ -67,15 +67,13 @@ from llm_routing import paths
 
 CACHE_DIR = Path(os.environ.get("ROUTER_CACHE_DIR", paths.CACHE))
 
-# Real and mock responses live in SEPARATE files even though they could not
-# collide, since `mode` is in the hash. Two practical reasons: the real file is
-# the artefact that gets committed after a paid run and it should contain only
-# responses that were paid for; and a fabricated response should never be one
-# careless `git add` away from being published as a measurement.
+# Real and mock responses live in SEPARATE files even though `mode` is in the
+# hash and they could not collide: the real file is what gets committed after a
+# paid run and should hold only responses that were paid for, and a fabricated
+# response should never be one careless `git add` from being published.
 #
-# Both are PLACEHOLDERS: configure() rewrites them with the ladder name folded in,
-# so the real paths are cache/raw_calls.<ladder>.jsonl and
-# cache/raw_calls.<ladder>.mock.jsonl. Nothing should read these before configure().
+# Both are PLACEHOLDERS - configure() folds the ladder name in, giving
+# cache/raw_calls.<ladder>[.mock].jsonl. Nothing should read them before then.
 REAL_PATH = CACHE_DIR / "raw_calls.jsonl"
 MOCK_PATH = CACHE_DIR / "raw_calls.mock.jsonl"
 
@@ -89,14 +87,10 @@ LADDER = ""
 # Off switch, for measuring the un-cached call count and for debugging.
 #
 # MOCK MODE ONLY, enforced in configure(). With it off, put() discards its
-# argument, so a real run would pay for every response and write none of them to
-# disk - the most expensive failure this file can have. Replay is worse only in
-# that it fails immediately: replay IS a cache read, so with the cache off every
-# lookup misses and the run measures nothing.
-#
-# Neither of those was reachable by accident before this check, but both were
-# reachable by a single environment variable, and this project has already been
-# bitten once by a silent fallback on the spend path.
+# argument, so a real run would pay for every response and write none to disk -
+# the most expensive failure this file can have. Replay IS a cache read, so with
+# the cache off every lookup misses and the run measures nothing. Both were one
+# environment variable away, which is too close on the spend path.
 ENABLED = os.environ.get("ROUTER_CACHE", "1") not in ("0", "false", "no")
 
 # Set by configure(). PATH is written to; READ_PATHS are all read, in order, with
@@ -123,23 +117,20 @@ LIVE_TASK_IDS = None
 
 # Real caches belonging to OTHER ladders, read before this ladder's own.
 #
-# The cache key is (mode, model, prompt, temperature, sample_idx, max_tokens,
-# mock_seed) - there is no ladder in it - and the prompt is built from the task
-# alone, not from the tier. Verified on the committed data: all 112 tasks with
-# both rungs cached have identical prompt_sha256 across tiers. So a response is
-# identified by what was actually asked of which model, and the ladder only ever
+# There is no ladder in the cache key, and the prompt is built from the task
+# alone rather than the tier - verified on the committed data, where all 112
+# tasks with both rungs cached have identical prompt_sha256 across tiers. So a
+# response is identified by what was asked of which model, and the ladder only
 # decided which FILE it landed in.
 #
-# That matters for money. `wide` and `claude` share Opus 5 as their top rung, and
-# `wide` and `deepseek` share DeepSeek v4-flash as their bottom rung, so the 980
-# responses already bought for `wide` cover a large part of both other ladders.
-# Without this, running the `claude` ladder re-buys every Opus call - about $1.91
-# at the current task set. See docs/ENGINEERING.md (standing invariants).
+# That matters for money: `wide` shares Opus 5 with `claude` and v4-flash with
+# `deepseek`, so its 980 responses cover much of both. Without this, running
+# `claude` re-buys every Opus call - about $1.91. See docs/ARCHITECTURE.md
+# (standing invariants).
 #
 # Only REAL caches are shared. Mock caches stay per-ladder: a mock response is a
-# function of MOCK_SEED and the model's stipulated skill, so pooling them across
-# ladders would let one ladder's fabricated answer serve another's, which is the
-# precise failure that issue 19 was about.
+# function of MOCK_SEED and stipulated skill, so pooling them would let one
+# ladder's fabricated answer serve another's.
 _KNOWN_LADDERS = ("wide", "claude", "deepseek")
 
 
@@ -249,11 +240,10 @@ def _load():
         # task set, so the caller declares what is live via LIVE_TASK_IDS and
         # this answers its own question instead of asking the reader to.
         #
-        # It used to print the loud form unconditionally, which meant every run
-        # and every demo opened with a scary multi-line warning about math-92: a
-        # 30 July plumbing-run id, stranded by the 6 August rebuild, recorded
-        # into two ladder caches whose texts differ because DeepSeek is not
-        # deterministic at temperature 0. A warning that is always on is a
+        # Printed unconditionally, the loud form opens every run and every demo
+        # with a multi-line warning about stranded ids from superseded task sets -
+        # recorded into two ladder caches whose texts differ because DeepSeek is
+        # not deterministic at temperature 0. A warning that is always on is a
         # warning nobody reads.
         ids = sorted({t for _, t, _ in _conflicts if t} | {t for _, _, t in _conflicts if t})
         live = sorted(set(ids) & LIVE_TASK_IDS) if LIVE_TASK_IDS is not None else None

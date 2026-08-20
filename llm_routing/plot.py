@@ -357,9 +357,8 @@ def plot_ladders(out, ladders=("wide", "claude", "deepseek")):
             acc, cost = stat[name]
             x = i + (j - 0.5) * 0.28
             c.bar(x, 0.12, max(0.0, lo), acc, colour, name)
-            # Accuracy above the bar, cost inside it. The cost label used to sit
-            # further above and ran off the top of the frame on `claude`, where
-            # the cascade reaches 96.7%.
+            # Accuracy above the bar, cost INSIDE it. Stacking both above runs
+            # off the top of the frame on `claude`, where the cascade hits 96.7%.
             c.label_at(x, acc + 0.010, f"{acc:.1%}")
             c.label_at(x, acc - 0.022, f"${cost:.5f}", size=9, colour="#ffffff")
         # The cost delta is the second half of the finding and belongs on the
@@ -447,8 +446,8 @@ def main():
                     help="read this degradation sweep instead of "
                          "sweep_degraded.jsonl")
     ap.add_argument("--suffix", default="",
-                    help="appended to each figure's stem, e.g. --suffix .claude "
-                         "gives figures/frontier.claude.svg. Without it a second "
+                    help="appended to each figure's stem, e.g. --suffix .wide "
+                         "gives figures/frontier.wide.svg. Without it a second "
                          "ladder's figures overwrite the first ladder's.")
     ap.add_argument("--no-summaries", dest="summaries", action="store_false",
                     help="skip the two cross-ladder charts (ladders.svg, "

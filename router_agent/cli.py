@@ -198,20 +198,17 @@ def _demo(args) -> int:
     print(DIM(f"  {task['prompt'][:150]}"))
 
     # Hand the code half its asserts. Without them `live.synthesize_task` builds
-    # the serving-only `code_untested` prompt, which no paid run ever recorded,
-    # so replay raised ReplayMiss and `--demo --domain code` crashed - including
-    # in CI, which runs exactly this line. Passing them reproduces the benchmark
-    # prompt byte for byte, which is what the committed responses answer.
-    #
-    # It is also the honest demo. A benchmark code question IS its asserts, and
-    # `scripts/demo.py` trace 3 makes the same point explicitly: the perfect
+    # the serving-only `code_untested` prompt, which no paid run recorded, so
+    # replay raises ReplayMiss. Passing them reproduces the benchmark prompt byte
+    # for byte, which is what the committed responses answer - and it is the
+    # honest demo, since a benchmark code question IS its asserts and the perfect
     # verifier is available only because the CALLER brought the tests.
     tests = task.get("grader_payload", {}).get("tests") if wanted == "code" else None
     out = route(task["prompt"], cfg=cfg, domain=wanted, tests=tests)
     _print_outcome(out, show_answer=not args.quiet)
 
     print(DIM(
-        "  These are real model responses, paid for once on 6 August 2026 and\n"
+        "  These are real model responses, paid for once and\n"
         "  committed to cache/raw_calls.wide.jsonl. `cost` is what serving this\n"
         "  query would cost in production; this run spent nothing."
     ))

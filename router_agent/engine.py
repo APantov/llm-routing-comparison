@@ -267,7 +267,7 @@ def estimate(query: str, cfg: RouterConfig | None = None,
         "recommended_policy": findings.ratio_verdict(cfg.ladder),
         "basis": (
             "projection from the verified price tables and output-token counts "
-            "measured on the 6 August 2026 probe (maths 650 tok, code 55 tok). "
+            "measured on the two-arm probe (maths 650 tok, code 55 tok). "
             "The `general` domain is an assumption, not a measurement."
         ),
     }

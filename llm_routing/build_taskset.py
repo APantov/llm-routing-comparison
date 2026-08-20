@@ -25,11 +25,10 @@ silently replace the artefact every published number is joined against.
     python -m llm_routing.build_taskset --min-math-level 3    # easier maths half
     python -m llm_routing.build_taskset --n-code 40           # a small code sample
 
-BOTH DEFAULTS WERE HARDENED ON 6 AUGUST 2026, for one reason: the cheap rung
-solved 10 out of 10 on the original set, which leaves a router nothing to decide.
-See docs/DATASETS.md for why MBPP+ rather than a different benchmark. The maths
-floor remains one flag away, because the point of the change is to move the
-failure rate, and a change you cannot undo is a change you cannot measure.
+Both defaults are set hard, for one reason: at looser settings the cheap rung
+solved 10 out of 10, which leaves a router nothing to decide. See docs/METHOD.md
+for why MBPP+ rather than a different benchmark. The maths floor stays one flag
+away, because a change you cannot undo is a change you cannot measure.
 """
 
 import argparse
@@ -47,52 +46,31 @@ OUT = paths.TASKSET
 SEED = 20260728
 N_MATH = 60
 
-# 40 -> 370 on 11 August 2026, and this was a BUG FIX rather than a change of
-# design.
+# 370 is the whole MBPP+ pool, so the number that matters is not 370 but "all of
+# them": the sample is `min(n, len(pool))`, 13 are then quarantined, and the
+# result reproduces the committed 417-task file byte for byte. It is spelled as a
+# count only because --n-code takes one.
 #
-# The committed data/taskset.jsonl holds 417 tasks - 60 maths and 357 code -
-# and every number in docs/RESULTS.md is measured over it. The default here was 40,
-# so `python -m llm_routing.build_taskset`, the command README and CI both
-# give, OVERWROTE that file with a 96-task set sampled under a different draw.
-# A reader following the quickstart destroyed the artefact the results are
-# joined against, and the next `stats` run silently reported on whichever 96
-# tasks survived the join.
-#
-# 370 is the whole MBPP+ pool: the sample is `min(n, len(pool))`, so anything
-# at or above the pool size selects all of it, 13 are then quarantined, and the
-# result reproduces the committed file byte for byte. Verified by rebuilding
-# over it and diffing.
-#
-# The number that matters is therefore not 370 but "all of them". It is spelled
-# as a count because --n-code takes one, and it is the default because a
-# quickstart that quietly changes the data is worse than no quickstart.
+# It is the DEFAULT because data/taskset.jsonl is the artefact every number in
+# docs/RESULTS.md is joined against, and this is the command the README and CI
+# both give. A default that sampled a subset would have the quickstart silently
+# overwrite it.
 N_CODE = 370
 
 # GSM8K was rejected as the math source: current cheap models score in the low
-# 90s on it, which leaves a cascade almost nothing to route. MATH500 restricted
-# to levels 3-5 leaves 367 candidates, which was the original setting.
+# 90s on it, which leaves a cascade almost nothing to route. MATH500 at levels
+# 3-5 is no obstacle either - the real cheap rung went 10-for-10 on a sample of
+# it - so the floor is level 5, which leaves 134 candidates, comfortably more
+# than the 60 sampled.
 #
-# Raised to 5 on 6 August 2026. Levels 3-5 turned out to be no obstacle either:
-# the real cheap rung went 10-for-10 on the sampled set. Level 5 alone leaves 134
-# candidates, comfortably more than the 60 sampled.
-#
-# KNOWN COST, and it cost more than this comment expected. A single level means
-# `difficulty_proxy` is constant across the maths half, so add_difficulty_pct()
-# gives every maths task the same percentile and `predict_features.level` carries
-# no signal at all. splits.py can only stratify maths by domain.
-#
-# WHAT THIS COMMENT UNDERSTATED, recorded 8 August 2026. The hand-written
-# predictive policy read `level >= 5` and therefore returned True for all 60
-# maths tasks: not "blind" but CONSTANT, which made it `always_expensive` on 60%
-# of the task set while still being reported as a router. It scored below the
-# coin flip it was meant to beat, and its frontier sweep had two attainable
-# points rather than a curve. The policy was deleted (policies.py DECISION #4)
-# and predictive routing is now measured with `llm_router` and `routellm`,
-# neither of which reads this field.
-#
-# The lesson worth carrying: a consequence recorded at the place that CAUSES it
-# does not reach the place that SUFFERS it. This note existed and was correct
-# from 6 August; nothing downstream ever read it.
+# KNOWN COST. A single level makes `difficulty_proxy` constant across the maths
+# half, so add_difficulty_pct() gives every maths task the same percentile and
+# `predict_features.level` carries no signal at all. splits.py can only stratify
+# maths by domain, and a predictive policy keyed on this field is not "blind" but
+# CONSTANT over 60% of the task set - effectively always_expensive there while
+# still being reported as a router. That is why the hand-written one was deleted
+# (policies.py DECISION #4) and predictive routing is measured with `llm_router`
+# and `routellm`, neither of which reads this field.
 #
 # Recoverable with --min-math-level 4, which restores two distinct levels. None
 # of it affects the always_cheap / always_expensive probe, which is what this
@@ -147,7 +125,7 @@ def load_mbppplus():
     passes all four original asserts and fails the expanded suite. Under plain
     MBPP that is a point the model did not earn.
 
-    Requires data/mbppplus.json, written once by fetch_mbppplus.py.
+    Requires data/mbppplus.json, written once by scripts/provenance/fetch_mbppplus.py.
 
     The difficulty proxy stays the reference solution's line count, exactly as for
     plain MBPP, so the two sources remain comparable on that axis.
@@ -156,7 +134,7 @@ def load_mbppplus():
     if not path.exists():
         raise SystemExit(
             f"\n{path} not found.\n"
-            f"  Build it once with:  python -m llm_routing.fetch_mbppplus\n"
+            f"  Build it once with:  python scripts/provenance/fetch_mbppplus.py\n"
             f"  (needs `pip install datasets`; the rest of the repo does not)\n"
         )
     with open(path, encoding="utf-8") as f:
@@ -174,20 +152,16 @@ def load_mbppplus():
                 "domain": "code",
                 "prompt": row["prompt"],
                 "grader": "test_program",
-                # BOTH suites are carried, and which one is used where is the
-                # whole design of this swap:
+                # BOTH suites are carried, and which goes where is the design
+                # of this swap:
                 #
-                #   tests        the ORIGINAL thin asserts. models.build_prompt
-                #                puts these in the prompt as the specification,
-                #                exactly as for plain MBPP.
+                #   tests        the ORIGINAL thin asserts, put in the prompt by
+                #                models.build_prompt as the specification.
                 #   test_program the EXPANDED suite. Only the grader sees it.
                 #
-                # So the model is shown the same specification it was shown
-                # before, and only the marking gets stricter. That keeps the swap
-                # a ONE-variable change. Putting the expanded suite in the prompt
-                # would change the task as well as the grading - it is ten
-                # kilobytes of fuzzed input/output pairs, which is both an absurd
-                # prompt and a near-complete answer key.
+                # Same specification, stricter marking - a ONE-variable change.
+                # The expanded suite in the prompt would be ten kilobytes of
+                # fuzzed pairs: an absurd prompt and most of an answer key.
                 "grader_payload": {
                     "tests": list(row.get("test_list") or []),
                     "test_program": row["test"],
@@ -207,11 +181,8 @@ def load_mbppplus():
     return tasks
 
 
-# Plain sanitized MBPP was the other code source until 9 August 2026, selected
-# with `--code mbpp`. It was removed, along with `data/sanitized-mbpp.json`,
-# because the only thing still reading it was the thin-asserts marking, and
-# nothing reports that any more: every code task in the set is MBPP+, graded on
-# the expanded suite. Its history is in docs/DATASETS.md and in git.
+# Plain sanitized MBPP is no longer a selectable code source: every code task in
+# the set is MBPP+, graded on the expanded suite. See docs/METHOD.md.
 
 
 def add_difficulty_pct(tasks):
@@ -257,24 +228,20 @@ def stratified_sample(tasks, n, rng):
     tasks = sorted(tasks, key=lambda t: t["difficulty_proxy"])
 
     # A census is not a sample. Asking for the whole pool must return the whole
-    # pool, and going through the bucket arithmetic below to get there silently
-    # loses tasks: `size = len(tasks) // buckets` truncates, so the last chunk
-    # ends at `buckets * size` and everything past it is unreachable. Sorted by
-    # difficulty, "past it" means THE HARDEST TASKS IN THE POOL.
+    # pool, and the bucket arithmetic below cannot deliver that: `size =
+    # len(tasks) // buckets` truncates, so the last chunk ends at
+    # `buckets * size` and everything past it is unreachable at any n. Sorted by
+    # difficulty, "past it" means THE HARDEST TASKS IN THE POOL - over the
+    # 370-task code pool it silently dropped two, including the hardest task in
+    # MBPP+. The justification for buying the full code half is that it is a
+    # complete enumeration rather than a screen, and losing the hard tail is the
+    # direction that costs routing signal.
     #
-    # Found 10 August 2026 while rebuilding the code half. `--n-code 370` over a
-    # 370-task pool returned 368: codeplus-622 (difficulty 26) and codeplus-100
-    # (difficulty 42, the hardest task in MBPP+) were not eligible for selection
-    # at any n. The whole justification for buying the full code half is that it
-    # is a complete enumeration rather than a screen, so two missing tasks is not
-    # a rounding detail - and dropping them from the hard tail is the direction
-    # that costs routing signal.
-    #
-    # This early return is deliberately narrow. The bucket arithmetic below is
-    # left exactly as it was, because it decides WHICH maths tasks are sampled
-    # (60 from a pool of 134), and changing that would strand the cached
-    # self-consistency samples that are most of the $4.24 spent so far. The
-    # maths half never reaches this branch.
+    # The early return is deliberately narrow. The bucket arithmetic is left
+    # exactly as it is because it decides WHICH maths tasks are sampled (60 from
+    # a pool of 134), and changing that would strand the cached self-consistency
+    # samples that are most of what has been spent. The maths half never reaches
+    # this branch.
     if n >= len(tasks):
         return list(tasks)
 
@@ -292,44 +259,36 @@ def stratified_sample(tasks, n, rng):
 # ---------------------------------------------------------------------------
 # QUARANTINE: tasks whose expected answers cannot be derived from their prompt.
 #
-# These are not hard tasks. They are tasks where MBPP+'s generated inputs are
-# scored against whatever the MBPP reference implementation happened to return,
-# including on inputs the natural-language prompt says nothing about. No model
-# can pass them, and neither can a textbook-correct solution - which is how each
-# one below was diagnosed, rather than by assuming that "both rungs failed"
+# Not hard tasks: MBPP+'s generated inputs are scored against whatever the MBPP
+# reference happened to return, including on inputs the prompt says nothing
+# about. No model can pass them and neither can a textbook-correct solution,
+# which is how each was diagnosed rather than by assuming "both rungs failed"
 # means "hard".
 #
-# This matters more than five tasks should, because they were ALL of
-# always_expensive's failures on the eval split. Left in, they set the ceiling
-# for every policy: `always_expensive` and `oracle` read 92% instead of 100%,
-# and the code half reads 80% instead of 100%. docs/RESULTS.md's "code is now the
-# harder domain in absolute terms" was this artefact. See docs/ENGINEERING.md (the quarantine rule).
+# They were ALL of always_expensive's failures on the eval split, so left in they
+# set the ceiling for every policy: always_expensive and oracle read 92% instead
+# of 100%, and the code half 80% instead of 100% - which reads as "code is the
+# harder domain" when it is an artefact. See docs/METHOD.md (the quarantine rule).
 #
-# Removal happens AFTER sampling and AFTER add_difficulty_pct, deliberately.
-# Filtering the pool first would let stratified_sample draw five replacements,
-# and a replacement task has no cached response, so every policy would be
-# dropped by ReplayMiss and $4.24 of committed data would go unused. Filtering
-# last leaves the survivors byte-identical to their entries in the previous task
-# set, so the existing cache stays valid.
+# Removal happens AFTER sampling and add_difficulty_pct, deliberately: filtering
+# the pool first lets stratified_sample draw replacements, and a replacement has
+# no cached response, so ReplayMiss would drop every policy and the committed
+# data would go unused. Filtering last leaves the survivors byte-identical, so
+# the cache stays valid.
 #
 # ---------------------------------------------------------------------------
-# THE BAR, tightened 10 August 2026: a task may be quarantined only if EVERY
-# rung's multi-draw p-hat is exactly 0. "Both rungs failed once" is not enough.
+# THE BAR: a task may be quarantined only if EVERY rung's multi-draw p-hat is
+# exactly 0. "Both rungs failed once" is not enough.
 #
-# This is not a hypothetical tightening. `codeplus-305` was quarantined here on
-# 8 August with `redraw.wide.json` already recording, in the same commit,
-# cheap p-hat 0.0 and expensive p-hat 0.5 - the expensive rung solved it half
-# the time. It was reversed on 10 August; see the note below its old entry.
+# The failure mode the bar guards against is specific and worth naming. A task
+# the cheap rung reliably fails and the expensive rung sometimes solves is not an
+# artefact - it is the single most valuable kind of task in this project, a
+# routable one. Quarantining it deletes the signal the experiment exists to
+# measure, and does so silently, because a smaller task set looks like a cleaner
+# one. `UNQUARANTINED` below records the one that got through.
 #
-# The failure mode is specific and worth naming, because buy B multiplies these
-# judgements by eight: a task the cheap rung reliably fails and the expensive
-# rung sometimes solves is not an artefact, it is the single most valuable kind
-# of task in this project - a routable one. Quarantining it deletes the signal
-# the experiment exists to measure, and it does so silently, because a smaller
-# task set looks like a cleaner one.
-#
-# `scripts/triage_both_fail.py` gathers the evidence for this decision and will
-# not make it. Its `broken_evidence` bucket is where to start reading.
+# `scripts/provenance/triage_both_fail.py` gathers the evidence for this decision
+# and will not make it. Its `broken_evidence` bucket is where to start reading.
 # ---------------------------------------------------------------------------
 QUARANTINED = {
     "codeplus-119":
@@ -346,11 +305,11 @@ QUARANTINED = {
         "expected coordinate ordering is a reference artefact the prompt does not "
         "specify.",
 
-    # --- added 10 August 2026, after the code half was rebuilt to 366 tasks ---
+    # --- added after the code half was rebuilt to 366 tasks ---
     #
     # All nine cleared the bar above: three fresh expensive-rung draws each, p-hat
     # 0.0 on every one (redraw.wide.both_fail.expensive.json). And all nine were
-    # found the same way - scripts/triage_both_fail.py showed five independent
+    # found the same way - scripts/provenance/triage_both_fail.py showed five independent
     # prompt-conformant candidates disagreeing with the reference on the SAME
     # hidden inputs, which are the inputs quoted here.
     "codeplus-593":
@@ -388,35 +347,28 @@ QUARANTINED = {
         "where five independent solutions all give 14.",
 }
 
-# REVERSED 10 August 2026: codeplus-305, "return two words from a list of words
-# starting with letter 'p'". It was quarantined on 8 August as "the reference
-# yields mutually inconsistent expectations for identically-shaped inputs".
+# A quarantine that was reversed, kept because the standing rule is that a
+# quarantine decision is recorded with its evidence - and a reversal is one.
 #
-# It is passable. Of 11 greedy draws at the expensive rung, 5 pass the expanded
-# suite; the cheap rung fails 11 of 11. `redraw.wide.json` at the quarantine
-# commit (6ac741c) already recorded it as cheap 0.0 / expensive 0.5, against
-# 0.0 / 0.0 for the four tasks above - the evidence contradicting the decision
-# was in the same commit that made it.
-#
-# So it is not an unpassable task. It is a hard one that the cheap rung reliably
-# fails and the expensive rung solves about half the time, which is precisely a
-# ROUTABLE task. Removing it took routing signal out of the experiment.
-#
-# Kept as a comment rather than deleted, because the standing rule is that a
-# quarantine decision is recorded with its evidence - and a reversal is a
-# quarantine decision.
+# codeplus-305 ("return two words from a list of words starting with 'p'") was
+# quarantined as yielding mutually inconsistent expectations. It is passable: of
+# 11 greedy draws at the expensive rung, 5 pass the expanded suite, while the
+# cheap rung fails 11 of 11. That is not an unpassable task but a hard one the
+# cheap rung reliably fails and the expensive rung solves about half the time -
+# precisely a ROUTABLE task, and removing it took signal out of the experiment.
+# This is what THE BAR above exists to prevent.
 UNQUARANTINED = {
     "codeplus-305": "expensive p-hat 0.5 over 11 greedy draws; cheap 0.0. Hard "
-                    "and routable, not unpassable. Reversed 10 August 2026.",
+                    "and routable, not unpassable. Quarantine reversed.",
 }
 
 # Tasks that LOOKED unpassable on one draw and are not. Not a quarantine list -
-# nothing is removed - but recorded here because they are the reason the bar
-# asks for p-hat rather than a verdict, and because a future reader looking at
-# the single-draw cross-tab will see them in `both_fail` and wonder.
+# nothing is removed - but recorded because they are the reason the bar asks for
+# p-hat rather than a verdict, and because a reader looking at the single-draw
+# cross-tab will see them in `both_fail` and wonder.
 #
-# Found 10 August 2026 by redrawing all 24 both_fail tasks three times at the
-# expensive rung, for $0.25. Two of the 24 were passable:
+# Established by redrawing all 24 both_fail tasks three times at the expensive
+# rung, for $0.25. Two of the 24 were passable:
 NOT_ACTUALLY_BOTH_FAIL = {
     "codeplus-235": "expensive p-hat 1.0 over 3 fresh draws - passes every time. "
                     "The single greedy draw that put it in both_fail was the "
@@ -430,8 +382,8 @@ def drop_quarantined(tasks):
     """Remove known-unpassable tasks, and say which and why.
 
     THE RULE: a quarantined task is never selected, anywhere, ever again. This
-    is the only place it needs enforcing, because on 9 August 2026 every trace
-    of them was deleted from every artefact on disk - `scripts/purge_quarantined.py`
+    is the only place it needs enforcing, because every trace of them was
+    deleted from every artefact on disk - `scripts/provenance/purge_quarantined.py`
     is the record of what went. Nothing downstream filters them any more; there
     is nothing left to filter.
 
@@ -464,8 +416,8 @@ def main():
         help="MATH500 difficulty floor. Raise it to make the maths half harder.",
     )
     # No --keep-quarantined. It existed briefly, to reproduce pre-quarantine
-    # numbers, and became meaningless when the responses were deleted on
-    # 9 August 2026: the tasks it restored would have no cached data, so every
+    # numbers, and became meaningless when the responses were deleted:
+    # the tasks it restored would have no cached data, so every
     # policy would be dropped by ReplayMiss and the run would measure nothing.
     args = ap.parse_args()
 

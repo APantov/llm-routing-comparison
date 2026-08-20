@@ -7,17 +7,14 @@ next door, and this module is the seam between them.
 Two rules govern everything below.
 
 **Real numbers are computed, not typed.** The probe cross-tab is recomputed from
-`runs/results.probe.jsonl` on demand rather than transcribed into a constant. A
-hard-coded figure would silently rot the first time the task set is rebuilt or a
-grader is fixed, and both have happened - the grader fix of 6 August 2026 moved
-this exact number, and the code-half rebuild moved it again. Demonstrated
-failure mode, not a hypothetical one.
+`runs/results.probe.jsonl` on demand rather than transcribed. A hard-coded figure
+rots the first time the task set is rebuilt or a grader is fixed, and both have
+moved this exact number.
 
 **A number with no run behind it is not served.** Every ladder's economics come
-from that ladder's own committed frontier run. There is no table of fallback
-constants: there was, and when all three ladders were finally measured it had
-two of three verdicts backwards. A ladder with no run now reports `verdict:
-None` and names the command that would produce one.
+from its own committed frontier run. There is no table of fallback constants -
+there was, and it had two of three verdicts backwards. A ladder with no run
+reports `verdict: None` and names the command that would produce one.
 
 **Simulated numbers are labelled at the point of use.** Anything derived from
 mock output carries `simulated: True` in its payload, so a consumer that
@@ -53,7 +50,7 @@ def frontier_path(ladder: str) -> Path:
     Per-ladder rather than one shared `frontier.jsonl`. The shared name was a
     copy of whichever ladder ran last, so a fresh clone either found the wrong
     ladder's economics or - because the copy was gitignored - found nothing and
-    silently fell back to the 30 July constants. The per-ladder files are
+    silently fell back to a table of hard-coded constants. The per-ladder files are
     committed, so a clone now reports measured economics for every ladder that
     has one.
     """
@@ -161,13 +158,11 @@ def realized_ratio(ladder: str, path: Path | None = None) -> dict | None:
 # wasted cheap call, plus verification - exceed what skipping an expensive call
 # saves.
 #
-# Deliberately NOT used to compute a verdict, and the measurement is why. On
-# real models the cascade is CHEAPER at deepseek's 3.11x and DEARER at claude's
-# 6.5x, so the outcome is not monotonic in the price ratio and no single
-# threshold can express it. What actually decides it is how much verification
-# costs on that ladder and how much better the top rung is. Kept as the
-# literature's rule of thumb, and reported alongside the measured verdict rather
-# than in place of it.
+# Deliberately NOT used to compute a verdict: on real models the cascade is
+# CHEAPER at deepseek's 3.11x and DEARER at claude's 6.5x, so the outcome is not
+# monotonic in the price ratio and no threshold can express it. What decides it
+# is verification cost on that ladder and how much better the top rung is. Kept
+# as the literature's rule of thumb, reported alongside the measured verdict.
 CROSSOVER_RATIO = 3.0
 
 
@@ -176,15 +171,12 @@ CROSSOVER_RATIO = 3.0
 # ---------------------------------------------------------------------------
 
 # Every ladder in `models.LADDERS` has a frontier run committed under runs/, so
-# the economics below are always derived and never quoted.
+# the economics below are derived and never quoted.
 #
-# There used to be a table of constants here as a fallback, recorded from mock
-# runs on 30 July 2026. It is deleted rather than kept, because when all three
-# ladders were finally measured it had TWO OF THREE VERDICTS BACKWARDS: it said
-# `deepseek` should route and `claude` should cascade, and the measurement says
-# the opposite of both. A fallback that fires silently and is wrong is worse
-# than no fallback - a ladder with no frontier run now says so and names the
-# command that would produce one.
+# There is deliberately NO fallback table of constants. One existed, from early
+# mock runs, and it had TWO OF THREE VERDICTS BACKWARDS once the ladders were
+# measured. A fallback that fires silently and is wrong is worse than none: a
+# ladder with no frontier run says so, and names the command that produces one.
 
 @lru_cache(maxsize=4)
 def frontier_economics(path: str | None = None, ladder: str | None = None) -> dict | None:
@@ -576,7 +568,7 @@ def caveats(ladder: str) -> list[str]:
     restating the number. A caveat that has drifted from the data is worse than
     no caveat: it is read as the current state of the evidence.
 
-    Same reasoning as scripts/freeze_probe.py, one layer up - that keeps the
+    Same reasoning as scripts/provenance/freeze_probe.py, one layer up - that keeps the
     tests off pinned magnitudes, this keeps the agent's own prose off them.
     """
     out = [

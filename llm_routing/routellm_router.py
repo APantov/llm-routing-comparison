@@ -5,20 +5,14 @@ the other being `llm_router`, which asks the cheap model. This one is a publishe
 learned router, trained on Chatbot Arena preference data, at zero training cost
 and with no per-query API call on the bert path.
 
-It replaced a hand-written heuristic that was deleted on 8 August 2026 for being
-a constant on 60% of the task set (policies.py DECISION #4).
-
 The interesting outcome is the unflattering one. RouteLLM's routers were trained
 on human preference between GPT-4-class and Mixtral-class models on open-ended
-chat. This applies them to DeepSeek v4-flash vs Opus 5 on objectively-graded
-competition maths and MBPP+. That is squarely out of distribution, and the
-prediction has now been checked: across all 417 tasks the router's scores span
-[0.499, 0.899] with a median of 0.790, and exactly ONE task falls below 0.5. So
-on 416 of 417 it judges the strong model favoured, and at the semantically
-natural threshold it degenerates into always_expensive. Preference-trained routers transfer poorly to objectively
-graded reasoning, because preference is not correctness - and the failure is
-visible in the score distribution before any accuracy is measured. See
-DECISION #8b for what threshold is used instead, and why.
+chat; this applies them to DeepSeek v4-flash vs Opus 5 on objectively-graded
+competition maths and MBPP+, which is squarely out of distribution. It shows:
+preference-trained routers transfer poorly to objectively graded reasoning,
+because preference is not correctness, and the failure is visible in the score
+distribution before any accuracy is measured. DECISION #8b has the measured
+distribution and the threshold chosen because of it.
 
 
 WHICH VARIANT, AND WHY - read this before changing it
@@ -262,60 +256,43 @@ def score_tasks(tasks, variant="bert", force=False):
 THRESHOLDS = {}
 
 # ---------------------------------------------------------------------------
-# DECISION #8b: the operating threshold. FIXED, not calibrated. 8 August 2026.
+# DECISION #8b: the operating threshold. FIXED, not calibrated.
 #
-# This used to be calibrated to reproduce `predictive`'s expensive-call rate, so
-# the two routers were cost-matched by construction. `predictive` was deleted
-# (policies.py DECISION #4), and re-anchoring to another policy would just move
-# the dependency: a router whose spending level is defined by a different
-# router's spending level cannot be read on its own.
-#
-# So the threshold is now a declared constant. It is ARBITRARY in the sense that
-# it was not tuned for accuracy, and it is not derived from anything else in this
-# repository.
+# A declared constant rather than a calibrated one. Anchoring it to another
+# policy's expensive-call rate would make the two cost-matched by construction,
+# but a router whose spending level is defined by a different router's spending
+# level cannot be read on its own. So this is ARBITRARY in the sense that it was
+# not tuned for accuracy, and it is not derived from anything else here.
 #
 # WHY NOT 0.5. `calculate_strong_win_rate` returns P(the strong model wins), so
-# 0.5 is the semantically natural cut: escalate when the strong model is more
-# likely than not to win. On this task set it routes all but one task expensive.
-# Measured across all 417 tasks the range is [0.499, 0.899], median 0.790, and
-# exactly ONE task scores below 0.5 (at 0.499). The router effectively never
-# says the weak model is favoured, so at 0.5 this is always_expensive with an
-# extra step.
+# 0.5 is the natural cut - escalate when the strong model is more likely than not
+# to win. Across all 417 tasks the scores span [0.499, 0.899], median 0.790, with
+# exactly ONE below 0.5. The router effectively never says the weak model is
+# favoured, so at 0.5 this is always_expensive with an extra step.
 #
-# The figures above were [0.509, 0.898] over 100 tasks before the 6 August 2026
-# rebuild grew the set to 417. Re-measured rather than carried over: the old
-# range supported the strictly stronger claim that no task ever falls below
-# 0.5, and that claim is now false by one task.
+# That near-degeneracy is the out-of-distribution behaviour the module docstring
+# predicts, and a finding rather than an inconvenience.
 #
-# That is a finding rather than an inconvenience, and it is the out-of-
-# distribution behaviour this module's docstring predicted: bert_gpt4_augmented
-# was trained on human preference between chat models, and it is being asked
-# about competition maths and MBPP+. Preference is not correctness, and a model
-# asked "which answer would a human prefer" on a task it cannot judge says
-# "the big one" every time.
+# 0.80 is a round number inside the observed range, splitting the set 42/58
+# (math 50%, code 30%) rather than degenerating - the point, since a policy
+# routing 100% one way is always_expensive wearing a router's name.
 #
-# 0.80 is a round number inside the observed range. It splits the set 42/58
-# (math 50%, code 30%) rather than degenerating - which is the whole point, since
-# a policy that routes 100% one way is `always_expensive` wearing a router's
-# name, and that is exactly what `predictive` was deleted for.
-#
-# The consequence to keep in view: routellm is no longer cost-matched to any
-# other policy, so an accuracy difference against one conflates routing skill
-# with spending level. run_eval.routing_skill handles this by computing a null at
-# each policy's OWN cost, and frontier.py sweeps the rate across its whole range,
-# which is the comparison that never depended on a matched operating point.
+# The consequence: routellm is not cost-matched to any other policy, so an
+# accuracy difference against one conflates routing skill with spending level.
+# run_eval.routing_skill computes a null at each policy's OWN cost, and
+# frontier.py sweeps the rate across its range - the comparison that never
+# depended on a matched operating point.
 # ---------------------------------------------------------------------------
 FIXED_THRESHOLD = 0.80
 
 # Whether calibrate() has run against the current task set.
 #
-# This exists because two different questions were being asked with one answer.
-# run_eval calls available(ALL tasks) to decide whether to calibrate, and
-# available([one task]) to decide whether the policy runs on that task. Those
-# disagree the moment SOME tasks have cached scores and others do not - which is
-# exactly what happens after a task-set swap, since scores are keyed on the prompt.
-# The result was routellm running uncalibrated on the tasks it did have scores
-# for, and raising from routes_expensive mid-run.
+# Separate from `available` because two questions were being answered with one
+# flag: run_eval calls available(ALL tasks) to decide whether to calibrate, and
+# available([one task]) to decide whether the policy runs on it. Those disagree
+# the moment SOME tasks have cached scores and others do not - which is what a
+# task-set swap produces, since scores are keyed on the prompt - and routellm then
+# runs uncalibrated on the tasks it does have and raises mid-run.
 CALIBRATED = False
 
 

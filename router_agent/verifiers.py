@@ -6,32 +6,24 @@ experiment:
     verify_code   run the shipped asserts        free, and perfect
     verify_math   self-consistency over k draws  costs k calls, and is a proxy
 
-Exactly one of those survives the move into production, and which one is not
-obvious until you look at what each needs.
+Exactly one survives the move into production.
 
 **`verify_math` transfers unchanged.** Self-consistency asks the model the same
-question k times and measures how often it agrees with itself. It never
-consults the answer key, because there isn't one - agreement is computed over
-the model's own outputs. Everything the benchmark measured about it applies
-directly to a served query.
+question k times and measures self-agreement; it never consults an answer key,
+because there isn't one. Everything the benchmark measured applies directly.
 
-**`verify_code` does not transfer.** "Run the tests" is free and perfect in the
-benchmark because MBPP+ ships the tests. A user asking for a function supplies
-no asserts, so the perfect verifier is simply unavailable unless the caller
-brings one. This is the single biggest gap between the experiment and the
-product, and `cascade_degraded` is the part of the benchmark that priced it:
-it corrupts `verify_code` by a controlled amount and watches cascade quality
-fall, which is exactly the curve you slide down when you lose the real tests.
+**`verify_code` does not.** "Run the tests" is free and perfect only because
+MBPP+ ships them, and a user asking for a function supplies no asserts. This is
+the biggest gap between the experiment and the product, and `cascade_degraded`
+is what priced it: corrupt `verify_code` by a controlled amount and watch
+cascade quality fall, which is the curve you slide down when you lose the tests.
 
-So the honest summary, and the one the docs lead with:
+So: the cascade's production economics are governed by which verifier you can
+actually obtain, and for most workloads that is the proxy.
 
-    the cascade's economics in production are governed by which verifier you
-    can actually obtain, and for most workloads that is the proxy, not the
-    perfect one.
-
-Each verifier returns a `Check`. Note what it does NOT contain: a `correct`
-field. A verifier's opinion is `accepted`, and conflating the two is how a
-serving layer starts reporting accuracy it never measured.
+Each verifier returns a `Check`, which has no `correct` field. A verifier's
+opinion is `accepted`, and conflating the two is how a serving layer starts
+reporting accuracy it never measured.
 """
 
 from __future__ import annotations
@@ -258,15 +250,14 @@ def verify_self_consistency(task, response_text, tier, cfg) -> Check:
             )
             backend_cost += call_backend_cost
         except KeyError as exc:
-            # Replay mode, and this draw was never paid for. The benchmark's
-            # two-arm probe bought one greedy call per task and no temperature
-            # samples, so replaying a cascade over probe data reaches this on
-            # the first extra draw.
+            # Replay mode, and this draw was never paid for: the two-arm probe
+            # bought one greedy call per task and no temperature samples, so a
+            # cascade replayed over probe data reaches this on the first extra
+            # draw.
             #
-            # Escalating is the honest response: verification did not happen,
-            # so the answer is unverified, and an unverified answer is exactly
-            # what a cascade escalates on. Silently accepting would invent
-            # confidence that was never measured.
+            # Escalating is the honest response - verification did not happen, so
+            # the answer is unverified, and that is what a cascade escalates on.
+            # Accepting would invent confidence that was never measured.
             return Check(
                 accepted=False,
                 answer_text=response_text,

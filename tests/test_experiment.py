@@ -1,15 +1,9 @@
 """Unit tests for the research half.
 
-Until August 2026 every test in this suite covered `router_agent/` and none of
-them covered the 6,100 lines that actually produce the numbers the repository
-reports. `sanity_check.py` guarded the graders and nothing else - and it had
-already missed a real grader bug in July by only ever testing `grade(GT, GT)`.
-
-These target the arithmetic and the invariants, not the findings. A test that
-pinned an accuracy figure would just re-create the staleness problem the repo
-already hit once when the 6 August task-set rebuild moved every magnitude.
-What is asserted here is the kind of thing that would silently corrupt a result
-rather than break a run:
+These target the arithmetic and the invariants, not the findings: a test that
+pinned an accuracy figure would go stale the next time the task set moved. What
+is asserted is the kind of thing that would silently corrupt a result rather
+than break a run:
 
     price arithmetic          a wrong multiplier makes every cost figure wrong
     cache keys                a missing key field makes two calls collide
@@ -18,7 +12,7 @@ rather than break a run:
     McNemar                   the significance claim rests on it
     the convex hull           the "who owns each budget" table rests on it
     split determinism         a drifting split silently changes every result
-    math answer equivalence   the exact bug class found in July
+    math answer equivalence   the exact bug class the graders were fixed for
 
 No network, no API key, no model call that is not mock or stubbed.
 """
@@ -381,37 +375,30 @@ class TestSplits:
 
 
 # ---------------------------------------------------------------------------
-# The maths grader. This is the July 2026 bug class, pinned.
+# The maths grader. This is the original bug class, pinned.
 # ---------------------------------------------------------------------------
 
 class TestQuarantine:
     """A quarantined task must never come back, in any artefact.
 
-    Five MBPP+ tasks were found on 8 August 2026 to have expected answers that
-    cannot be derived from their prompt - they score against whatever the MBPP
-    reference happened to return on inputs the prompt never describes. They were
-    ALL of always_expensive's failures on the eval split, so leaving them in
-    capped every policy at 92% instead of 100%.
+    Quarantined tasks have expected answers that cannot be derived from their
+    prompt, and left in they cap every policy - the first five found were ALL of
+    always_expensive's failures on the eval split, holding it at 92%.
 
-    On 9 August 2026 every trace of them was deleted rather than filtered
-    (`scripts/purge_quarantined.py`). This class is the tripwire that keeps it
-    that way: nothing downstream screens them out any more, so a reintroduced id
-    would be counted rather than ignored.
+    Every trace of them is deleted rather than filtered
+    (`scripts/provenance/purge_quarantined.py`), so nothing downstream screens
+    them out and a reintroduced id would be counted. This class is the tripwire.
     """
 
     def test_no_artefact_mentions_them(self):
         """The whole rule, in one assertion, over every file that stores a task id.
 
-        DISCOVERED, not listed. This used to be a hardcoded set of paths, and it
-        silently lost most of its coverage when the 11 August 2026 restructure
-        renamed `runs/results.jsonl` to one file per ladder: the missing path hit
-        the `exists()` guard, and the three files that replaced it were never
-        added. The tripwire went on passing while inspecting nothing that
-        mattered.
-
-        Globbing means a new ladder or a new analysis output is covered the day
-        it appears. `required` below is the floor that stops an empty glob - a
-        wrong directory, a renamed suffix - from making this vacuous again.
+        DISCOVERED, not listed. A hardcoded path list loses its coverage
+        silently the moment a file is renamed: the missing path hits the
+        `exists()` guard and the tripwire goes on passing while inspecting
+        nothing. Globbing covers a new ladder or output the day it appears, and
+        `required` below is the floor that stops an empty glob - a wrong
+        directory, a renamed suffix - from making this vacuous.
         """
         from llm_routing import build_taskset
 
@@ -463,7 +450,7 @@ class TestQuarantine:
         assert not offenders, (
             f"quarantined tasks are back in {offenders}.\n"
             f"They are unpassable, not hard, and nothing filters them any more. "
-            f"Re-run `python scripts/purge_quarantined.py --go`, and work out "
+            f"Re-run `python scripts/provenance/purge_quarantined.py --go`, and work out "
             f"what put them back before trusting any number from this run."
         )
         blank = sorted(k for k, v in evidence_seen.items() if not v)
@@ -495,17 +482,16 @@ class TestQuarantine:
             assert len(reason) > 40, f"{task_id} has no real evidence recorded"
 
     def test_nothing_passable_is_quarantined(self):
-        """The bar tightened on 10 August: every rung's p-hat must be 0.
+        """The bar was tightened: every rung's p-hat must be 0.
 
-        `codeplus-305` was quarantined on 8 August while `redraw.wide.json` in
-        the same commit recorded its expensive rung at p-hat 0.5. A task the
-        cheap rung reliably fails and the expensive rung solves half the time is
-        ROUTABLE - the most valuable kind of task here - and quarantining it
-        deleted the signal the project exists to measure.
+        A task the cheap rung reliably fails and the expensive rung solves half
+        the time is ROUTABLE - the most valuable kind here - so quarantining it
+        deletes the signal the project exists to measure. `codeplus-305` was
+        quarantined with `redraw.wide.json` recording its expensive rung at
+        p-hat 0.5 in the same commit.
 
         This reads whatever draw data is on disk and fails if any quarantined id
-        was ever observed passing. It is deliberately cheap to satisfy and hard
-        to argue with: one passing draw is a disproof of "unpassable".
+        was observed passing: one passing draw disproves "unpassable".
         """
         import json
 
@@ -585,7 +571,7 @@ class TestMathAnswerEquivalence:
 
 
 # ---------------------------------------------------------------------------
-# Replay misses. The failure mode fixed in August 2026.
+# Replay misses. A failure mode this suite was written after.
 # ---------------------------------------------------------------------------
 
 class TestReplayMiss:
@@ -617,7 +603,7 @@ class TestReplayMiss:
 
 
 # ---------------------------------------------------------------------------
-# Response provenance. On 7 August 2026 a replay served 240 fabricated
+# Response provenance. A replay once served 240 fabricated
 # self-consistency samples into a results.jsonl whose every row said
 # `simulated: false`, because the flag was derived from the run MODE and from
 # whether the real cache FILE existed - neither of which is a fact about any
@@ -700,7 +686,7 @@ class TestResponseProvenance:
 
         A cascade that verifies a genuine cheap answer with five mock samples is
         reporting the mock's verdict, not the model's - which is precisely the
-        shape of the 7 August contamination.
+        shape of the contamination this section exists for.
         """
         models.reset_call_stats()
         before = models.call_stats["served_mock"]
@@ -712,7 +698,7 @@ class TestResponseProvenance:
 # ---------------------------------------------------------------------------
 # The spend guards.
 #
-# Both of these were real hazards on 9 August 2026, before the largest paid
+# Both of these were real hazards, found just before the largest paid
 # batch in the project's history. The cap printed "stopping early" and carried
 # on, so a half-measured task set would have been written to results.jsonl and
 # read as complete; and ROUTER_CACHE=0 would have paid for every response and
@@ -819,7 +805,7 @@ class TestCacheOffIsRefusedOnThePaidPath:
 def _import_redraw():
     import importlib.util
     spec = importlib.util.spec_from_file_location(
-        "redraw_decisive", REPO_ROOT / "scripts" / "redraw_decisive.py")
+        "redraw_decisive", REPO_ROOT / "scripts" / "provenance" / "redraw_decisive.py")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
@@ -840,7 +826,7 @@ class TestRoutableReestimate:
         }
 
     def test_a_phantom_is_removed_from_the_estimate(self):
-        """The exact case found on 7 August: the probe called a task routable,
+        """The exact case the redraw found: the probe called a task routable,
         but ten redraws show the cheap rung solves it every time. It must not
         count toward either the expected or the reproducible figure."""
         cells = self._cells(["phantom"])
@@ -881,28 +867,23 @@ class TestRoutableReestimate:
     def test_the_correction_only_ever_shrinks_the_headline(self):
         """The ordering that makes the redraw worth buying, as an invariant.
 
-        These assertions used to be magnitudes - n_graded == 94, 15 p_hat
-        entries, observed == 0.149. They went stale twice, and the second time
-        (the code half going from 35 tasks to 366) they said nothing useful:
-        a pinned number cannot tell "the task set moved" from "the correction
-        broke".
+        Asserted as a DIRECTION rather than as magnitudes, because a pinned
+        number cannot tell "the task set moved" from "the correction broke".
 
-        What must hold on any task set is the DIRECTION. `observed` counts one
-        draw per cell and cannot distinguish "the cheap model cannot do this"
-        from "the cheap model usually can and missed once", so it overstates.
-        `expected` averages fresh draws. `reproducible` further requires the
-        behaviour to be reliable at both rungs. Each step can only remove mass
-        it cannot re-confirm, so:
+        `observed` counts one draw per cell and cannot distinguish "the cheap
+        model cannot do this" from "it usually can and missed once", so it
+        overstates. `expected` averages fresh draws. `reproducible` further
+        requires reliability at both rungs. Each step only removes mass it cannot
+        re-confirm:
 
             observed  >=  expected  >=  reproducible
 
-        If that ever inverted, the re-estimate would be manufacturing routing
-        opportunities rather than pricing the noise in them, which is the exact
-        failure this script exists to prevent.
+        Inverted, the re-estimate would be manufacturing routing opportunities
+        rather than pricing the noise in them.
         """
         path = REPO_ROOT / "runs" / "redraw.wide.json"
         if not path.exists():
-            pytest.skip("redraw.wide.json not present; run scripts/redraw_decisive.py")
+            pytest.skip("redraw.wide.json not present; run scripts/provenance/redraw_decisive.py")
         import json
         d = json.loads(path.read_text(encoding="utf-8"))
 
@@ -931,7 +912,7 @@ class TestRoutableReestimate:
         """
         path = REPO_ROOT / "runs" / "redraw.wide.json"
         if not path.exists():
-            pytest.skip("redraw.wide.json not present; run scripts/redraw_decisive.py")
+            pytest.skip("redraw.wide.json not present; run scripts/provenance/redraw_decisive.py")
         import json
         d = json.loads(path.read_text(encoding="utf-8"))
         phantoms = [t for t, p in d["p_hat"].items()
@@ -953,7 +934,7 @@ class TestRoutableReestimate:
         """
         path = REPO_ROOT / "runs" / "redraw.wide.json"
         if not path.exists():
-            pytest.skip("redraw.wide.json not present; run scripts/redraw_decisive.py")
+            pytest.skip("redraw.wide.json not present; run scripts/provenance/redraw_decisive.py")
         import json
         d = json.loads(path.read_text(encoding="utf-8"))
 
@@ -1130,7 +1111,7 @@ class TestRealizedRatio:
         assert findings.realized_ratio("wide", path=path)["ratio"] == pytest.approx(10.0)
 
     def test_the_committed_wide_cache_is_dearer_than_the_price_table_says(self):
-        """The 7 August finding: quoted 46.4x, billed 68.2x. Asserted as an
+        """The realized-ratio finding: quoted 46.4x, billed 68.2x. Asserted as an
         inequality rather than a constant, so more real runs can move it."""
         from router_agent import findings
         r = findings.price_ratios("wide")
@@ -1142,20 +1123,16 @@ class TestRealizedRatio:
 class TestLadderScopedOutputs:
     """Every artefact-writing entry point must accept an output path.
 
-    The project's thesis is that the sign of the cascading-vs-routing result
-    depends on the PRICE RATIO between rungs, and a price ratio is a property of
-    a ladder. Testing that claim means holding three ladders' numbers side by
-    side - so the moment any analysis script hard-codes its output filename,
-    running a second ladder silently overwrites the first.
+    The thesis is that the sign of the cascading-vs-routing result depends on
+    the PRICE RATIO between rungs, which is a property of a ladder - so testing it
+    means holding three ladders' numbers side by side. The moment an analysis
+    script hard-codes its output filename, the second ladder overwrites the
+    first. (`run_eval.guard_regression` exists because a `deepseek` run once
+    overwrote a complete nine-policy `wide` run with 47 rows of one policy.)
 
-    That is not hypothetical. `run_eval.guard_regression` exists because on
-    8 August 2026 a `deepseek` run overwrote a complete nine-policy `wide` run
-    with 47 rows of one policy. The guard caught it; the underlying cause was one
-    fixed path shared by every ladder.
-
-    This is a structural tripwire rather than a behavioural test: it fails when
-    someone adds a new analysis script with a fixed output path, which is the
-    mistake, not the symptom.
+    A structural tripwire rather than a behavioural test: it fails when a new
+    analysis script arrives with a fixed output path, which is the mistake rather
+    than the symptom.
     """
 
     WRITERS = [
@@ -1207,18 +1184,17 @@ class TestLadderScopedOutputs:
 class TestScorecard:
     """The per-policy error attribution must agree with the accuracy it explains.
 
-    `scorecard.py` re-derives what each policy did from two independent sources:
-    the result rows, and the cheap-vs-expensive cross-tab built from the raw
-    cache. Those can disagree, and when they do every number it prints is wrong.
-    Both disagreements found while writing it were real:
+    `scorecard.py` re-derives what each policy did from two independent sources
+    - the result rows, and the cross-tab built from the raw cache - and when they
+    disagree every number it prints is wrong. Two real disagreements:
 
-      the oracle rescued two `routable` tasks with `calls = ['cheap'] * 5` -
-      cheap self-consistency, a third action that a binary escalated/not reading
-      files as a missed rescue while the row says `correct: true`, and which a
-      three-rung ladder reaches a second way, through its middle rung;
+      the oracle rescues two `routable` tasks with `calls = ['cheap'] * 5`, which
+      is cheap self-consistency: a third action that a binary escalated/not
+      reading files as a missed rescue while the row says `correct: true`, and
+      that a three-rung ladder reaches again through its middle rung;
 
-      `wasted_escalation` tasks are CORRECT - on a both_ok task both rungs get
-      it right, so the waste is the money, not the answer.
+      `wasted_escalation` tasks are CORRECT - on a both_ok task both rungs get it
+      right, so the waste is the money, not the answer.
     """
 
     def test_the_outcome_buckets_partition_every_task(self):
@@ -1314,11 +1290,9 @@ class TestScorecard:
         3 seconds at 95 tasks, 168 at 426. The fast test above covers the
         arithmetic; this covers the join against the real cross-tab.
 
-        Named per ladder rather than defaulting. This test used to gate on a
-        fixed `runs/results.jsonl`, which the 11 August 2026 restructure deleted
-        and which will not come back - so it silently skipped even under
-        `pytest -m slow`, and the only end-to-end reconciliation against real
-        data stopped running while still being advertised.
+        Named per ladder rather than defaulting: gating on a fixed
+        `runs/results.jsonl` makes it skip silently even under `pytest -m slow`,
+        and a skipped test is still advertised as coverage.
         """
         import json
         import subprocess
@@ -1386,19 +1360,17 @@ class TestScorecardLadder:
 class TestCrossLadderVerdicts:
     """`routable.real_verdicts` must see what the CACHE would serve, not one file.
 
-    The ladder is deliberately absent from the cache key, so a response bought
-    for one ladder serves any ladder whose rung uses the same model - that is
-    what made three ladders affordable here. But it also means a ladder's own
-    file is not where its responses live: on 10 August 2026
-    raw_calls.claude.jsonl held haiku and sonnet and no Opus, because Opus had
-    been bought for `wide`. Reading one file returned a cross-tab with ZERO
-    tasks in it for a fully measured ladder.
+    The ladder is absent from the cache key, so a response bought for one ladder
+    serves any ladder whose rung uses the same model - which is what made three
+    ladders affordable. It also means a ladder's own file is not where its
+    responses live: raw_calls.claude.jsonl holds haiku and sonnet and no Opus,
+    because Opus was bought for `wide`, so reading one file returns a cross-tab
+    with ZERO tasks for a fully measured ladder.
 
-    The second trap is subtler and worse. Reading all the files but trusting the
-    recorded `tier` label would file Opus answers as the deepseek ladder's top
-    rung - `wide`'s "expensive" is Opus, `deepseek`'s is v4-pro - and produce a
+    The subtler trap: reading all the files but trusting the recorded `tier`
+    label files Opus answers as the deepseek ladder's top rung, producing a
     clean-looking cross-tab comparing two different models. Rows must be matched
-    to rungs by MODEL, which is what response_cache.make_key actually hashes.
+    by MODEL, which is what response_cache.make_key hashes.
     """
 
     def test_it_reads_every_file_the_cache_would_serve(self):
@@ -1432,15 +1404,13 @@ class TestCrossLadderVerdicts:
 class TestPathsDefaultLadder:
     """`paths.default_ladder` duplicates `models.LADDER`, so keep them in step.
 
-    The duplication is deliberate and documented in `paths`: `scorecard` reads
-    the ladder out of a results file and sets ROUTER_LADDER *before* the first
-    `models` import, because `models` builds its price table at module scope. It
-    therefore cannot ask `models` what the default is while it is still working
-    out which file to open.
+    The duplication is deliberate: `scorecard` reads the ladder out of a results
+    file and sets ROUTER_LADDER *before* the first `models` import, because
+    `models` builds its price table at module scope - so it cannot ask `models`
+    for the default while still working out which file to open.
 
-    A silent divergence would send `stats` and `scorecard` at a different
-    ladder's results than `run_eval` just wrote, which is the exact class of bug
-    the per-ladder filenames exist to prevent.
+    A silent divergence would point `stats` and `scorecard` at a different
+    ladder's results than `run_eval` just wrote.
     """
 
     def test_it_agrees_with_models(self, use_ladder):

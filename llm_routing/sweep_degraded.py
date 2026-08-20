@@ -2,23 +2,21 @@
 
 THIS IS THE EXPERIMENT. Everything else in the repo is scaffolding for it.
 
-The project's stated contribution is that verifier quality is the manipulated
-variable. With only the two natural verifiers there are two levels of that
-variable, and they are perfectly confounded with task domain:
+Verifier quality is the manipulated variable. With only the two natural
+verifiers it has two levels, perfectly confounded with domain:
 
     perfect verifier | code | MBPP    | run asserts | $0 to verify
     proxy   verifier | math | MATH500 | exact match | k-1 extra cheap calls
 
-Five things differ between those rows, so "the code cascade beats
-always_expensive and the math cascade does not" cannot be attributed to verifier
-quality. It can only be attributed to "code is different from math", which is a
-between-subjects comparison with no controls and the most attackable claim the
+Five things differ per row, so "the code cascade beats always_expensive and the
+math cascade does not" can only be attributed to "code is different from math" -
+a between-subjects comparison with no controls, and the most attackable claim the
 project could make.
 
-This sweep fixes that by moving verifier quality WITHIN the code domain. Same
-tasks, same two models, same grader, same prompts, same cost structure - only
-verify_code's fidelity moves, from perfect to a coin flip. The output is a curve
-rather than two points, and two points are not a trend.
+This sweep moves verifier quality WITHIN the code domain instead: same tasks,
+models, grader, prompts and cost structure, only verify_code's fidelity moving
+from perfect to a coin flip. The output is a curve, and two points are not a
+trend.
 
     p = 0.00   verifier is verify_code, unchanged. Identical to `cascade`.
     p = 1.00   verifier ignores the tests entirely and flips a coin. Zero
@@ -27,10 +25,10 @@ rather than two points, and two points are not a trend.
 p is the probability the verifier ignores the test result, so the effective error
 rate is p/2 and the effective AUC is roughly 1 - p/2.
 
-FREE, because of the response cache: every point in the sweep reuses the same
-cheap and expensive responses. The sweep makes zero additional model calls after
-the first point, in mock mode and in real mode alike. That property is the entire
-reason the cache had to exist before any money was spent.
+FREE, because of the response cache: every point reuses the same cheap and
+expensive responses, so the sweep makes zero additional model calls after the
+first - in mock and real mode alike. That is why the cache had to exist before
+any money was spent.
 
     python -m llm_routing.sweep_degraded                      # mock
     ROUTER_MODE=replay python -m llm_routing.sweep_degraded   # from a paid run, free
