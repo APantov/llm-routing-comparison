@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "llm-routing": {
+      "command": "python",
+      "args": ["-m", "router_agent.mcp_server"],
+      "env": {
+        "ROUTER_LADDER": "wide",
+        "ROUTER_MODE": "replay",
+        "ROUTER_K": "3",
+        "ROUTER_AGREEMENT": "1.0"
+      }
+    }
+  }
+}

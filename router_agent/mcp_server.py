@@ -38,7 +38,9 @@ import json
 import os
 from typing import Any
 
+from mcp.server.caching import CacheHint
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 
 INSTRUCTIONS = """\
 Cost-aware LLM routing, backed by a benchmark in the same repository.
@@ -51,9 +53,10 @@ Two things to understand before reading its output:
 * `verified` is a VERIFIER'S OPINION, never a correctness claim. Serving has no
   ground truth. Read `verified_meaning` alongside it - it says exactly what was
   and was not measured.
-* `cost_usd` is what serving the query would cost in production. In `replay` or
-  `mock` mode the run itself spends nothing; `backend_cost_usd` is what
-  actually left the account.
+* `cost_usd` is what serving the query would cost in production. In `replay` -
+  the default - the run itself spends nothing; `backend_cost_usd` is what
+  actually left the account. A query nobody paid for returns
+  `error: no_cached_response` rather than an invented answer.
 
 Call `explain_routing` first if you are choosing a policy. Whether cascading is
 the right architecture is a measured property of the ladder you loaded, and on
@@ -62,11 +65,58 @@ between the rungs: the three measured ladders are non-monotonic in that ratio,
 so a threshold rule gets two of the three backwards.
 """
 
+# What a client may cache, and for how long. Every list this server serves is
+# fixed at import time by the decorators below - four tools, four resources,
+# one prompt - so a client re-listing on each connection is asking again for
+# something that cannot have changed. Left unset, the SDK sends
+# `ttlMs=0, cacheScope=private`, which tells a client exactly the opposite.
+#
+# `public` throughout because nothing here varies by caller: the tool surface
+# is identical for everyone, and the resources serve committed benchmark
+# artefacts rather than per-user state. `resources/read` gets the shorter hour
+# because it is the only one that reads the filesystem, so it is the only one a
+# fresh benchmark run can invalidate under a running server.
+_LIST_TTL_MS = 24 * 60 * 60 * 1000
+_READ_TTL_MS = 60 * 60 * 1000
+CACHE_HINTS = {
+    "server/discover": CacheHint(ttl_ms=_LIST_TTL_MS, scope="public"),
+    "tools/list": CacheHint(ttl_ms=_LIST_TTL_MS, scope="public"),
+    "prompts/list": CacheHint(ttl_ms=_LIST_TTL_MS, scope="public"),
+    "resources/list": CacheHint(ttl_ms=_LIST_TTL_MS, scope="public"),
+    "resources/templates/list": CacheHint(ttl_ms=_LIST_TTL_MS, scope="public"),
+    "resources/read": CacheHint(ttl_ms=_READ_TTL_MS, scope="public"),
+}
+
+# Which calls cost money. A server whose whole argument is that model calls
+# should be priced before they are made ought to say which of its OWN calls
+# spend, and until now it did not.
+#
+# These are static, so they describe the WORST case. `route_query` and
+# `compare_policies` spend nothing in replay - the default - but a client that
+# cached the tool list has no way to know which mode the server was started in,
+# and a hint reading "free" on a server since restarted in `real` mode is worse
+# than no hint at all.
+#
+# MCP has no "costs money" hint, so the mapping is: calling a model is a
+# real-world side effect, hence not read-only; nothing is destroyed, hence not
+# destructive; and a cascade resamples, so the same query need not come back
+# with the same answer or the same bill, hence not idempotent. `destructive`
+# and `idempotent` are meaningful only when `read_only` is false, which is why
+# FREE omits them rather than asserting something the spec would ignore.
+FREE = ToolAnnotations(read_only_hint=True, open_world_hint=False)
+SPENDS = ToolAnnotations(
+    read_only_hint=False,
+    destructive_hint=False,
+    idempotent_hint=False,
+    open_world_hint=True,
+)
+
 mcp = MCPServer(
     name="llm-routing",
     title="Cost-aware LLM routing",
     version="0.2.0",
     instructions=INSTRUCTIONS,
+    cache_hints=CACHE_HINTS,
 )
 
 
@@ -84,6 +134,7 @@ def _ladder() -> str:
 # ---------------------------------------------------------------------------
 
 @mcp.tool(
+    annotations=SPENDS,
     description=(
         "Route one query through a cost-aware cascade and return the answer "
         "with a full cost and verification trace. Call this instead of going "
@@ -120,22 +171,27 @@ def route_query(
             enabled server-side, since running them executes model-generated
             code.
     """
+    from llm_routing import models
     from router_agent.engine import route
 
     cfg = _cfg(
         policy=policy, domain=domain, verifier=verifier,
         max_cost_usd=max_cost_usd,
     )
+    # ReplayMiss, not KeyError: a genuine KeyError raised inside the graph is a
+    # bug in this server, and returning it to the caller as "no cached response"
+    # would describe a defect as a configuration issue.
+    except_note = (
+        "This server is in replay mode - the default - which can only serve "
+        "prompts that were actually paid for (the 417 benchmark tasks). Set "
+        "ROUTER_MODE=real with an API key to serve arbitrary queries."
+    )
     try:
         out = route(query, cfg=cfg, tests=tests)
-    except KeyError as exc:
+    except models.ReplayMiss as exc:
         return {
             "error": "no_cached_response",
-            "detail": (
-                "This server is in replay mode, which can only serve prompts "
-                "that were actually paid for (the 417 benchmark tasks). Set "
-                "ROUTER_MODE=real with an API key to serve arbitrary queries."
-            ),
+            "detail": except_note,
             "raw": str(exc)[:300],
         }
 
@@ -149,6 +205,7 @@ def route_query(
 
 
 @mcp.tool(
+    annotations=FREE,
     description=(
         "Project what each routing policy would cost for a query WITHOUT "
         "calling any model. Free and instant. Use this to decide whether a "
@@ -168,6 +225,7 @@ def estimate_cost(query: str, domain: str = "auto") -> dict[str, Any]:
 
 
 @mcp.tool(
+    annotations=SPENDS,
     description=(
         "Run the same query under several routing policies and compare what "
         "each returned and spent. This is the repository's central experiment, "
@@ -188,6 +246,7 @@ def compare_policies(
             always_cheap and always_expensive.
         domain: auto | math | code | general.
     """
+    from llm_routing import models
     from router_agent.engine import route
 
     names = policies or ["always_cheap", "predictive", "cascade", "always_expensive"]
@@ -195,7 +254,7 @@ def compare_policies(
     for name in names:
         try:
             out = route(query, cfg=_cfg(policy=name, domain=domain))
-        except KeyError:
+        except models.ReplayMiss:
             rows.append({"policy": name, "error": "no cached response (replay mode)"})
             continue
         rows.append({
@@ -228,6 +287,7 @@ def compare_policies(
 
 
 @mcp.tool(
+    annotations=FREE,
     description=(
         "Explain when cascade routing beats predictive routing, using this "
         "repository's measurements. Call this BEFORE choosing a policy: "
