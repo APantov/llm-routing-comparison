@@ -19,20 +19,21 @@ accuracy dynamic range of the experiment is
 and if that is two points, no sample size and no router cleverness produces a
 publishable accuracy result on this task set. This script measures it.
 
-    python -m llm_routing.routable                       # mock, current ROUTER_LADDER
-    python -m llm_routing.routable --ladders all         # mock, all three ladders
-    python -m llm_routing.routable --real                # grade the real cached responses
+    python -m llm_routing.routable                       # current ROUTER_LADDER
+    python -m llm_routing.routable --ladders all         # all three ladders
     python -m llm_routing.routable --taskset pool.jsonl  # any candidate task set
 
-Mock mode costs nothing. --real reads `cache/raw_calls.<ladder>.jsonl` and grades
-what is already on disk; it never calls a model, so it also costs nothing.
+There is one path and it is measured: `cache/raw_calls.<ladder>.jsonl` is read
+and what is already on disk is graded. No model is called, so it costs nothing -
+which is why the simulated cross-tab this module used to print by default was
+never worth the risk of being read as a measurement. `--real` is still accepted,
+and now does nothing, because it appears in published commands.
 """
 
 import argparse
 import json
 import math
 import os
-import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -135,26 +136,17 @@ def fmt(s):
     )
 
 
-# ---------------------------------------------------------------------------
-# Mock path: the mock's verdict is a pure function of (task, tier), so this
-# needs no run_eval and no cache priming.
-# ---------------------------------------------------------------------------
-def mock_verdicts(tasks, ladder):
-    os.environ["ROUTER_LADDER"] = ladder
-    os.environ["ROUTER_MODE"] = "mock"
-    for mod in ("models", "policies", "response_cache"):
-        sys.modules.pop(mod, None)
-    from llm_routing import models
-    from llm_routing.graders import grade
-
-    out = {}
-    for t in tasks:
-        row = {}
-        for tier in models.TIERS:
-            r = models.call(tier, t)
-            row[tier] = grade(t, r.text)
-        out[t["id"]] = row
-    return out
+# `mock_verdicts` STOOD HERE, and it was the sharpest version of the problem
+# this repository had with mock mode. It built the same four-cell cross-tab out
+# of `models.MOCK_SKILL` and `models.MOCK_FAILURE_CORRELATION`, printed it in the
+# same layout as the measured one, and ran BY DEFAULT - so `python -m
+# llm_routing.routable` produced a plausible routable fraction for a ladder
+# nobody had ever called. docs/RESULTS.md had to carry a bold warning that the
+# `--real` flag was not optional.
+#
+# The measured path costs nothing either: it grades responses already on disk.
+# There was never a reason to simulate this, only an order of implementation
+# that outlived its usefulness.
 
 
 # ---------------------------------------------------------------------------
@@ -253,8 +245,9 @@ def real_verdicts(tasks, ladder):
         for task_id, tier in sorted(truncated):
             print(f"     {task_id:<16} {tier:<10} dropped from the cross-tab")
         print(f"     n falls by that many pairs. Raising models.MAX_TOKENS "
-              f"re-charges every\n     cached response\n     "
-              f"(docs/ARCHITECTURE.md (standing invariants)), so the task is excluded instead.")
+              f"re-charges every cached\n     response - see the standing "
+              f"invariants in docs/ARCHITECTURE.md - so\n     the task is "
+              f"excluded instead.")
     return out
 
 
@@ -333,25 +326,35 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--taskset", default=str(paths.TASKSET))
     ap.add_argument("--ladders", default=os.environ.get("ROUTER_LADDER", "claude"))
-    ap.add_argument("--real", action="store_true")
+    ap.add_argument("--real", action="store_true",
+                    help="ACCEPTED AND IGNORED. Grading the real cached "
+                         "responses is the only thing this module does now; the "
+                         "flag survives because published commands pass it.")
     ap.add_argument("--json", default=None)
     args = ap.parse_args()
+
+    # `real_verdicts` names the real cache files explicitly, so this module
+    # cannot be fed fabricated responses whatever the mode says. The guard is
+    # here anyway, and the rule it keeps uniform is worth more than the one
+    # module it is redundant in: something that writes a published artefact does
+    # not run in a mode that fabricates. A reader should not have to work out
+    # which analysis scripts are exceptions.
+    from llm_routing import models
+    models.require_measured_mode("routable")
 
     tasks = load_tasks(Path(args.taskset))
     ladders = ["claude", "deepseek", "wide"] if args.ladders == "all" else args.ladders.split(",")
 
     dump = {}
     for lad in ladders:
-        if args.real:
-            os.environ["ROUTER_LADDER"] = lad
-            v = real_verdicts(tasks, lad)
-            if not v:
-                print(f"\n=== REAL, ladder={lad} === no cached responses")
-                continue
-            dump[f"real:{lad}"] = report(v, tasks, f"REAL (cached responses), ladder={lad}")
-        else:
-            v = mock_verdicts(tasks, lad)
-            dump[f"mock:{lad}"] = report(v, tasks, f"MOCK - SIMULATED, NOT MEASURED, ladder={lad}")
+        os.environ["ROUTER_LADDER"] = lad
+        v = real_verdicts(tasks, lad)
+        if not v:
+            print(f"\n=== ladder={lad} === no cached responses. This cross-tab "
+                  f"is grading, not\n    calling: with nothing on disk for this "
+                  f"ladder there is nothing to grade.")
+            continue
+        dump[f"real:{lad}"] = report(v, tasks, f"REAL (cached responses), ladder={lad}")
 
     for k, v in dump.items():
         if "all" in v:

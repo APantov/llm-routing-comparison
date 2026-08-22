@@ -219,7 +219,7 @@ def main():
     ap.add_argument("--by-domain", action="store_true",
                     help="also break every policy down by domain. Worth doing "
                          "whenever the halves differ in size - an aggregate over "
-                         "366 code and 60 maths tasks is a code number.")
+                         "357 code and 60 maths tasks is a code number.")
     ap.add_argument("--show-ids", metavar="OUTCOME", default=None,
                     help="list the task ids behind one outcome, e.g. missed_rescue")
     ap.add_argument("--json", metavar="PATH", default=None)
@@ -243,9 +243,19 @@ def main():
     # property of the file, so it is read from there rather than the environment.
     if os.environ.get("ROUTER_LADDER") != ladder:
         os.environ["ROUTER_LADDER"] = ladder
+    from llm_routing import models
     from llm_routing import run_eval
 
+    # Two guards for two ways in. `cells_from_cache` goes through
+    # `routable.real_verdicts`, which names the REAL cache files explicitly and
+    # so cannot be fed fabricated responses whatever the mode says - but the
+    # results file it is joined against can be anything on disk, hence the first
+    # check. The second is the same rule this pipeline applies everywhere: a
+    # module that writes a published artefact does not run in a mode that
+    # cannot measure.
     simulated = any(r.get("simulated", r.get("mode") == "mock") for r in rows)
+    models.refuse_simulated_artefact("scorecard", simulated, path.name)
+    models.require_measured_mode("scorecard")
 
     tasks = run_eval.load_tasks()
     cells = cells_from_cache(tasks, ladder)
@@ -253,9 +263,6 @@ def main():
     unclassified = {r["task_id"] for r in rows} - cells.keys()
 
     print()
-    if simulated:
-        print("### SIMULATED INPUT - every outcome below is arithmetic on ###")
-        print("### FABRICATED responses. Nothing here measures a model.   ###")
     print(f"scorecard: {path.name}  |  ladder {ladder}  |  "
           f"{len(scored)} tasks classified")
     if unclassified:

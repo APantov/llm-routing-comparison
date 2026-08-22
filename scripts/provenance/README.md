@@ -21,7 +21,7 @@ than spend.
 | `record_missing.py` | buys exactly the calls a full replay is missing, and nothing else | **yes**, `--go` |
 | `triage_both_fail.py` | gathers the evidence for a quarantine decision, and refuses to make it | no — reads the cache and runs candidates locally |
 | `purge_quarantined.py` | deletes a quarantined task's rows from every artefact on disk | no (`--go` guards the rewrite) |
-| `resample_vs_reroute.py` | asks whether a gain is the routing signal or decoding noise | no — reads draws already on disk |
+| `resample_vs_reroute.py` | asks whether more cheap draws would have done what escalating did | no — reads draws already on disk |
 | `freeze_probe.py` | freezes the probe cross-tab that `router_agent/findings.py` is tested against | no (`--go` guards the rewrite) |
 
 ## The order they were used in
@@ -35,10 +35,10 @@ than spend.
 
 ## Why these are not in `scripts/`
 
-`scripts/` holds the four things a reader might actually run: the demo, the
-full-replay driver, and the two CI guards. These seven are operator tools for
-acquiring paid data against a task set that is already built. Separating them
-keeps the first list short enough to read.
+`scripts/` holds the five things a reader might actually run: the demo, the
+full-replay driver, the one-shot MCP client, and the two CI guards. These seven
+are operator tools for acquiring paid data against a task set that is already
+built. Separating them keeps the first list short enough to read.
 
 Each one still anchors on the repository root, so they run from anywhere:
 

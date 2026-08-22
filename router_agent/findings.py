@@ -30,6 +30,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from llm_routing import paths
+from llm_routing import response_cache
 
 PROBE_PATH = paths.RUNS / "results.probe.jsonl"
 
@@ -106,8 +107,8 @@ def realized_ratio(ladder: str, path: Path | None = None) -> dict | None:
     much further apart. On `wide` the input rates differ by 36x and the output
     rates by 89x, so which one is used is not a detail.
 
-    On `wide` the realized figure is **117x against a quoted 46x**, over 429
-    tasks with both rungs cached. The direction matters: understating the price
+    On `wide` the realized figure is **117x against a quoted 46x**, over 427
+    benchmark tasks with both rungs cached. The direction matters: understating the price
     gap understates the case for cascading on exactly the hard tasks where
     routing is worth doing.
 
@@ -131,6 +132,13 @@ def realized_ratio(ladder: str, path: Path | None = None) -> dict | None:
         if d.get("kind") != "answer" or d.get("mode") != "real":
             continue
         if d.get("temperature") not in (0, 0.0):
+            continue
+        if str(d.get("task_id") or "").startswith(response_cache.LIVE_ID_PREFIX):
+            # A response bought by SERVING a live query, not by the benchmark.
+            # `response_cache` writes those to serving.<ladder>.jsonl now, so
+            # this only fires on a cache written before that split - but it has
+            # to fire, because one served query is enough to make this function
+            # report a price ratio over n=1.
             continue
         per_task.setdefault(d["task_id"], {}).setdefault(d["tier"], []).append(
             d["cost_usd"])
@@ -185,8 +193,8 @@ def frontier_economics(path: str | None = None, ladder: str | None = None) -> di
     Returns None when this ladder has no frontier run committed, which is the
     honest answer for a ladder nobody has swept.
 
-    Two quantities, both computed with `frontier.py`'s own hull and AUC code
-    rather than a reimplementation, so the router and the report can never
+    Two quantities, both computed by `frontier.economics` rather than
+    reimplemented here, so the router, the report and the figures can never
     disagree about what they mean:
 
       cascade_vs_always_best_pct
@@ -217,58 +225,20 @@ def frontier_economics(path: str | None = None, ladder: str | None = None) -> di
     if not rows:
         return None
 
-    families: dict[str, list] = {}
-    for r in rows:
-        families.setdefault(r.get("family", ""), []).append(r)
-
-    needed = ("always_cheap", "always_expensive", "cascade", "random")
-    if any(f not in families for f in needed):
-        return None
-
     # Imported here rather than at module scope: `frontier` pulls in policies,
     # run_eval and splits, and `findings` is imported by the MCP server on
     # every start. The probe path and the price ratios must stay cheap.
     from llm_routing import frontier as frontier_mod
 
-    def points(name):
-        return [(p_["cost_per_task"], p_["accuracy"]) for p_ in families[name]]
-
-    # The same budget interval frontier.py integrates over: cheapest rung to
-    # most expensive rung.
-    lo = min(c for c, _ in points("always_cheap"))
-    hi = max(c for c, _ in points("always_expensive"))
-
-    random_auc = frontier_mod.auc(frontier_mod.upper_hull(points("random")), lo, hi)
-    cascade_auc = frontier_mod.auc(frontier_mod.upper_hull(points("cascade")), lo, hi)
-
-    expensive = max(
-        families["always_expensive"],
-        key=lambda p_: (p_["accuracy"], -p_["cost_per_task"]),
-    )
-    matched = [
-        p_ for p_ in families["cascade"]
-        if p_["accuracy"] >= expensive["accuracy"] - 1e-9
-    ]
-    cost_pct = None
-    if matched and expensive["cost_per_task"] > 0:
-        cheapest = min(matched, key=lambda p_: p_["cost_per_task"])
-        cost_pct = round(
-            100.0 * (cheapest["cost_per_task"] - expensive["cost_per_task"])
-            / expensive["cost_per_task"], 1
-        )
-
-    auc_gain = (
-        None if random_auc is None or cascade_auc is None
-        else round(100.0 * (cascade_auc - random_auc), 1)
-    )
+    econ = frontier_mod.economics(rows)
+    if econ is None:
+        return None
 
     return {
         "ladder": rows[0].get("ladder"),
-        "cascade_vs_always_best_pct": cost_pct,
-        "auc_gain_over_random_pct": auc_gain,
-        "verdict": (
-            None if cost_pct is None else ("cascade" if cost_pct < 0 else "route")
-        ),
+        "cascade_vs_always_best_pct": econ["cascade_vs_always_best_pct"],
+        "auc_gain_over_random_pct": econ["auc_gain_over_random_pct"],
+        "verdict": econ["verdict"],
         # Every row of a mock frontier carries simulated: true. If ANY row is
         # simulated the derived figure is, so this is `any`, not `all`.
         "simulated": any(r.get("simulated", True) for r in rows),
@@ -579,7 +549,7 @@ def caveats(ladder: str) -> list[str]:
         "`claude` the cascade buys its accuracy at a cost premium, and on "
         "`deepseek` the two rungs are not measurably different, so there is "
         "nothing to route at all. Name the ladder or the claim is empty - "
-        "docs/RESULTS.md 2.1 and 2.4.",
+        "docs/RESULTS.md.",
     ]
 
     probe = load_probe()
@@ -601,11 +571,13 @@ def caveats(ladder: str) -> list[str]:
         out.append(
             f"Part of even that ceiling is luck. Redrawing the decisive cells "
             f"moved the routable fraction from {100 * redraw['observed']:.1f}% "
-            f"observed to {100 * redraw['reproducible']:.1f}% reproducible - "
-            f"{100 * redraw['noise_share']:.1f}% of the apparent opportunity "
-            f"is one rung having a bad draw. Only the decisive cells were "
+            f"observed to {100 * redraw['reproducible']:.1f}% reproducible, "
+            f"because one rung had a bad draw. "
+            f"{100 * redraw['noise_share']:.1f}% of what fresh draws say is "
+            f"there does not reproduce. Only the decisive cells were "
             f"redrawn, so that correction is a floor on itself, not an "
-            f"estimate - docs/LIMITATIONS.md 5."
+            f"estimate - see the limitation on routing opportunity in "
+            f"docs/LIMITATIONS.md."
         )
     else:
         out.append(
@@ -613,7 +585,7 @@ def caveats(ladder: str) -> list[str]:
             f"unquantified: only `wide` has a decisive-cell redraw. Greedy "
             f"decoding is not deterministic for either provider, so a "
             f"single-draw probe is partly measuring which draw it got - "
-            f"docs/RESULTS.md 2.6 and 2.7."
+            f"see the noise and determinism findings in docs/RESULTS.md."
         )
 
     return out
@@ -626,6 +598,16 @@ def summary(ladder: str) -> dict:
         "ladder": ladder,
         "ratio": ratio_verdict(ladder),
         "crossover_ratio": CROSSOVER_RATIO,
+        # Labelled in the payload, not only in the comment above the constant.
+        # A consumer reading this JSON sees a threshold sitting next to a
+        # verdict, and the whole finding is that the threshold does not produce
+        # the verdict.
+        "crossover_ratio_note": (
+            "The literature's rule of thumb, reported for comparison and used "
+            "for nothing. These three ladders are not monotonic in the price "
+            "ratio, so a threshold gets two of them backwards. `ratio.verdict` "
+            "is the measured answer."
+        ),
         "probe": probe.to_dict() if probe else None,
         "probe_note": (
             None if probe else

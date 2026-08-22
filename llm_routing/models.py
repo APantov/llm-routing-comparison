@@ -1,17 +1,22 @@
 """
 Model client. Three modes, selected by the ROUTER_MODE environment variable.
 
-  MOCK   - no API key, no spend. Simulates a cheap and an expensive model with
-           correlated success rates. Runs the ENTIRE pipeline end to end before
-           any money is spent. This is the default.
+  REPLAY - serve every call from cache/raw_calls.<ladder>.jsonl and refuse to
+           touch the network. A miss is an error, not a fetch. This is what makes
+           the repo reproducible by someone with no API key, and what makes every
+           sweep after the first paid run cost nothing. THIS IS THE DEFAULT.
 
   REAL   - live API calls. Needs whichever key the selected ladder's providers
            use; _client() names the missing one if it is unset.
 
-  REPLAY - serve every call from cache/raw_calls.<ladder>.jsonl and refuse to
-           touch the network. A miss is an error, not a fetch. This is what makes
-           the repo reproducible by someone with no API key, and what makes every
-           sweep after the first paid run cost nothing.
+  MOCK   - no API key, no spend, and NO MEASUREMENT. Simulates a cheap and an
+           expensive model with correlated success rates, as a deterministic
+           function of (seed, task, tier, temperature, sample_idx).
+
+           IT CANNOT PRODUCE A RESULT, and the analysis pipeline refuses to run
+           in it - see require_measured_mode. What it is for is the test suite:
+           a stand-in model that answers ANY prompt reproducibly, where replay
+           knows only the prompts that were actually bought.
 
 EVERY call goes through response_cache first, in all three modes. It is not a
 speed optimisation but what makes the paired statistics valid - read its module
@@ -19,9 +24,9 @@ docstring before changing anything here.
 
 Every call returns a ModelResponse carrying tokens, latency and cost.
 
-    python -m llm_routing.run_eval                              # mock
+    python -m llm_routing.run_eval                              # replay
     ROUTER_MODE=real   python -m llm_routing.run_eval --limit 10
-    ROUTER_MODE=replay python -m llm_routing.run_eval
+    ROUTER_MODE=mock   python -m pytest tests/                  # not an eval
 """
 
 import hashlib
@@ -36,7 +41,7 @@ from llm_routing import paths
 from llm_routing import response_cache
 
 
-# .env loading, hand-rolled rather than python-dotenv: mock mode runs on a bare
+# .env loading, hand-rolled rather than python-dotenv: replay mode runs on a bare
 # interpreter with nothing installed, and a dependency that only matters in real
 # mode would cost that for everyone who never spends a cent.
 #
@@ -80,14 +85,26 @@ def load_dotenv(path=None):
 
 DOTENV_LOADED = load_dotenv()
 
-MODE = os.environ.get("ROUTER_MODE", "mock")  # "mock" | "real" | "replay"
+# THE DEFAULT IS REPLAY, AND IT USED TO BE MOCK.
+#
+# A fresh clone with no key, no account and no money now serves the responses
+# this project paid for, because they are committed. That is the whole pitch of
+# the repository, and it should not be the thing you have to opt into: the old
+# default meant the first command anyone ran fabricated its own answers, and the
+# only thing standing between that and a quoted number was a banner.
+#
+# Replay cannot spend and cannot invent. A prompt nobody bought raises
+# ReplayMiss, which is a worse first experience than a fabricated answer only if
+# you would rather be lied to than told no.
+MODE = os.environ.get("ROUTER_MODE", "replay")  # "replay" | "real" | "mock"
 if MODE not in ("mock", "real", "replay"):
     raise SystemExit(f"ROUTER_MODE must be mock, real or replay - got {MODE!r}")
 
 # Seed for the whole mock world. Every mock outcome is a pure hash of
-# (seed, task, tier, temperature, sample_idx), so a run reproduces byte for byte
-# and a sweep over seeds gives the mock's run-to-run variance - the only honest
-# context for reading a two-point accuracy gap.
+# (seed, task, tier, temperature, sample_idx), so the mock is a deterministic
+# function of its inputs rather than a random number generator. That is what
+# makes it usable as the test suite's stand-in model, and what
+# `scripts/check_core_unchanged.py` fingerprints.
 MOCK_SEED = int(os.environ.get("MOCK_SEED", "0"))
 
 # Replay serves from the real cache. When a key is missing it can either raise
@@ -99,14 +116,84 @@ MOCK_SEED = int(os.environ.get("MOCK_SEED", "0"))
 # whose every row says `simulated: false`. Off, a missing sample raises ReplayMiss
 # and run_eval drops the policy.
 #
-# Turning it on is supported and does not lie: ModelResponse.simulated tracks
-# which cache served each call, so a row built from even one fabricated response
-# is stamped `simulated: true`.
+# It is REFUSED BY THE ANALYSIS PIPELINE either way - see require_measured_mode.
+# The switch survives for the serving layer and the tests, where the question is
+# whether the plumbing runs, not what the numbers say.
 REPLAY_FALLBACK_TO_MOCK = os.environ.get(
     "ROUTER_REPLAY_FALLBACK", "0") in ("1", "true", "yes")
 
+
+def require_measured_mode(what: str) -> None:
+    """Refuse to derive a published artefact from fabricated responses.
+
+    Every module that writes into `runs/` or `figures/` calls this first, and
+    the rule it enforces is that ANALYSIS IS FOR MEASUREMENTS. `real` calls
+    models; `replay` serves what a real run already paid for. `mock` fabricates,
+    so a frontier computed from it is arithmetic over MOCK_SKILL and a chart
+    drawn from it is a picture of a constant in this file.
+
+    THIS USED TO BE A LABEL RATHER THAN A REFUSAL: a banner over the report, a
+    subtitle under every figure, `simulated: true` on every row, and a guard in
+    eighteen files to keep the label attached. Labels work until somebody crops
+    the screenshot, and this one already failed in the way that matters -
+    constants recorded from mock runs reached `router_agent.findings` and
+    shipped with two of three ladders' verdicts backwards. Refusing to compute
+    the number is the version of that guard that cannot be read past.
+
+    The mock itself is not going anywhere. It is the test suite's stand-in
+    model, deterministic for ANY prompt, where replay knows only the prompts
+    that were bought. It simply cannot write into `runs/` any more.
+    """
+    if MODE == "mock":
+        raise SystemExit(
+            f"\nREFUSING TO RUN.\n"
+            f"  {what} produces a published artefact, and ROUTER_MODE=mock\n"
+            f"  fabricates every response it would be derived from. The result\n"
+            f"  would restate models.MOCK_SKILL, not measure any model.\n\n"
+            f"  Replay the responses this project already paid for:\n"
+            f"      ROUTER_MODE=replay python -m llm_routing.run_eval\n"
+            f"  Or measure new ones, with a key and a budget:\n"
+            f"      ROUTER_MODE=real python -m llm_routing.run_eval\n\n"
+            f"  Mock mode still runs the tests, which is what it is for:\n"
+            f"      ROUTER_MODE=mock python -m pytest tests/\n"
+        )
+    if MODE == "replay" and REPLAY_FALLBACK_TO_MOCK:
+        raise SystemExit(
+            f"\nREFUSING TO RUN.\n"
+            f"  {what} produces a published artefact, and ROUTER_REPLAY_FALLBACK\n"
+            f"  is set, which serves fabricated responses for anything the real\n"
+            f"  cache is missing. That is a mock run wearing a replay label, and\n"
+            f"  it is the exact mixture that once put 240 fabricated samples into\n"
+            f"  a results file.\n\n"
+            f"  Unset ROUTER_REPLAY_FALLBACK. A thin cache should drop the\n"
+            f"  policies it cannot serve, which replay already does.\n"
+        )
+
+
+def refuse_simulated_artefact(what: str, simulated: bool, source: str = "") -> None:
+    """The same rule, one step downstream: for readers of `runs/`.
+
+    `scorecard`, `stats` and `plot` do not call a model - they read an artefact
+    somebody else wrote. Since require_measured_mode means no NEW artefact can
+    be simulated, a simulated one here is a file left over from before that was
+    true, and drawing a chart from it is the thing this whole change exists to
+    prevent. Refuse rather than annotate.
+    """
+    if not simulated:
+        return
+    where = f" ({source})" if source else ""
+    raise SystemExit(
+        f"\nREFUSING TO RUN.\n"
+        f"  {what} was handed an artefact whose rows are stamped\n"
+        f"  `simulated: true`{where} - the responses behind it were fabricated,\n"
+        f"  so every outcome derived from it is arithmetic on a constant.\n\n"
+        f"  Nothing in this repository can produce such a file any more; this\n"
+        f"  one predates that. Regenerate it from the committed responses:\n"
+        f"      ROUTER_MODE=replay python scripts/run_all_ladders.py\n"
+    )
+
 # ---------------------------------------------------------------------------
-# DECISION #1: the model ladder.
+# LADDERS: the model ladder, and the largest knob in the repository.
 #
 # The ladder is SELECTED, not hard-coded, because the price ratio between its
 # rungs is the single largest driver of every result in this repo. A wider ratio
@@ -116,7 +203,7 @@ REPLAY_FALLBACK_TO_MOCK = os.environ.get(
 #
 #     ROUTER_LADDER=claude   python -m llm_routing.run_eval    # 1x / 3x / 5x  (default)
 #     ROUTER_LADDER=deepseek python -m llm_routing.run_eval    # 1x / 3.1x, one provider
-#     ROUTER_LADDER=wide     python -m llm_routing.run_eval    # 1x / 36x, cross-provider
+#     ROUTER_LADDER=wide     python -m llm_routing.run_eval    # 1x / 46x, cross-provider
 #
 # All prices are per million tokens, input / output, at LIST or standard rates.
 # Verified against platform.claude.com/docs/en/about-claude/pricing
@@ -448,7 +535,14 @@ def _price(tier: str, tokens_in: int, tokens_out: int) -> float:
 
 
 # ---------------------------------------------------------------------------
-# Mock implementation
+# Mock implementation - TEST INFRASTRUCTURE, not a mode you report from.
+#
+# Everything below fabricates. `require_measured_mode` keeps it out of `runs/`
+# and `figures/`, which leaves it one job: be a model for the test suite. That
+# job needs it to answer any prompt (replay cannot), deterministically (so
+# `scripts/check_core_unchanged.py` can fingerprint it), with cheap and
+# expensive rungs that fail on the same hard tasks (so a cascade test exercises
+# a cascade rather than two independent coins).
 # ---------------------------------------------------------------------------
 
 # Synthetic p_correct, derived from LADDER POSITION and nothing else.
@@ -456,13 +550,13 @@ def _price(tier: str, tokens_in: int, tokens_out: int) -> float:
 # There is deliberately no per-model skill table. All three ladders have 5,075
 # real responses, so a stipulated number claiming a named model is 0.86-good
 # would be an invented capability estimate sitting next to measured ones. Mock
-# proves the PLUMBING works before money is spent; it does not stand in for a
-# result.
+# proves the PLUMBING works; it does not stand in for a result, and since
+# require_measured_mode it cannot be mistaken for one either.
 #
-# These are tuned to run_eval's own pilot gate, not to any model: the bottom rung
-# lands near 35% failure at mean difficulty, inside the gate's 20-55% band, so a
-# cascade has something to escalate and the plumbing run is not drowned in a
-# warning about the mock.
+# These are tuned to give the TESTS something to exercise, not to any model: the
+# bottom rung lands near 35% failure at mean difficulty, so a cascade has
+# something to escalate and both branches of every escalation test are reachable.
+# They were once tuned to run_eval's pilot gate, which mock can no longer reach.
 _MOCK_P_BOTTOM, _MOCK_P_TOP, _MOCK_SPREAD = 0.80, 0.95, 0.30
 
 
@@ -1093,9 +1187,9 @@ def call(
             f"  Replay never calls a backend. Either the cache is incomplete, or "
             f"a prompt or parameter changed since it was populated.\n"
             f"  Repopulate with: ROUTER_MODE=real python -m llm_routing.run_eval\n"
-            f"  Or serve the gap from the mock cache with "
-            f"ROUTER_REPLAY_FALLBACK=1 - which is not a result, and every row "
-            f"it touches is stamped simulated: true."
+            f"  A thin cache is not a reason to fabricate the gap: run_eval "
+            f"drops the policies it cannot serve, and the analysis pipeline "
+            f"refuses ROUTER_REPLAY_FALLBACK outright."
         )
 
     global backend_spend_usd

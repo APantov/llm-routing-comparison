@@ -38,10 +38,14 @@ ladder failing cannot leave global state behind for the next.
     python scripts/run_all_ladders.py --keep-going        # don't stop on failure
 
 MODE IS NOT SET HERE, DELIBERATELY. It comes from the environment or `.env`,
-exactly as it does for a direct run. This script has no --go gate and no spend
-cap of its own because it adds neither: it shells out to the same entry points,
-which carry `models.MAX_SPEND_USD` and the replay guards. Running it with
-ROUTER_MODE=real spends money, and the individual scripts are what stop it.
+exactly as it does for a direct run - which defaults to replay, so the bare
+command reproduces every published artefact from the committed responses for
+$0.00. This script has no --go gate and no spend cap of its own because it adds
+neither: it shells out to the same entry points, which carry
+`models.MAX_SPEND_USD` and the replay guards. Running it with ROUTER_MODE=real
+spends money, and the individual scripts are what stop it. Running it with
+ROUTER_MODE=mock fails on the first step, because every entry point below calls
+`models.require_measured_mode`.
 """
 
 from __future__ import annotations
@@ -109,7 +113,7 @@ def interesting(proc):
             continue
         if ("SKIPPED" in s or "REFUSING" in s or "SPEND CAP" in s
                 or s.startswith("!!") or "reached a backend" in s
-                or s.startswith("wrote ")):
+                or s.startswith("wrote ") or s.startswith("skipped ")):
             out.append(s)
     return out
 
@@ -143,7 +147,7 @@ def main():
     log.parent.mkdir(parents=True, exist_ok=True)
     log.write_text("", encoding="utf-8")
 
-    mode = os.environ.get("ROUTER_MODE", "mock")
+    mode = os.environ.get("ROUTER_MODE", "replay")
     print(f"mode={mode}  ladders={', '.join(wanted)}")
     if mode == "real":
         print("  !! REAL MODE - these runs will spend money. The per-run cap is\n"
@@ -166,6 +170,18 @@ def main():
               "--out", f"runs/results.{ladder}.jsonl"], "run_eval"),
             (["-m", "llm_routing.frontier",
               "--out", f"runs/frontier.{ladder}.jsonl"], "frontier"),
+            # The cross-tab and the scorecard are here because the figures need
+            # them, and because runs/README.md claims that deleting the whole
+            # directory and running this script puts it back. They used to be
+            # absent, and the failure was silent in the worst way: `plot` skips
+            # a chart whose artefact is missing, so a from-scratch run drew
+            # seven of the nine figures and said so only in a line nobody read.
+            (["-m", "llm_routing.routable", "--ladders", ladder],
+             "routable", f"runs/routable.{ladder}.txt"),
+            (["-m", "llm_routing.scorecard",
+              "--results", f"runs/results.{ladder}.jsonl",
+              "--json", f"runs/scorecard.{ladder}.json"],
+             "scorecard", f"runs/scorecard.{ladder}.txt"),
         ]
 
         # The degradation sweep and the rendered curves run on ONE ladder.
@@ -190,8 +206,17 @@ def main():
                 ))
 
         print(f"\n--- {ladder} " + "-" * (60 - len(ladder)))
-        for cmd, name in steps:
+        for step in steps:
+            cmd, name = step[0], step[1]
+            capture = step[2] if len(step) > 2 else None
             proc, elapsed = run(cmd, env, log)
+            if capture and proc.returncode == 0:
+                # These two report to stdout rather than to a file, and
+                # the committed artefact IS that transcript. Writing it
+                # here keeps the driver the single way to regenerate
+                # everything under runs/.
+                (REPO / capture).write_text(proc.stdout, encoding="utf-8",
+                                            newline="")
             status = "ok " if proc.returncode == 0 else "FAIL"
             print(f"  {status} {name:<16} {elapsed:5.1f}s")
             for line in interesting(proc):
@@ -204,15 +229,18 @@ def main():
                     return 1
                 break
 
-    # The two cross-ladder charts read every ladder's results, so they are drawn
+    # The cross-ladder charts read every ladder's artefacts, so they are drawn
     # once at the end rather than redrawn identically inside each ladder's loop.
+    # They are also the ones that fail quietly: a summary is missing when one
+    # ladder's artefact is, and that must not look like a clean run.
     if not args.skip_plots and not failed:
         proc, elapsed = run(["-m", "llm_routing.plot", "--only-summaries"],
                             dict(os.environ), log)
+        drawn = [line for line in proc.stdout.splitlines() if "wrote " in line]
         print(f"\n  {'ok ' if proc.returncode == 0 else 'FAIL'} "
-              f"summaries        {elapsed:5.1f}s")
+              f"summaries        {elapsed:5.1f}s  ({len(drawn)} figures)")
         for line in interesting(proc):
-            if "ladders.svg" in line or "scorecard.svg" in line:
+            if "skipped " in line:
                 print(f"       {line}")
 
     if failed:

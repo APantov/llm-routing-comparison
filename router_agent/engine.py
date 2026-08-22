@@ -61,6 +61,9 @@ class RouteOutcome:
     stop_reason: str
     calls: list = field(default_factory=list)
     events: list = field(default_factory=list)
+    # Pessimistic defaults, and deliberately not the real ones: an outcome that
+    # was never populated by `_outcome_from_state` describes itself as
+    # fabricated rather than claiming a measurement it cannot vouch for.
     simulated: bool = True
     mode: str = "mock"
     ladder: str = ""

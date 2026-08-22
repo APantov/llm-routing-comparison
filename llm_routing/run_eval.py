@@ -2,14 +2,17 @@
 Batch runner. Runs every policy over every task, writes results, prints a report.
 
 Usage:
-    python -m llm_routing.run_eval                                # mock mode, no spend
-    python -m llm_routing.run_eval --limit 10                      # first 10 tasks only
-    python -m llm_routing.run_eval --domain math                   # one domain
-    ROUTER_MODE=real   python -m llm_routing.run_eval --limit 10   # 10-task pilot, real calls
-    ROUTER_MODE=replay python -m llm_routing.run_eval              # replay a paid run, free
+    python -m llm_routing.run_eval                                # replay, free
+    python -m llm_routing.run_eval --limit 10                     # first 10 tasks only
+    python -m llm_routing.run_eval --domain math                  # one domain
+    ROUTER_MODE=real python -m llm_routing.run_eval --limit 10    # 10-task pilot, real calls
 
-Start in mock mode. Get the whole pipeline working and the report printing, then
-switch to real. Debugging a broken pipeline while paying per call is miserable.
+THERE IS NO MOCK MODE HERE. `models.require_measured_mode` refuses it, because
+everything this module writes ends up quoted somewhere: a mock eval would be
+arithmetic over `models.MOCK_SKILL` printed in the layout of a measurement. Get
+the pipeline working against the committed responses instead - replay is free,
+offline, and made of real model output, which is a better dry run than a
+simulator was.
 
 Output is results.jsonl, one row per (task, policy), with enough provenance on
 each row to interpret it without an external note.
@@ -46,9 +49,10 @@ RESULTS = paths.RUNS / f"results.{models.LADDER}.jsonl"
 #
 # PER RUN, not per project: a runaway guard sitting above the largest planned run
 # and far below the funded card, so a bug costs one run rather than the budget.
-# $5 is set against docs/RESULTS.md section 4, whose largest single buy is ~$2.64
-# and whose whole sequence is ~$4.0 - a cap that binds partway through a buy is
-# the worst place for one to bind.
+# $5 is set against the spend table in docs/RESULTS.md ("What it cost"), whose
+# largest single buy is the `claude` ladder at ~$2.85 and whose whole measured
+# sequence is ~$4.43 - a cap that binds partway through a buy is the worst place
+# for one to bind.
 #
 # Override per run rather than editing it; a cap that is routinely edited is not
 # a cap:
@@ -83,17 +87,14 @@ def write_jsonl(path, rows):
             f.write(json.dumps(r) + "\n")
 
 
-MOCK_BANNER = """\
-================================================================
-  MOCK MODE - these numbers are SIMULATED, not measured.
-
-  Model replies are FABRICATED from answers already stored in the
-  taskset. Accuracy below restates models.MOCK_SKILL; it does not
-  measure any model. Costs are modelled from synthetic token
-  counts - nothing was spent and no network call was made.
-
-  For a real result:  ROUTER_MODE=real python -m llm_routing.run_eval
-================================================================"""
+# TWO BANNERS, WHERE THERE WERE FOUR.
+#
+# The other two announced that the numbers below were fabricated - one for mock
+# mode, one for a replay served out of the mock cache. Neither can happen here
+# any more: `main` calls `models.require_measured_mode` before anything else, so
+# an analysis run is served by a real response or it does not start. A label
+# describing an unreachable state is not a safeguard, it is a suggestion that
+# the state is reachable.
 
 REAL_BANNER = """\
 ================================================================
@@ -102,56 +103,56 @@ REAL_BANNER = """\
   as it arrives, so this run replays free forever after.
 ================================================================"""
 
-REPLAY_REAL_BANNER = """\
+REPLAY_BANNER = """\
 ================================================================
   REPLAY MODE - served from this ladder's real response cache.
   No network call. No spend. These are the SAME responses the
   paid run received, so the numbers are the paid run's numbers.
 ================================================================"""
 
-REPLAY_MOCK_BANNER = """\
-================================================================
-  REPLAY MODE, BUT THE CACHE IS SIMULATED.
-
-  This ladder's real cache holds no responses, so the replay
-  is being served from the MOCK cache. The numbers below
-  are FABRICATED, exactly as in mock mode. This is useful for
-  testing the replay path; it is not a result.
-================================================================"""
-
 
 def banner():
-    if models.MODE != "replay":
-        return MOCK_BANNER if models.MODE == "mock" else REAL_BANNER
-    # Say which it is. A replay banner that claims real responses while serving
-    # simulated ones is the single most dangerous label in this repo.
-    return REPLAY_REAL_BANNER if response_cache.REAL_PATH.exists() else REPLAY_MOCK_BANNER
+    return REPLAY_BANNER if models.MODE == "replay" else REAL_BANNER
 
 
 def tag():
     """Short mode marker, printed above EVERY table rather than once at the top.
 
     A screenshot is usually a crop of one table, and a crop that loses the banner
-    is exactly how a simulated number ends up quoted as if it were measured.
+    is how a number gets quoted with its provenance left behind. What it can say
+    is now narrow - both modes that reach this point measure something - so it
+    says which one, and `assert_measured` below is what keeps that true mid-run.
     """
-    if models.MODE == "replay":
-        real, mock = models.call_stats["served_real"], models.call_stats["served_mock"]
-        if mock and real:
-            # The dangerous case, and the one that has actually happened. Neither
-            # of the two clean labels is true, so print neither.
-            return (f"### REPLAY, {mock} OF {real + mock} RESPONSES FABRICATED "
-                    f"- CONTAMINATED, NOT A RESULT ###")
-        if mock:
-            return "### REPLAY OF A MOCK CACHE - SIMULATED, NOT MEASURED ###"
-        if real:
-            return "### REPLAY MODE - cached responses from a real run ###"
-        # Nothing served yet: tag() was called before the run. Fall back to the
-        # file-existence guess, which is all that is knowable at that point.
-        return ("### REPLAY MODE - cached responses from a real run ###"
-                if response_cache.REAL_PATH.exists()
-                else "### REPLAY OF A MOCK CACHE - SIMULATED, NOT MEASURED ###")
-    return ("### MOCK MODE - SIMULATED, NOT MEASURED ###" if models.MODE == "mock"
-            else "### REAL MODE - live API calls ###")
+    return ("### REPLAY MODE - cached responses from a real run ###"
+            if models.MODE == "replay" else "### REAL MODE - live API calls ###")
+
+
+def assert_measured(rows):
+    """Fail a finished run whose rows are not, in fact, all measured.
+
+    `require_measured_mode` checks the ARGUMENTS before the run; this checks the
+    OUTPUT, which is the only place a mixture is visible. It should be
+    unreachable - fabrication needs mock mode or the replay fallback, and both
+    are refused at the entry point - so reaching it means one of those guards
+    has a hole in it, and the right response is to lose the run rather than
+    write the file.
+
+    The predecessor of this function was a warning printed under the cost table,
+    which is exactly the sort of thing a reader skips.
+    """
+    sim = [r for r in rows if r.get("simulated")]
+    if not sim:
+        return
+    raise SystemExit(
+        f"\nABORTING, AND NOT WRITING THE RESULTS.\n"
+        f"  {len(sim)} of {len(rows)} rows are stamped `simulated: true`, which\n"
+        f"  should be impossible: this run passed require_measured_mode, so\n"
+        f"  every response should have come from a real call or a real cache.\n\n"
+        f"  Something served a fabricated response into a measured run. Do not\n"
+        f"  work around this - find it. Start with models.call_stats\n"
+        f"  (served_real={models.call_stats['served_real']}, "
+        f"served_mock={models.call_stats['served_mock']}).\n"
+    )
 
 
 def credentials_line():
@@ -184,7 +185,7 @@ def credentials_line():
         if models.MODE == "real":
             status += "  <- real mode will fail on the first call"
         else:
-            status += "  (fine for mock/replay)"
+            status += "  (fine for replay)"
     return status
 
 
@@ -256,7 +257,7 @@ def applicable(name, task):
     straight back.
 
     routellm runs only when real cached scores exist for the task. It is skipped
-    rather than approximated - see policies.py DECISION #8.
+    rather than approximated - see `policy_routellm` in policies.py.
     """
     if name == "routellm":
         from llm_routing import routellm_router
@@ -359,7 +360,8 @@ def _drop_uncached(rows, uncached):
         "   two-arm probe recorded always_cheap and always_expensive only.\n"
         "   Record them with:  ROUTER_MODE=real python -m llm_routing.run_eval"
         + "".join(f" --policy {n}" for n in sorted(uncached))
-        + "\n   Or run everything free and offline with ROUTER_MODE=mock.",
+        + "\n   Until then they sit out, which is the honest version of a"
+          "\n   policy with no data: dropped, not guessed at.",
         file=sys.stderr,
     )
     return kept
@@ -574,7 +576,7 @@ def report(rows):
         verifier = "perfect" if domain == "code" else "proxy"
         print(f"{domain:<10} {acc:>6.1%} {cost:>12.6f} {esc:>7.1%}   <- {verifier} verifier")
 
-    # The claim under test in DECISION #7: that an LLM routing call "would add a
+    # The claim under test in `policy_llm_router`: that an LLM routing call "would add a
     # full round trip and defeat the purpose". Half of that is a cost claim, so
     # print the cost rather than argue about it.
     if by_policy.get("llm_router") and by_policy.get("always_cheap"):
@@ -586,22 +588,16 @@ def report(rows):
             if by_policy.get("always_expensive") else None
         print()
         print(tag())
-        print("LLM-as-router overhead (the claim recorded at policies.py DECISION #4):")
+        print("LLM-as-router overhead (the claim the retracted heuristic recorded):")
         print(f"  routing call        ${router_cost:.6f}/task, +{router_lat:.2f}s/task")
         print(f"    as % of a cheap answer call     {100 * router_cost / cheap:>5.1f}%")
         if exp:
             print(f"    as % of an expensive answer call{100 * router_cost / exp:>6.1f}%")
         print("  This is also what random_matched does NOT pay: it is calibrated to")
         print("  llm_router's rate but flips a coin, so it is cheaper by this much.")
-        print("  Cost and latency above are arithmetic on the price table and are")
-        print("  the only part of this policy that mock mode can measure. Its")
-        print("  ACCURACY restates models.MOCK_ROUTER_SKILL and measures nothing.")
-        if models.MODE == "mock":
-            print("  The PERCENTAGES are softer than the dollar figure: mock answer calls")
-            print(f"  emit a flat {models.MOCK_TOKENS_OUT[models.TIERS[0]]} output tokens, "
-                  f"well under a real reply, so the")
-            print("  router's share of a real answer call will be smaller than shown.")
-            print("  Quote the absolute cost from a real run, not these ratios.")
+        print("  Cost and latency above are arithmetic on the price table; the")
+        print("  accuracy this policy achieves with them is measured, under")
+        print("  \"Predictive routing does not beat a coin flip\" in docs/RESULTS.md.")
 
     # The pilot gate. This is the number that decides whether the task set works
     # at all, so it prints the band it is testing against rather than asserting a
@@ -705,8 +701,8 @@ def report(rows):
     attributed = sum(r["cost_usd"] for r in rows)
     st = models.call_stats
     print()
-    label = "total MODELLED cost" if models.MODE == "mock" else "total attributed cost"
-    print(f"{label}: ${attributed:.4f}   (sum over policies - what they would each pay)")
+    print(f"total attributed cost: ${attributed:.4f}   "
+          f"(sum over policies - what they would each pay)")
     print(
         f"model calls: {st['requested']} requested, {st['from_cache']} served from cache, "
         f"{st['backend']} reached a backend"
@@ -714,23 +710,18 @@ def report(rows):
     if st["requested"]:
         saved = 100 * st["from_cache"] / st["requested"]
         print(f"  cache deduplicated {saved:.1f}% of calls  (cache now holds {response_cache.size()})")
-    if models.MODE == "mock":
-        print("  (simulated - nothing was spent and no network call was made)")
-
     # Where the TEXT came from, which is a different question from where the
     # lookup went and is the one that decides whether any of this is a result.
     # Printed unconditionally in replay, including when the answer is the good
     # one, so that its absence can never be read as reassurance.
+    #
+    # `fabricated` is expected to read 0 and `assert_measured` has already
+    # aborted the run if it does not. It is printed anyway: a count that is
+    # always zero is evidence, where a line that appears only on failure is
+    # indistinguishable from a line nobody remembered to write.
     if models.MODE == "replay":
-        real, mock = st["served_real"], st["served_mock"]
-        print(f"  provenance: {real} real response(s), {mock} fabricated")
-        if mock:
-            sim_rows = sum(1 for r in rows if r["simulated"])
-            print(
-                f"  !! {mock} response(s) came from the MOCK cache, contaminating "
-                f"{sim_rows} of {len(rows)} rows, each stamped simulated: true.\n"
-                f"     Unset ROUTER_REPLAY_FALLBACK to make these a hard error instead."
-            )
+        print(f"  provenance: {st['served_real']} real response(s), "
+              f"{st['served_mock']} fabricated")
 
     # Truncation is invisible in the accuracy table, since a cut-off answer just
     # scores as wrong, so it gets its own section. Named, not counted: the point
@@ -760,55 +751,32 @@ def report(rows):
         )
 
 
-def guard_clobber(force: bool):
-    """Refuse to overwrite REAL results with a MOCK run.
-
-    A real run costs money and cannot be reproduced, because sampling at
-    temperature > 0 is stochastic. A mock run is free and takes seconds. Losing
-    the former to the latter by typing `python -m llm_routing.run_eval` out of habit is a
-    mistake worth making impossible rather than merely unlikely.
-    """
-    if models.MODE != "mock" or force or not RESULTS.exists():
-        return
-    try:
-        with RESULTS.open(encoding="utf-8") as f:
-            rows = [json.loads(l) for l in f if l.strip()]
-    except (json.JSONDecodeError, OSError):
-        return
-
-    # Guard on `simulated`, not on `mode`. A replay of a real cache is money; a
-    # replay of a mock cache is not, and blocking the second would train the habit
-    # of reaching for --force, which defeats the guard on the first.
-    def is_real(r):
-        if "simulated" in r:
-            return not r["simulated"]
-        return r.get("mode") == "real"
-
-    if any(is_real(r) for r in rows):
-        sys.exit(
-            f"\nREFUSING TO RUN.\n"
-            f"  {RESULTS.name} holds REAL results, which cost money and cannot be\n"
-            f"  reproduced. This is a MOCK run and would overwrite them.\n\n"
-            f"  Back them up:   cp {RESULTS.name} results.real.jsonl\n"
-            f"  Or override:    python -m llm_routing.run_eval --force\n"
-        )
+# `guard_clobber` STOOD HERE. It refused to overwrite a real results file with a
+# mock run - the specific accident of typing `python -m llm_routing.run_eval` out
+# of habit and losing responses that cost money and cannot be re-sampled.
+#
+# `models.require_measured_mode`, called at the top of `main`, makes that run
+# impossible three steps earlier: a mock eval does not reach the point of having
+# rows to write. The guard below is the one that still has work to do, because
+# its hazard - a thin cache producing a narrower run than the file on disk -
+# survives in replay mode, where the responses are real.
 
 
 def guard_regression(rows, force: bool):
     """Refuse to replace a results file with a strictly poorer one.
 
-    guard_clobber runs before the run and can only see the ARGUMENTS. This runs
-    after and sees what was actually produced, which is the only place the real
-    hazard is visible: policies are dropped mid-run by ReplayMiss, so a command
+    `models.require_measured_mode` runs before the run and can only see the
+    ARGUMENTS. This runs after and sees what was actually produced, which is the
+    only place the real hazard is visible: policies are dropped mid-run by ReplayMiss, so a command
     that asks for all nine can legitimately finish with one.
 
     That is not hypothetical. `ROUTER_LADDER=deepseek python run_eval.py` -
     with ROUTER_MODE=replay set in .env - once found cached data for
     always_cheap only (the deepseek and wide ladders share a bottom rung, so the
     cross-ladder cache served it) and dropped the other eight. It overwrote a
-    complete nine-policy wide run with 47 rows of one policy. guard_clobber
-    passed it, correctly by its own terms: both files were real, and it only
-    refuses mock-over-real.
+    complete nine-policy wide run with 47 rows of one policy. The mock-over-real
+    guard that stood here passed it, correctly by its own terms: both files were
+    real, and it only refused a simulated run overwriting a measured one.
 
     A results file is not an output to be regenerated at will. Recomputing it
     needs the cache to still cover every policy, and that is exactly what fails
@@ -882,7 +850,8 @@ def main():
     )
     ap.add_argument(
         "--force", action="store_true",
-        help="allow a mock run to overwrite existing real results",
+        help="allow a narrower run to overwrite a broader one - see "
+             "guard_regression",
     )
     ap.add_argument(
         "--out", metavar="PATH", default=None,
@@ -894,6 +863,12 @@ def main():
              "that made that guard necessary.",
     )
     args = ap.parse_args()
+
+    # FIRST, before the arguments are even interpreted. This run writes into
+    # runs/, so it has to be able to measure something, and a refusal that came
+    # after --out validation would report the wrong problem to anyone who got
+    # both wrong at once.
+    models.require_measured_mode("run_eval")
 
     # A filtered run is a probe, not a result. It writes elsewhere so it can never
     # overwrite a full run's rows with a partial set, which would silently break
@@ -932,8 +907,6 @@ def main():
         RESULTS = Path(args.out)
         if not RESULTS.parent.exists():
             sys.exit(f"--out directory does not exist: {RESULTS.parent}")
-
-    guard_clobber(args.force)
 
     all_tasks = load_tasks(args.limit, args.domain)
     calibration, evaluation = splits.split(all_tasks)
@@ -1016,7 +989,7 @@ def main():
 
     # Match the random baseline's spend to llm_router's on the REPORTING tasks,
     # before anything runs - doing it afterwards compares against a rate measured
-    # on a different task set (policies.py DECISION #6). The pre-pass reads the
+    # on a different task set (policies.RANDOM_MATCHED_RATES). The pre-pass reads the
     # same cached routing calls, so it costs nothing; in replay a miss falls back
     # to the declared rates LOUDLY, because a null silently at the wrong spend is
     # worse than no null.
@@ -1040,7 +1013,7 @@ def main():
     tasks = report_tasks
 
     # RouteLLM runs at a FIXED threshold rather than one calibrated to another
-    # policy's spend - see routellm_router.py DECISION #8b. With no scores it
+    # policy's spend - see routellm_router.FIXED_THRESHOLD. With no scores it
     # sits out; it is never approximated.
     from llm_routing import routellm_router
     if routellm_router.available(tasks):
@@ -1065,6 +1038,7 @@ def main():
         )
 
     rows = run(tasks)
+    assert_measured(rows)
     guard_regression(rows, args.force)
     paths.ensure_runs()
     write_jsonl(RESULTS, rows)

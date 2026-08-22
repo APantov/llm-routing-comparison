@@ -11,7 +11,7 @@ chat; this applies them to DeepSeek v4-flash vs Opus 5 on objectively-graded
 competition maths and MBPP+, which is squarely out of distribution. It shows:
 preference-trained routers transfer poorly to objectively graded reasoning,
 because preference is not correctness, and the failure is visible in the score
-distribution before any accuracy is measured. DECISION #8b has the measured
+distribution before any accuracy is measured. FIXED_THRESHOLD has the measured
 distribution and the threshold chosen because of it.
 
 
@@ -256,7 +256,7 @@ def score_tasks(tasks, variant="bert", force=False):
 THRESHOLDS = {}
 
 # ---------------------------------------------------------------------------
-# DECISION #8b: the operating threshold. FIXED, not calibrated.
+# FIXED_THRESHOLD: the operating threshold. FIXED, not calibrated.
 #
 # A declared constant rather than a calibrated one. Anchoring it to another
 # policy's expensive-call rate would make the two cost-matched by construction,
@@ -297,7 +297,7 @@ CALIBRATED = False
 
 
 def use_fixed_threshold(tasks=None, value=None):
-    """Set the operating threshold to the declared constant. See DECISION #8b.
+    """Set the operating threshold to the declared constant. See FIXED_THRESHOLD.
 
     This is what the headline run uses. `tasks` is optional and only narrows
     which domains get an entry; without it every domain this repo knows about is
@@ -321,7 +321,7 @@ def calibrate(tasks, target_rates):
     """Pick the score threshold that reproduces a target expensive-call rate.
 
     NOT used by the headline run any more - see use_fixed_threshold() and
-    DECISION #8b. This is the rate-parameterised form frontier.py needs: it
+    FIXED_THRESHOLD. This is the rate-parameterised form frontier.py needs: it
     sweeps `target_rates` from 0 to 1 to trace the router's whole cost-quality
     curve, which is the comparison that never depended on matching some other
     policy's operating point.
@@ -385,7 +385,7 @@ def main():
     th = use_fixed_threshold(tasks)
     print(f"\nrouter: routellm {variant!r} ({VARIANTS[variant]['checkpoint']})")
     print(f"scored tasks: {sum(1 for t in tasks if available([t]))}/{len(tasks)}")
-    print(f"threshold: {FIXED_THRESHOLD} (fixed, not calibrated - DECISION #8b)")
+    print(f"threshold: {FIXED_THRESHOLD} (fixed, not calibrated)")
     print(f"\n{'domain':<8} {'threshold':>11} {'realised':>10} "
           f"{'score min':>10} {'median':>9} {'max':>9}")
     print("-" * 62)
@@ -404,7 +404,8 @@ def main():
     print(f"\nscores below 0.5 (the weak model favoured): {below}/{len(allsc)}")
     if below == 0:
         print("  none. At the semantically natural threshold this router is")
-        print("  always_expensive. See DECISION #8b - preference is not correctness.")
+        print("  always_expensive. FIXED_THRESHOLD says why: preference is "
+              "not correctness.")
 
     # What the threshold is sitting on. A fixed cut is only meaningful if it
     # lands somewhere the scores actually are, so print how far it is from the

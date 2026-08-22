@@ -18,7 +18,8 @@ nothing here reports correctness - only `verified`, a verifier's opinion.
 already solved the problem; a user's query never carries one. That is worse than
 a caveat: with the maths half restricted to level 5 the label is CONSTANT, which
 made the benchmark's old `predictive` policy `always_expensive` on 60% of the
-task set (policies.py DECISION #4). The serving heuristic below reads only the
+task set (the retracted heuristic in policies.py). The serving heuristic below
+reads only the
 query text, which is all a real router ever has.
 
 This cuts in the cascade's favour, and it is a real structural difference rather
@@ -46,7 +47,11 @@ from typing import Iterable
 # inside the first one: it would cost money, it would need its own evaluation,
 # and its errors would be attributed to the router. The benchmark has a whole
 # policy (`llm_router`) measuring what happens when you ask a model to classify
-# before answering, and on mock data it is not competitive.
+# before answering, and on real responses neither it nor RouteLLM beats a
+# cost-matched coin flip on any of the three ladders - six comparisons, six
+# failures ("Predictive routing does not beat a coin flip" in docs/RESULTS.md).
+# That claim used to cite mock data, which could only ever have restated
+# models.MOCK_ROUTER_SKILL.
 #
 # The cost of being wrong is small and bounded: the domain picks a prompt
 # template and a default verifier, not a model. A maths question misread as
@@ -219,7 +224,7 @@ def predict_is_hard_live(task: dict) -> bool:
     on which a function documented as reading only the query text quietly
     consumed a difficulty label written by someone who had already solved the
     problem - and that label turned out to be constant, which is what got the
-    benchmark's `predictive` policy deleted (policies.py DECISION #4).
+    benchmark's `predictive` policy deleted; policies.py keeps the tombstone.
 
     So a supplied `level` now has no effect here whatsoever. That is the point:
     this is what a router can actually see in production, and it is the same

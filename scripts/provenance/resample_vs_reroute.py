@@ -2,15 +2,21 @@
 """Given a budget, is another cheap draw better than one expensive call?
 
 A cascade has exactly one move when verification fails: climb the ladder. That
-is a choice, not a law, and it is not obviously the right one when the top rung
-costs 68x the bottom - for the price of one Opus call you could take
-SIXTY-EIGHT more DeepSeek draws. *Resample or Reroute?* (arXiv:2607.08665)
+is a choice, not a law, and it is not obviously the right one at the `wide`
+ladder's realized price ratio of 117x - for the price of one Opus call you could
+take a hundred more DeepSeek draws. *Resample or Reroute?* (arXiv:2607.08665)
 frames the two as competing uses of the same budget and reports cascades losing
 by 22-31% on saturated tasks.
 
-This answers it on real data, for free. The decisive-cell redraw left ten greedy
-draws of both rungs for each of the 21 decisive tasks on disk, so every number
-below is read from `cache/raw_calls.wide.jsonl` and nothing is called.
+This answers it on real data, for free. Every number below is read from
+`cache/raw_calls.wide.jsonl` and nothing is called: the decisive-cell redraw
+left enough greedy draws of both rungs on disk for 15 tasks - 5 code and 10
+maths - to carry all nine samples the table needs.
+
+The ratio this script PRINTS is a few points off the 117x above, and both are
+right. `findings.realized_ratio` averages over tasks where both rungs answered;
+the line below averages over every greedy draw in the file, which the redraws
+weight differently. Neither rounds to a number that changes the conclusion.
 
 THE ASYMMETRY THAT DECIDES IT
 -----------------------------
@@ -164,7 +170,6 @@ def main():
 
         if domain == "math":
             for k in KS[-1:]:
-                texts_for = [drs for drs in ()]
                 solved = sum(1 for t in ids
                              if best_of_k(tasks[t], [draws[t]["cheap"][i]
                                                      for i in sorted(draws[t]["cheap"])[:k]]))

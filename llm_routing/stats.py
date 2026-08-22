@@ -40,6 +40,7 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
+from llm_routing import models
 from llm_routing import paths
 
 RESULTS = paths.RUNS / f"results.{paths.default_ladder()}.jsonl"
@@ -229,14 +230,13 @@ def main():
     print(f"reading {path.name}", file=sys.stderr)
     full, partial, n = index(rows)
 
+    # A p-value computed from fabricated outcomes is a real p-value about a
+    # simulation, which is the most quotable wrong number this repository could
+    # produce. Refuse the file rather than print a caveat above the table.
     simulated = any(r.get("simulated", r.get("mode") == "mock") for r in rows)
+    models.refuse_simulated_artefact("stats", simulated, path.name)
     print()
-    if simulated:
-        print("### SIMULATED INPUT - these tests are arithmetic on FABRICATED ###")
-        print("### outcomes. The p-values are real; what they are computed    ###")
-        print("### from is not. Nothing here measures a model.                ###")
-    else:
-        print("### paired tests on measured results ###")
+    print("### paired tests on measured results ###")
     print()
     print(f"n={n} tasks, {len(full)} policies with full coverage, "
           f"{args.bootstrap} bootstrap resamples (seed {BOOTSTRAP_SEED})")

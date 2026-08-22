@@ -33,6 +33,14 @@ os.environ.setdefault("ROUTER_LADDER", "wide")
 os.environ.setdefault("ROUTER_MODE", "replay")
 os.environ.setdefault("ROUTER_ALLOW_CODE_EXEC", "1")
 
+# These three traces are synthesised queries, so they carry `live-` task ids -
+# and by default `response_cache` files anything with one under
+# cache/serving.<ladder>.jsonl, which is gitignored. That is right for ad-hoc
+# serving and wrong here: these responses ARE committed data, and they are what
+# makes the first command on a fresh clone free. Re-deriving them with
+# ROUTER_MODE=real has to land them back in cache/raw_calls.wide.jsonl.
+os.environ.setdefault("ROUTER_SERVING_CACHE", "0")
+
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 except (AttributeError, ValueError):

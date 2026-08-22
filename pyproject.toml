@@ -18,7 +18,7 @@ keywords = ["llm", "routing", "cascade", "langgraph", "mcp", "evaluation"]
 
 # NOTHING HERE BY DEFAULT, AND THAT IS THE POINT.
 #
-# The research core (llm_routing/) is pure standard library in mock mode.
+# The research core (llm_routing/) is pure standard library in replay mode.
 # A bare `pip install .` must not change that: the whole reproducibility claim
 # is that anyone can clone this repo, run it on a bare interpreter with no
 # network and no key, and get the same numbers byte for byte.
@@ -84,7 +84,11 @@ packages = ["llm_routing", "router_agent"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# Mock mode is the default for tests - deterministic, offline, free - and it is
-# set in tests/conftest.py rather than here, because `models` reads
-# ROUTER_MODE at import time and conftest runs before the first import.
+# Mock mode is the default FOR TESTS ONLY - deterministic, offline, free, and
+# the one context left that wants a model answering prompts nobody paid for.
+# Everything else defaults to replay, and the analysis pipeline refuses mock
+# outright (llm_routing.models.require_measured_mode).
+#
+# Set in tests/conftest.py rather than here, because `models` reads ROUTER_MODE
+# at import time and conftest runs before the first import.
 filterwarnings = ["ignore::DeprecationWarning"]

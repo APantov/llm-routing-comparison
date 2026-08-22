@@ -110,7 +110,8 @@ class RouterConfig:
     )
     """
     Samples drawn to estimate agreement. Mirrors policies.SELF_CONSISTENCY_K
-    (DECISION #2). Cost is linear in k and it is the single largest lever on
+    (policies.SELF_CONSISTENCY_K). Cost is linear in k and it is the single
+    largest lever on
     what a cascade spends: at k=5 a verified maths answer costs 5 cheap calls
     plus the greedy one.
     """
@@ -120,7 +121,7 @@ class RouterConfig:
     )
     """
     Fraction of samples that must agree for the cheap answer to be accepted.
-    Mirrors policies.AGREEMENT_THRESHOLD (DECISION #3). 1.0 accepts only
+    Mirrors policies.AGREEMENT_THRESHOLD. 1.0 accepts only
     unanimous answers and escalates far more.
     """
 
@@ -183,8 +184,12 @@ class RouterConfig:
     ladder: str = field(
         default_factory=lambda: os.environ.get("ROUTER_LADDER", "claude")
     )
+    # Replay, not mock: a fresh clone with no key serves the responses this
+    # project paid for rather than fabricating its own. A query nobody bought
+    # raises ReplayMiss, which the CLI and the MCP server both turn into an
+    # explanation. See llm_routing.models.MODE for the full argument.
     mode: str = field(
-        default_factory=lambda: os.environ.get("ROUTER_MODE", "mock")
+        default_factory=lambda: os.environ.get("ROUTER_MODE", "replay")
     )
 
     def __post_init__(self):

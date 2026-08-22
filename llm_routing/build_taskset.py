@@ -69,8 +69,8 @@ N_CODE = 370
 # maths by domain, and a predictive policy keyed on this field is not "blind" but
 # CONSTANT over 60% of the task set - effectively always_expensive there while
 # still being reported as a router. That is why the hand-written one was deleted
-# (policies.py DECISION #4) and predictive routing is measured with `llm_router`
-# and `routellm`, neither of which reads this field.
+# (the retracted heuristic in policies.py) and predictive routing is measured
+# with `llm_router` and `routellm`, neither of which reads this field.
 #
 # Recoverable with --min-math-level 4, which restores two distinct levels. None
 # of it affects the always_cheap / always_expensive probe, which is what this
@@ -99,7 +99,8 @@ def load_math500(min_level=None):
                     # solution's length, this arrives WITH the question, so a
                     # router may use it without leaking the answer. Passing the
                     # leak test is not the same as being useful: under
-                    # MIN_MATH_LEVEL = 5 this field is constant. See DECISION #4.
+                    # MIN_MATH_LEVEL = 5 this field is constant. See the
+                    # retracted heuristic in policies.py.
                     "difficulty_proxy": row["level"],
                     "subject": row["subject"],
                     # See the note on predict_features in load_mbpp.

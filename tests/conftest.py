@@ -25,6 +25,19 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 # Set before the first import of `models`, not after.
+#
+# MOCK, AND THIS IS THE ONLY PLACE THAT ASKS FOR IT. `models.MODE` defaults to
+# replay everywhere else, and every analysis module refuses mock outright
+# (models.require_measured_mode), so the simulator now has exactly one
+# consumer: this suite. That is what it is good at. A test needs a model that
+# answers ANY prompt - synthetic tasks, live queries, self-consistency sample 4
+# of a draw nobody purchased - deterministically enough that
+# `scripts/check_core_unchanged.py` can fingerprint every response it can emit.
+# Replay knows only the responses that were bought and raises on the rest.
+#
+# `setdefault`, so an explicit ROUTER_MODE still wins: `-m slow` against the
+# real cache is occasionally worth running. Note that a WORKFLOW-LEVEL env var
+# in CI also wins, which is why .github/workflows/ci.yml no longer sets one.
 os.environ.setdefault("ROUTER_MODE", "mock")
 os.environ.setdefault("ROUTER_LADDER", "claude")
 
@@ -35,7 +48,7 @@ def pytest_configure(config):
         "slow: grades the real task set end to end. Deselected by default - the "
         "suite is meant to run in seconds so it actually gets run. Enable with "
         "`pytest -m slow`, and note it scales with the task set: the same test "
-        "took 3 seconds at 95 tasks and 168 at 426.",
+        "took 3 seconds when the set held 95 tasks and 168 at the present 417.",
     )
 
 

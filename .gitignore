@@ -64,8 +64,17 @@ runs/run_all_ladders.log
 # The .mock.jsonl siblings ARE ignored: they are fabricated, they regenerate for
 # free in seconds, and a separate file per mode means a simulated response can
 # never be one careless `git add` away from being published as a measurement.
+#
+# cache/serving.<ladder>.jsonl is ignored for a different reason. Those rows are
+# real and paid for, but they are not evidence: they are whatever someone asked
+# the router in real mode, so they belong to the operator rather than to the
+# experiment. Keeping them out of raw_calls.<ladder>.jsonl is what stops a
+# served query from moving the response count and total spend that
+# docs/RESULTS.md publishes. Commit one deliberately with `git add -f` if a
+# particular served query is worth shipping.
 # ---------------------------------------------------------------------------
 cache/*.mock.jsonl
+cache/serving.*.jsonl
 cache/*.tmp
 cache/*.lock
 cache/*.bak

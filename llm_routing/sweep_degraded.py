@@ -27,11 +27,10 @@ rate is p/2 and the effective AUC is roughly 1 - p/2.
 
 FREE, because of the response cache: every point reuses the same cheap and
 expensive responses, so the sweep makes zero additional model calls after the
-first - in mock and real mode alike. That is why the cache had to exist before
-any money was spent.
+first. That is why the cache had to exist before any money was spent.
 
-    python -m llm_routing.sweep_degraded                      # mock
-    ROUTER_MODE=replay python -m llm_routing.sweep_degraded   # from a paid run, free
+    python -m llm_routing.sweep_degraded                      # replay, from a paid run
+    ROUTER_MODE=real python -m llm_routing.sweep_degraded     # only if the cache is thin
 """
 
 import argparse
@@ -155,6 +154,8 @@ def main():
                          "a property of the ladder it was measured on.")
     args = ap.parse_args()
 
+    models.require_measured_mode("sweep_degraded")
+
     global OUT
     if args.out:
         OUT = Path(args.out)
@@ -180,6 +181,7 @@ def main():
     policies.VERIFIER_CORRUPTION = 0.0
     policies.VERIFIER_CORRUPTION_SEED = 0
 
+    run_eval.assert_measured(all_rows)
     paths.ensure_runs()
     run_eval.write_jsonl(OUT, all_rows)
 

@@ -1,9 +1,9 @@
 """
 The routing policies.
 
-Each takes a task and returns a PolicyResult. The values marked DECISION are the
-tuneable choices the experiment rests on; changing one and re-running is the
-intended way to see what it does.
+Each takes a task and returns a PolicyResult. The module-level constants named
+in docs/METHOD.md are the tuneable choices the experiment rests on; changing one
+and re-running is the intended way to see what it does.
 
 The two architectures this repository compares:
 
@@ -38,8 +38,9 @@ Three exist for reasons the name does not give:
                     without this, a gap over always_cheap shows only that
                     spending more helps.
 
-  llm_router        tests DECISION #4's claim that an LLM routing call "would
-                    defeat the purpose". That is a cost claim, and measurable.
+  llm_router        tests the retracted heuristic's claim that an LLM routing
+                    call "would defeat the purpose" - a cost claim, so
+                    measurable. See the tombstone further down this file.
 """
 
 from dataclasses import dataclass, field
@@ -49,14 +50,14 @@ from llm_routing import models
 from llm_routing.graders import grade, extract_answer
 
 # ---------------------------------------------------------------------------
-# DECISION #2: self-consistency sample count for the math verifier.
+# SELF_CONSISTENCY_K: how many samples the math verifier draws.
 # Higher k means better failure detection at linearly more cost. k=5 is the
 # common starting point in the self-consistency literature.
 # ---------------------------------------------------------------------------
 SELF_CONSISTENCY_K = 5
 
 # ---------------------------------------------------------------------------
-# DECISION #3: the escalation threshold.
+# AGREEMENT_THRESHOLD: the escalation threshold.
 # The fraction of self-consistency samples that must agree for the cheap answer
 # to be ACCEPTED. Below this, escalate. 1.0 accepts only unanimous answers.
 # ---------------------------------------------------------------------------
@@ -215,7 +216,7 @@ def verify_math(task, response_text, tier="cheap"):
 
 
 # ---------------------------------------------------------------------------
-# DECISION #5: the verifier corruption rate. THIS IS THE MANIPULATED VARIABLE.
+# VERIFIER_CORRUPTION: the verifier corruption rate. THE MANIPULATED VARIABLE.
 #
 # With only the two natural verifiers, verifier quality has two levels and they
 # are perfectly confounded with domain:
@@ -428,7 +429,8 @@ def policy_cascade_degraded(task):
     """The cascade with a verifier of tunable quality. Code domain only.
 
     Registered as a first-class policy rather than bolted onto a sweep script,
-    because it is the experiment. See DECISION #5 above, and sweep_degraded.py
+    because it is the experiment. See VERIFIER_CORRUPTION above, and
+    sweep_degraded.py
     for the curve. At VERIFIER_CORRUPTION = 0 this is the same policy as
     `cascade` on code, which is the sweep's own control.
     """
@@ -436,10 +438,10 @@ def policy_cascade_degraded(task):
 
 
 # ---------------------------------------------------------------------------
-# DECISION #4: the hand-written predictive heuristic. RETRACTED.
+# THE HAND-WRITTEN PREDICTIVE HEURISTIC. RETRACTED.
 #
-# A tombstone: the slot stays empty because DECISIONS #1-#9 are cited by number
-# in the docs, and renumbering would silently rewrite the record.
+# A tombstone rather than a deletion: what it got wrong is the most useful
+# thing this file records, and a `git log` entry is not where a reader looks.
 #
 # `predict_is_hard` routed math on MATH500's `level >= 5` and code on
 # `prompt_chars >= 100`. With build_taskset.MIN_MATH_LEVEL at 5, `level` is
@@ -449,10 +451,10 @@ def policy_cascade_degraded(task):
 # meant to beat - and its frontier sweep drew two points rather than a curve,
 # because a threshold sweep over a constant has nowhere to go. Reading that sweep
 # as "predictive contributes no point to the frontier" is retracted; see
-# docs/RESULTS.md 2.3.
+# "Predictive routing does not beat a coin flip" in docs/RESULTS.md.
 #
-# ITS CLAIM, which DECISION #7 tests: an LLM routing call "would add a full round
-# trip and defeat the purpose". The latency half is true; the cost half is
+# ITS CLAIM, which `policy_llm_router` tests: an LLM routing call "would add a
+# full round trip and defeat the purpose". The latency half is true; the cost half is
 # quantitatively wrong at this project's prices.
 #
 # Predictive routing is one of the two architectures compared here, so it is now
@@ -466,7 +468,7 @@ def policy_cascade_degraded(task):
 
 
 # ---------------------------------------------------------------------------
-# DECISION #6: the random baseline. THE NULL HYPOTHESIS.
+# RANDOM_MATCHED_RATES: the random baseline. THE NULL HYPOTHESIS.
 #
 # A gap between a router and always_cheap is uninterpretable on its own, because
 # a router that escalates the same NUMBER of tasks at random also gains accuracy
@@ -486,7 +488,8 @@ def policy_cascade_degraded(task):
 #   - random_matched does NOT pay the router call, so it is cheaper than
 #     llm_router by exactly mean(ROUTER_CALL_COST);
 #   - in mock mode the anchor derives from models.MOCK_ROUTER_SKILL, so the null
-#     is fabricated too. The SIMULATED banner covers it.
+#     is fabricated too - which is why `require_measured_mode` refuses to let
+#     a mock run produce one of these files at all.
 #
 # Matched PER DOMAIN, not globally: the router's rate differs by domain, and a
 # global match would compare uneven spending against even. Measured at run time
@@ -564,10 +567,11 @@ def policy_random_matched(task):
 
 
 # ---------------------------------------------------------------------------
-# DECISION #7: LLM-as-router. Testing DECISION #4's own rejection of it.
+# policy_llm_router: LLM-as-router, testing the retracted heuristic's own
+# rejection of it.
 #
-# DECISION #4 rejects an LLM routing call as one that "would add a full round
-# trip and defeat the purpose". The latency half is true and this measures it.
+# The retracted heuristic rejected an LLM routing call as one that "would add a
+# full round trip and defeat the purpose". The latency half is true and this measures it.
 # The COST half is quantitatively wrong at these prices: a classification call is
 # a couple of hundred tokens in and three out on the cheap tier, a small fraction
 # of a cheap answer call. run_eval prints the ratio. Worth implementing because
@@ -599,7 +603,7 @@ def _said_hard(text) -> bool:
 
 
 def llm_router_decisions(tasks):
-    """{task_id: said_hard} for DECISION #6's rate anchor. Costs nothing extra.
+    """{task_id: said_hard} for RANDOM_MATCHED_RATES' anchor. Costs nothing extra.
 
     Every call here is the same (tier, prompt, kind) tuple policy_llm_router
     makes, so response_cache serves this pass and the policy from one draw. In
@@ -608,7 +612,8 @@ def llm_router_decisions(tasks):
 
     Deliberately does NOT append to ROUTER_CALL_COST / ROUTER_CALL_LATENCY. The
     policy appends on its own pass, and double-counting here would inflate the
-    overhead figure the report prints to test DECISION #4's cost claim.
+    overhead figure the report prints to test the retracted heuristic's cost
+    claim.
     """
     return {t["id"]: _said_hard(models.call("cheap", t, kind="route").text)
             for t in tasks}
@@ -641,7 +646,7 @@ def policy_llm_router(task):
 
 
 # ---------------------------------------------------------------------------
-# DECISION #8: RouteLLM's pretrained router.
+# policy_routellm: RouteLLM's pretrained router.
 #
 # A published learned router, trained on Chatbot Arena preference data, with its
 # threshold calibrated so the comparison is cost-matched. See routellm_router.py
@@ -672,7 +677,7 @@ def policy_routellm(task):
 
 
 # ---------------------------------------------------------------------------
-# DECISION #9: CASCADE ROUTING - the unified policy.
+# policy_cascade_routing: CASCADE ROUTING - the unified policy.
 #
 # The repo is framed as "cascade vs predictive", and the literature's answer is
 # that this is a false choice. Dekoninck, Baader and Vechev, "A Unified Approach
@@ -691,7 +696,8 @@ def policy_routellm(task):
 #
 # The EX-ANTE side is where this repo comes up empty - a result, not a gap in the
 # implementation: the only ex-ante estimator available here was a constant
-# (DECISION #4). `_Q_EXANTE` carries a domain prior and an empty feature slot, so
+# (the retracted heuristic, above). `_Q_EXANTE` carries a domain prior and an
+# empty feature slot, so
 # read cascade_routing's numbers as "the unified strategy with only the post-hoc
 # half working", which is the paper's own prediction about what happens next.
 #
@@ -871,7 +877,7 @@ def _est_cost(tier, task):
 
 
 def policy_cascade_routing(task, lam=None):
-    """Routing and cascading as one strategy. See DECISION #9.
+    """Routing and cascading as one strategy. See CASCADE_ROUTING_LAMBDA.
 
     At each step, compare the value of stopping with the answer in hand against
     the value of paying for the best remaining tier, using tau = q - lambda*c.

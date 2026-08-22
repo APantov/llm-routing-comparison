@@ -15,9 +15,11 @@ calls neither run had reason to make:
     llm_router        asks the cheap model to classify difficulty first, an
                       8-token call with its own prompt. Never recorded.
 
-With ROUTER_REPLAY_FALLBACK off, those policies are DROPPED from a replay rather
-than served fabricated responses. Dropped is honest, but it is not measured. This
-buys the gap once, after which everything replays free forever.
+Those policies are DROPPED from a replay rather than served fabricated
+responses. Dropped is honest, but it is not measured, and there is no longer a
+switch that trades one for the other: ROUTER_REPLAY_FALLBACK is refused by every
+analysis entry point (models.require_measured_mode), so buying the gap once is
+the only way to close it. After that everything replays free forever.
 
 WHAT IT BUYS, AND WHY THAT LIST IS COMPLETE
 -------------------------------------------

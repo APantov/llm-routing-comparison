@@ -243,6 +243,77 @@ def auc(hull, lo, hi, steps=400):
     return total / (hi - lo)
 
 
+def economics(rows):
+    """The numbers a reader wants out of a frontier run, from its rows.
+
+    Lives here rather than in whoever needs it because three callers now need
+    the same arithmetic - `router_agent.findings` (which is what the CLI and the
+    MCP server ask for a verdict), `plot.ratio` and `plot.predictive` - and a
+    second implementation of "the cheapest cascade setting that matches the top
+    rung" is a second answer waiting to disagree with the first.
+
+    Returns None for a run missing any of the four families the comparison is
+    defined against, which is the honest answer for a partial sweep.
+
+      cascade_vs_always_best_pct
+          The cheapest cascade setting at least as accurate as always paying for
+          the top rung, against that rung's cost. Negative means the cascade is
+          cheaper at matched accuracy. This is the headline.
+      auc / auc_gain
+          Mean accuracy of each family's achievable frontier across the whole
+          shared budget range, raw and minus the cost-matched coin flip.
+          Answers "how good is this at every budget" rather than "at the budget
+          somebody tuned it to".
+    """
+    fams = {}
+    for r in rows:
+        fams.setdefault(r.get("family", ""), []).append(
+            (r["cost_per_task"], r["accuracy"]))
+
+    if any(f not in fams for f in
+           ("always_cheap", "always_expensive", "cascade", "random")):
+        return None
+
+    # The budget interval every family is integrated over: cheapest rung to
+    # dearest rung. Shared, so two families are never scored over two ranges.
+    lo = min(c for c, _ in fams["always_cheap"])
+    hi = max(c for c, _ in fams["always_expensive"])
+
+    aucs = {}
+    for name, pts in fams.items():
+        a = auc(upper_hull(pts), lo, hi)
+        if a is not None:
+            aucs[name] = a
+    base = aucs.get("random")
+    gains = ({name: a - base for name, a in aucs.items()}
+             if base is not None else {})
+
+    best = max(fams["always_expensive"], key=lambda p: (p[1], -p[0]))
+    matched = [p for p in fams["cascade"] if p[1] >= best[1] - 1e-9]
+    cost_pct, cheapest = None, None
+    if matched and best[0] > 0:
+        cheapest = min(matched, key=lambda p: p[0])
+        cost_pct = round(100.0 * (cheapest[0] - best[0]) / best[0], 1)
+
+    return {
+        "lo": lo,
+        "hi": hi,
+        "auc": aucs,
+        "auc_gain": gains,
+        "always_expensive": {"cost_per_task": best[0], "accuracy": best[1]},
+        # The setting the headline percentage is measured at, so a figure can
+        # draw the comparison rather than restate its result in a caption.
+        "cascade_matched": (
+            None if cheapest is None
+            else {"cost_per_task": cheapest[0], "accuracy": cheapest[1]}),
+        "cascade_vs_always_best_pct": cost_pct,
+        "auc_gain_over_random_pct": (
+            None if "cascade" not in gains else round(100.0 * gains["cascade"], 1)),
+        "verdict": (
+            None if cost_pct is None else ("cascade" if cost_pct < 0 else "route")),
+    }
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--split", choices=["eval", "all"], default="eval")
@@ -254,6 +325,8 @@ def main():
                          "file per ladder, so three ladders' curves can be read "
                          "side by side rather than overwriting each other.")
     args = ap.parse_args()
+
+    models.require_measured_mode("frontier")
 
     global OUT
     if args.out:
@@ -428,9 +501,12 @@ def main():
             print(f"  {n}")
 
     # Whole-run rather than per-row: a frontier point is an aggregate over every
-    # task, so one fabricated response anywhere taints every point that could
-    # have used it. The conservative reading is the only defensible one here.
+    # task, so one fabricated response anywhere would taint every point that
+    # could have used it. The conservative reading is the only defensible one
+    # here - and since require_measured_mode it should never have anything to be
+    # conservative about, which is what the assertion below checks.
     prov = run_eval.provenance(simulated=models.call_stats["served_mock"] > 0)
+    run_eval.assert_measured([prov])
 
     rows_out = []
     for name, pts in curves.items():

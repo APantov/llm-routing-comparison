@@ -7,11 +7,25 @@ on:
   workflow_dispatch:
 
 # No API keys anywhere in this file, and that is a deliberate property rather
-# than an omission. Every job below runs in mock or replay mode, so CI cannot
-# spend money, cannot leak a key, and cannot be made to by a pull request from
-# a fork.
-env:
-  ROUTER_MODE: mock
+# than an omission. Nothing below can reach a provider: replay - the default
+# mode - refuses to touch the network, real mode has no key to use, and mock
+# mode fabricates. CI cannot spend money, cannot leak a key, and cannot be made
+# to by a pull request from a fork.
+#
+# ROUTER_MODE IS DELIBERATELY NOT SET HERE, AND IT USED TO BE `mock`.
+#
+# A workflow-level env var beats `os.environ.setdefault`, which is how the
+# scripts below ask for the mode they need. `scripts/demo.py` asks for replay
+# that way, so the global `mock` overrode it and the step named "the three
+# routing scenarios replay from committed data" was running against the
+# SIMULATOR - in which a cache miss is impossible, so the guard it existed to be
+# could never fire.
+#
+# Now each context chooses: `tests/conftest.py` sets mock (the test suite's
+# stand-in model), `scripts/check_core_unchanged.py` sets mock explicitly
+# (it fingerprints the mock), and everything else gets the default, which is
+# replay. Jobs that exercise the default are the ones proving a fresh clone
+# works.
 
 jobs:
   research-core:
@@ -51,6 +65,37 @@ jobs:
 
       - name: Splits are deterministic
         run: python -m llm_routing.splits
+
+      # The analysis pipeline refuses to derive a published artefact from
+      # fabricated responses (llm_routing.models.require_measured_mode). That
+      # is the guard that replaced a banner reading "SIMULATED", and a guard
+      # nobody checks is how the banner got trusted in the first place.
+      #
+      # Each command must fail, AND fail for the stated reason. A non-zero exit
+      # alone would be satisfied by any of the other guards these modules carry
+      # - guard_regression refuses a two-task run over a committed full one, so
+      # an exit-code-only check would pass without the refusal ever running.
+      - name: A mock run cannot produce a result
+        run: |
+          set -o pipefail
+          check() {
+            if "$@" > out.txt 2>&1; then
+              echo "EXPECTED A REFUSAL, GOT SUCCESS: $*"; cat out.txt; exit 1
+            fi
+            grep -q "REFUSING TO RUN" out.txt || {
+              echo "failed, but not by refusing: $*"; cat out.txt; exit 1
+            }
+          }
+          # `env` rather than a bare VAR=x prefix: an assignment in front of a
+          # SHELL FUNCTION leaks into the shell afterwards, so the fallback
+          # flag on the last line would still be set for anything following.
+          check env ROUTER_MODE=mock python -m llm_routing.run_eval --limit 2 --out /tmp/r.jsonl
+          check env ROUTER_MODE=mock python -m llm_routing.frontier --out /tmp/f.jsonl
+          check env ROUTER_MODE=mock python -m llm_routing.sweep_degraded --out /tmp/s.jsonl
+          check env ROUTER_MODE=mock python -m llm_routing.routable --ladders wide
+          check env ROUTER_MODE=replay ROUTER_REPLAY_FALLBACK=1 \
+            python -m llm_routing.run_eval --limit 2 --out /tmp/r.jsonl
+          rm -f out.txt
 
   research-tests:
     name: "research core unit tests (no agent stack installed)"
@@ -146,7 +191,7 @@ jobs:
         run: python -m router_agent.cli --findings
 
   mcp-server:
-    name: "MCP server starts and registers"
+    name: "MCP server starts, registers and keeps stdout clean"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -156,5 +201,5 @@ jobs:
           cache: pip
       - run: python -m pip install -e ".[agent,mcp]" numpy
       - run: python -m llm_routing.build_taskset
-      - name: Tools, resources and prompts register
+      - name: Registers in-process, then answers over real stdio
         run: python scripts/check_mcp_server.py

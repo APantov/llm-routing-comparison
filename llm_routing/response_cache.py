@@ -60,6 +60,7 @@ response, and the prompt is what the model actually saw.
 import hashlib
 import json
 import os
+import sys
 import threading
 from pathlib import Path
 
@@ -76,6 +77,36 @@ CACHE_DIR = Path(os.environ.get("ROUTER_CACHE_DIR", paths.CACHE))
 # cache/raw_calls.<ladder>[.mock].jsonl. Nothing should read them before then.
 REAL_PATH = CACHE_DIR / "raw_calls.jsonl"
 MOCK_PATH = CACHE_DIR / "raw_calls.mock.jsonl"
+
+# Responses bought by SERVING a live query, kept out of the benchmark's file.
+#
+# Both are real and both are worth keeping, but only one is evidence.
+# `raw_calls.<ladder>.jsonl` is a closed set - the responses every published
+# table is computed from, whose count and total spend docs/RESULTS.md quotes.
+# A live query answered in real mode is a different kind of object, because it
+# depends on what someone happened to ask, and appending it here silently moves
+# those published figures. It did: running the real-mode example in the README
+# added ten rows to the `deepseek` cache, and `findings.realized_ratio` then
+# reported a price ratio measured over a single live query.
+#
+# Serving still READS the benchmark cache - that is what makes `--demo` free.
+# Only the write is split.
+SERVING_PATH = CACHE_DIR / "serving.jsonl"
+
+# The prefix `router_agent.live.live_task_id` stamps on a synthesised task.
+# A literal rather than an import: the research core does not import the
+# serving layer, and CI has a job whose only purpose is to keep it that way.
+LIVE_ID_PREFIX = "live-"
+
+# The one legitimate exception, and it has to be an explicit opt-out.
+#
+# `scripts/demo.py` buys live responses ON PURPOSE and they are committed - the
+# three canonical traces are what make a fresh clone's first command free, and
+# they are synthesised queries, so they carry a `live-` id like any other. With
+# the split on, re-deriving them under ROUTER_MODE=real would file them under
+# serving.wide.jsonl, which is gitignored, and the demo would break for the next
+# person to clone. demo.py therefore sets this to 0 before importing.
+SPLIT_SERVING = os.environ.get("ROUTER_SERVING_CACHE", "1") not in ("0", "false", "no")
 
 # Set by configure() from the selected ladder. The cache key already contains the
 # model id, so two ladders can never return each other's responses; the suffix is
@@ -118,15 +149,16 @@ LIVE_TASK_IDS = None
 # Real caches belonging to OTHER ladders, read before this ladder's own.
 #
 # There is no ladder in the cache key, and the prompt is built from the task
-# alone rather than the tier - verified on the committed data, where all 112
+# alone rather than the tier - verified on the committed data, where all 427
 # tasks with both rungs cached have identical prompt_sha256 across tiers. So a
 # response is identified by what was asked of which model, and the ladder only
 # decided which FILE it landed in.
 #
 # That matters for money: `wide` shares Opus 5 with `claude` and v4-flash with
-# `deepseek`, so its 980 responses cover much of both. Without this, running
-# `claude` re-buys every Opus call - about $1.91. See docs/ARCHITECTURE.md
-# (standing invariants).
+# `deepseek`. Measured on the committed caches, 417 of wide's Opus answers serve
+# `claude`'s top rung and 657 of its flash answers serve `deepseek`'s bottom
+# one. Without this, running `claude` re-buys every Opus call - $1.70 of the
+# $8.51 the whole project spent. See docs/ARCHITECTURE.md (standing invariants).
 #
 # Only REAL caches are shared. Mock caches stay per-ladder: a mock response is a
 # function of MOCK_SEED and stipulated skill, so pooling them would let one
@@ -145,7 +177,7 @@ def _sibling_real_paths(ladder: str):
 
 def configure(mode: str, ladder: str = ""):
     """Point the cache at the right file(s) for the run mode and ladder."""
-    global PATH, READ_PATHS, REAL_PATH, MOCK_PATH, LADDER, _store
+    global PATH, READ_PATHS, REAL_PATH, MOCK_PATH, SERVING_PATH, LADDER, _store
     if not ENABLED and mode != "mock":
         raise SystemExit(
             f"\nROUTER_CACHE is off and ROUTER_MODE is {mode!r}. Refusing.\n"
@@ -160,6 +192,7 @@ def configure(mode: str, ladder: str = ""):
     suffix = f".{ladder}" if ladder else ""
     REAL_PATH = CACHE_DIR / f"raw_calls{suffix}.jsonl"
     MOCK_PATH = CACHE_DIR / f"raw_calls{suffix}.mock.jsonl"
+    SERVING_PATH = CACHE_DIR / f"serving{suffix}.jsonl"
     # This ladder's own file goes LAST in every list below, so that on the
     # (impossible-by-key, but cheap to guarantee) event of a collision, the
     # ladder actually being run wins.
@@ -172,11 +205,12 @@ def configure(mode: str, ladder: str = ""):
         # models imports this module and the dependency must not run both ways.
         if os.environ.get("ROUTER_REPLAY_FALLBACK", "0") in ("1", "true", "yes"):
             # Mock first so that a real response always wins over a simulated one.
-            PATH, READ_PATHS = REAL_PATH, [MOCK_PATH, *siblings, REAL_PATH]
+            PATH, READ_PATHS = REAL_PATH, [MOCK_PATH, *siblings,
+                                           SERVING_PATH, REAL_PATH]
         else:
-            PATH, READ_PATHS = REAL_PATH, [*siblings, REAL_PATH]
+            PATH, READ_PATHS = REAL_PATH, [*siblings, SERVING_PATH, REAL_PATH]
     else:
-        PATH, READ_PATHS = REAL_PATH, [*siblings, REAL_PATH]
+        PATH, READ_PATHS = REAL_PATH, [*siblings, SERVING_PATH, REAL_PATH]
     _store = None  # force a reload against the new paths
 
 
@@ -218,7 +252,8 @@ def _load():
                 try:
                     rec = json.loads(line)
                 except json.JSONDecodeError:
-                    print(f"  !! response_cache: skipping unparseable line {lineno} in {path.name}")
+                    print(f"  !! response_cache: skipping unparseable line {lineno} in {path.name}",
+                          file=sys.stderr)
                     continue
                 key = rec.get("key")
                 if key is None:
@@ -253,11 +288,13 @@ def _load():
                 f"responses across {', '.join(p.name for p in READ_PATHS)}. "
                 f"Later entries won.\n"
                 f"     affected: {', '.join(live)}\n"
-                f"     Their paired comparisons are NOT valid until resolved."
+                f"     Their paired comparisons are NOT valid until resolved.",
+                file=sys.stderr,
             )
         elif live is None and ids:
             print(f"  note: {len(_conflicts)} stale cache key(s) from a superseded "
-                  f"task set ({', '.join(ids)}); later entries won.")
+                  f"task set ({', '.join(ids)}); later entries won.",
+                  file=sys.stderr)
     return _store
 
 
@@ -266,6 +303,25 @@ def get(key):
     if not ENABLED:
         return None
     return _load().get(key)
+
+
+def write_path_for(record):
+    """Which file a new record is appended to.
+
+    A response bought while SERVING goes to `serving.<ladder>.jsonl`; everything
+    else goes to the benchmark's own cache. The task id is what separates them,
+    and it is the right discriminator rather than a convenient one: a synthesised
+    task is exactly the case where there is no ground truth and no place in any
+    published table.
+
+    Mock keeps one file. Nothing fabricated is evidence either way, and both the
+    test suite and `scripts/check_core_unchanged.py` fingerprint that one file.
+    """
+    if PATH == MOCK_PATH or not SPLIT_SERVING:
+        return PATH
+    if str(record.get("task_id") or "").startswith(LIVE_ID_PREFIX):
+        return SERVING_PATH
+    return PATH
 
 
 def put(key, record):
@@ -279,9 +335,10 @@ def put(key, record):
     store = _load()
     with _lock:
         store[key] = record
-        PATH.parent.mkdir(parents=True, exist_ok=True)
+        path = write_path_for(record)
+        path.parent.mkdir(parents=True, exist_ok=True)
         # newline="" so this file is byte-identical on Windows and Linux.
-        with PATH.open("a", encoding="utf-8", newline="") as f:
+        with path.open("a", encoding="utf-8", newline="") as f:
             f.write(json.dumps({"key": key, **record}, ensure_ascii=False) + "\n")
 
 

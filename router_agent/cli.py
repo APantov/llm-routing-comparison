@@ -236,7 +236,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--policy", default="cascade",
                    choices=["cascade", "predictive", "always_cheap", "always_expensive"])
     p.add_argument("--ladder", default=None, help="claude | deepseek | wide")
-    p.add_argument("--mode", default=None, help="mock | real | replay")
+    p.add_argument("--mode", default=None,
+                   help="replay (default, free, from the committed cache) | "
+                        "real (needs a key, spends) | mock (fabricated, and "
+                        "labelled as such in the output)")
     p.add_argument("--domain", default="auto", help="auto | math | code | general")
     p.add_argument("--verifier", default="auto",
                    choices=["auto", "self_consistency", "tests", "none"])
@@ -282,6 +285,8 @@ def main(argv: list[str] | None = None) -> int:
         p.print_help()
         return 2
 
+    # Imported here, after the env is set, for the reason given above.
+    from llm_routing import models
     from router_agent.config import RouterConfig
     from router_agent.engine import estimate, resume, route
 
@@ -301,14 +306,20 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         out = route(args.query, cfg=cfg, tests=args.tests)
-    except KeyError as exc:
+    except models.ReplayMiss as exc:
         # The characteristic replay failure: this exact prompt was never paid
-        # for. Worth an explanation rather than a traceback, because it is the
-        # first thing anyone hits when they try replay with their own question.
+        # for. Since replay is the DEFAULT mode, this is the first thing anyone
+        # hits when they try their own question, so it gets an explanation
+        # rather than a traceback.
+        #
+        # Caught as ReplayMiss rather than KeyError, which is what it used to
+        # be. The narrower type matters more now that this path is the default:
+        # a genuine KeyError from the graph is a bug, and reporting it as "no
+        # cached response" would send anyone hitting it in the wrong direction.
         print(
             RED("replay mode has no cached response for this query.\n") +
-            "Replay can only serve prompts that were actually paid for - the "
-            "417 benchmark\ntasks. Try:\n"
+            "Replay is the default: it serves the responses this project paid "
+            "for, which are\nthe 417 benchmark tasks and nothing else. Try:\n"
             "    llm-router --demo                (a benchmark task, $0)\n"
             "    ROUTER_MODE=real llm-router ...  (your own query, costs money)\n"
             f"\ndetail: {str(exc)[:300]}",
