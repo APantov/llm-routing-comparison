@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 470" width="940" height="470" font-family="Helvetica,Arial,sans-serif" role="img" aria-labelledby="t d">
+<title id="t">The router that ships: classify → answer → verify → escalate ⟲</title>
+<desc id="d">parsed from router_agent/graph.py — 5 nodes, 8 edges, read with `ast` rather than drawn from memory. The loop is the product. `verify` decides whether the cheap answer stands; only a failed verification spends money on the next rung, and `escalate` can refuse on budget, approval or top-of-ladder. Every dollar figure this graph reports comes from the same price table and response cache as the benchmark tables, which is what makes the two comparable.</desc>
+<style>@media (prefers-color-scheme:dark){.f-paper{fill:#0f1216}.f-ink{fill:#e9ecef}.f-muted{fill:#a8b0b8}.f-faint{fill:#8b939b}.f-grid{fill:#2a3038}.f-wash{fill:#1b2027}.f-base{fill:#98a1aa}.s-ink{stroke:#e9ecef}.s-muted{stroke:#a8b0b8}.s-faint{stroke:#8b939b}.s-grid{stroke:#333b45}.s-base{stroke:#98a1aa}.s-paper{stroke:#0f1216}}</style>
+<rect width="940" height="470" fill="#ffffff" class="f-paper"/>
+<text x="26" y="26" font-size="15" font-weight="bold" fill="#222222" class="f-ink">The router that ships: classify → answer → verify → escalate ⟲</text>
+<text x="26" y="43" font-size="11" fill="#666666" class="f-muted">parsed from router_agent/graph.py — 5 nodes, 8 edges, read with `ast` rather than drawn from memory</text>
+<line x1="77.0" y1="148.0" x2="159.6" y2="148.0" stroke="#222222" class="s-ink" stroke-width="1.8"/>
+<polygon points="168.6,148.0 159.6,152.6 159.6,143.4" fill="#222222" class="f-ink"/>
+<line x1="273.6" y1="148.0" x2="325.2" y2="148.0" stroke="#222222" class="s-ink" stroke-width="1.8"/>
+<polygon points="334.2,148.0 325.2,152.6 325.2,143.4" fill="#222222" class="f-ink"/>
+<line x1="439.2" y1="148.0" x2="490.8" y2="148.0" stroke="#222222" class="s-ink" stroke-width="1.8"/>
+<polygon points="499.8,148.0 490.8,152.6 490.8,143.4" fill="#222222" class="f-ink"/>
+<line x1="604.8" y1="148.0" x2="656.4" y2="148.0" stroke="#222222" class="s-ink" stroke-width="1.8"/>
+<polygon points="665.4,148.0 656.4,152.6 656.4,143.4" fill="#222222" class="f-ink"/>
+<text x="635.1" y="141.0" text-anchor="middle" font-size="9.5" fill="#222222" class="f-ink">accept / stop</text>
+<line x1="570.4" y1="171.0" x2="611.9" y2="225.1" stroke="#222222" class="s-ink" stroke-width="1.8"/>
+<polygon points="617.4,232.2 608.2,227.9 615.5,222.3" fill="#222222" class="f-ink"/>
+<text x="593.9" y="194.6" text-anchor="middle" font-size="9.5" fill="#222222" class="f-ink">escalate</text>
+<path d="M 635.6 279.0 L 635.6 335.0 L 387.2 335.0 L 387.2 182.0" fill="none" stroke="#d55e00" stroke-width="1.8" stroke-linejoin="round"/>
+<line x1="387.2" y1="191.0" x2="387.2" y2="182.0" stroke="#d55e00" stroke-width="1.8"/>
+<polygon points="387.2,173.0 391.8,182.0 382.6,182.0" fill="#d55e00"/>
+<text x="511.4" y="350.0" text-anchor="middle" font-size="9.5" fill="#d55e00" font-weight="bold">answer</text>
+<line x1="653.2" y1="233.0" x2="694.7" y2="178.9" stroke="#222222" class="s-ink" stroke-width="1.8"/>
+<polygon points="700.2,171.8 698.3,181.7 691.0,176.1" fill="#222222" class="f-ink"/>
+<text x="676.7" y="195.4" text-anchor="middle" font-size="9.5" fill="#222222" class="f-ink">stop</text>
+<line x1="770.4" y1="148.0" x2="853.0" y2="148.0" stroke="#222222" class="s-ink" stroke-width="1.8"/>
+<polygon points="862.0,148.0 853.0,152.6 853.0,143.4" fill="#222222" class="f-ink"/>
+<circle cx="56.0" cy="148.0" r="21" fill="#ffffff" stroke="#222222" stroke-width="1.8" class="f-paper s-ink"/>
+<text x="56.0" y="152.0" text-anchor="middle" font-size="9.5" fill="#222222" class="f-ink" font-weight="bold">START</text>
+<rect x="169.6" y="125.0" width="104.0" height="46.0" fill="#e8f1f8" stroke="#0072b2" rx="7"/>
+<text x="221.6" y="152.0" text-anchor="middle" font-size="12" fill="#1b1b1b" font-weight="bold">classify</text>
+<rect x="335.2" y="125.0" width="104.0" height="46.0" fill="#e8f1f8" stroke="#0072b2" rx="7"/>
+<text x="387.2" y="152.0" text-anchor="middle" font-size="12" fill="#1b1b1b" font-weight="bold">answer</text>
+<rect x="500.8" y="125.0" width="104.0" height="46.0" fill="#e8f1f8" stroke="#0072b2" rx="7"/>
+<text x="552.8" y="152.0" text-anchor="middle" font-size="12" fill="#1b1b1b" font-weight="bold">verify</text>
+<rect x="583.6" y="233.0" width="104.0" height="46.0" fill="#fdeee2" stroke="#d55e00" rx="7"/>
+<text x="635.6" y="260.0" text-anchor="middle" font-size="12" fill="#1b1b1b" font-weight="bold">escalate</text>
+<rect x="666.4" y="125.0" width="104.0" height="46.0" fill="#e8f1f8" stroke="#0072b2" rx="7"/>
+<text x="718.4" y="152.0" text-anchor="middle" font-size="12" fill="#1b1b1b" font-weight="bold">finalize</text>
+<circle cx="884.0" cy="148.0" r="21" fill="#ffffff" stroke="#222222" stroke-width="1.8" class="f-paper s-ink"/>
+<text x="884.0" y="152.0" text-anchor="middle" font-size="9.5" fill="#222222" class="f-ink" font-weight="bold">END</text>
+<line x1="689.6" y1="256.0" x2="707.6" y2="256.0" stroke="#d55e00" stroke-width="1.2" stroke-dasharray="4,3"/>
+<text x="713.6" y="254.0" text-anchor="start" font-size="10" fill="#d55e00" font-weight="bold">human approval</text>
+<text x="713.6" y="268.0" text-anchor="start" font-size="9" fill="#666666" class="f-muted">interrupt() suspends here</text>
+<text x="56.0" y="377.0" text-anchor="start" font-size="10" fill="#d55e00">the cycle — `escalate` bumps the rung and re-enters `answer`, which is what makes this a cascade rather than a router</text>
+<text x="26" y="432" font-size="10" fill="#8a8a8a" class="f-faint">The loop is the product. `verify` decides whether the cheap answer stands; only a failed verification spends money on the next rung, and `escalate` can refuse on budget,</text>
+<text x="26" y="445" font-size="10" fill="#8a8a8a" class="f-faint">approval or top-of-ladder.</text>
+<text x="26" y="458" font-size="10" fill="#8a8a8a" class="f-faint">Every dollar figure this graph reports comes from the same price table and response cache as the benchmark tables, which is what makes the two comparable.</text>
+</svg>

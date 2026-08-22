@@ -1,94 +1,107 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 470" width="760" height="470" font-family="Helvetica,Arial,sans-serif">
-<rect width="760" height="470" fill="white"/>
-<text x="78" y="24" font-size="15" font-weight="bold" fill="#222222">Cost-quality frontier: policies are curves, not points</text>
-<text x="78" y="40" font-size="11" fill="#666666">measured</text>
-<line x1="78" y1="408.0" x2="592" y2="408.0" stroke="#dddddd" stroke-width="1"/>
-<text x="69" y="412.0" text-anchor="end" font-size="11" fill="#222222">81%</text>
-<line x1="78" y1="335.6" x2="592" y2="335.6" stroke="#dddddd" stroke-width="1"/>
-<text x="69" y="339.6" text-anchor="end" font-size="11" fill="#222222">85%</text>
-<line x1="78" y1="263.2" x2="592" y2="263.2" stroke="#dddddd" stroke-width="1"/>
-<text x="69" y="267.2" text-anchor="end" font-size="11" fill="#222222">88%</text>
-<line x1="78" y1="190.8" x2="592" y2="190.8" stroke="#dddddd" stroke-width="1"/>
-<text x="69" y="194.8" text-anchor="end" font-size="11" fill="#222222">91%</text>
-<line x1="78" y1="118.4" x2="592" y2="118.4" stroke="#dddddd" stroke-width="1"/>
-<text x="69" y="122.4" text-anchor="end" font-size="11" fill="#222222">95%</text>
-<line x1="78" y1="46.0" x2="592" y2="46.0" stroke="#dddddd" stroke-width="1"/>
-<text x="69" y="50.0" text-anchor="end" font-size="11" fill="#222222">98%</text>
-<line x1="78.0" y1="46" x2="78.0" y2="408" stroke="#dddddd" stroke-width="1"/>
-<text x="78.0" y="426" text-anchor="middle" font-size="11" fill="#222222">$0.0000</text>
-<line x1="180.8" y1="46" x2="180.8" y2="408" stroke="#dddddd" stroke-width="1"/>
-<text x="180.8" y="426" text-anchor="middle" font-size="11" fill="#222222">$0.0009</text>
-<line x1="283.6" y1="46" x2="283.6" y2="408" stroke="#dddddd" stroke-width="1"/>
-<text x="283.6" y="426" text-anchor="middle" font-size="11" fill="#222222">$0.0017</text>
-<line x1="386.4" y1="46" x2="386.4" y2="408" stroke="#dddddd" stroke-width="1"/>
-<text x="386.4" y="426" text-anchor="middle" font-size="11" fill="#222222">$0.0026</text>
-<line x1="489.2" y1="46" x2="489.2" y2="408" stroke="#dddddd" stroke-width="1"/>
-<text x="489.2" y="426" text-anchor="middle" font-size="11" fill="#222222">$0.0034</text>
-<line x1="592.0" y1="46" x2="592.0" y2="408" stroke="#dddddd" stroke-width="1"/>
-<text x="592.0" y="426" text-anchor="middle" font-size="11" fill="#222222">$0.0043</text>
-<rect x="78" y="46" width="514" height="362" fill="none" stroke="#222222" stroke-width="1"/>
-<path d="M 160.1 109.3 L 160.1 109.3 L 160.1 109.3 L 176.6 99.0 L 192.5 99.0 L 232.1 88.8 L 386.2 88.8" fill="none" stroke="#0072b2" stroke-width="2.2"/>
-<circle cx="160.1" cy="109.3" r="3" fill="#0072b2"/>
-<circle cx="160.1" cy="109.3" r="3" fill="#0072b2"/>
-<circle cx="160.1" cy="109.3" r="3" fill="#0072b2"/>
-<circle cx="176.6" cy="99.0" r="3" fill="#0072b2"/>
-<circle cx="192.5" cy="99.0" r="3" fill="#0072b2"/>
-<circle cx="232.1" cy="88.8" r="3" fill="#0072b2"/>
-<circle cx="386.2" cy="88.8" r="3" fill="#0072b2"/>
-<path d="M 97.2 344.7 L 97.2 344.7 L 97.2 344.7 L 97.2 344.7 L 97.2 344.7 L 153.0 119.5 L 192.5 99.0 L 505.4 129.7 L 567.5 129.7 L 567.5 129.7 L 567.5 129.7" fill="none" stroke="#d55e00" stroke-width="2.2"/>
-<circle cx="97.2" cy="344.7" r="3" fill="#d55e00"/>
-<circle cx="97.2" cy="344.7" r="3" fill="#d55e00"/>
-<circle cx="97.2" cy="344.7" r="3" fill="#d55e00"/>
-<circle cx="97.2" cy="344.7" r="3" fill="#d55e00"/>
-<circle cx="97.2" cy="344.7" r="3" fill="#d55e00"/>
-<circle cx="153.0" cy="119.5" r="3" fill="#d55e00"/>
-<circle cx="192.5" cy="99.0" r="3" fill="#d55e00"/>
-<circle cx="505.4" cy="129.7" r="3" fill="#d55e00"/>
-<circle cx="567.5" cy="129.7" r="3" fill="#d55e00"/>
-<circle cx="567.5" cy="129.7" r="3" fill="#d55e00"/>
-<circle cx="567.5" cy="129.7" r="3" fill="#d55e00"/>
-<path d="M 83.9 365.2 L 124.4 324.3 L 195.1 293.5 L 240.0 303.8 L 293.7 293.5 L 320.5 262.8 L 322.3 221.9 L 444.0 242.4 L 464.6 211.6 L 508.7 232.1 L 563.8 170.7" fill="none" stroke="#009e73" stroke-width="2.2" stroke-dasharray="6,4"/>
-<circle cx="83.9" cy="365.2" r="3" fill="#009e73"/>
-<circle cx="124.4" cy="324.3" r="3" fill="#009e73"/>
-<circle cx="195.1" cy="293.5" r="3" fill="#009e73"/>
-<circle cx="240.0" cy="303.8" r="3" fill="#009e73"/>
-<circle cx="293.7" cy="293.5" r="3" fill="#009e73"/>
-<circle cx="320.5" cy="262.8" r="3" fill="#009e73"/>
-<circle cx="322.3" cy="221.9" r="3" fill="#009e73"/>
-<circle cx="444.0" cy="242.4" r="3" fill="#009e73"/>
-<circle cx="464.6" cy="211.6" r="3" fill="#009e73"/>
-<circle cx="508.7" cy="232.1" r="3" fill="#009e73"/>
-<circle cx="563.8" cy="170.7" r="3" fill="#009e73"/>
-<path d="M 83.9 365.2 L 137.7 355.0 L 197.8 283.3 L 239.0 283.3 L 281.9 242.4 L 321.2 242.4 L 384.8 262.8 L 433.2 242.4 L 470.9 242.4 L 513.5 191.2 L 563.8 170.7" fill="none" stroke="#cc79a7" stroke-width="2.2"/>
-<circle cx="83.9" cy="365.2" r="3" fill="#cc79a7"/>
-<circle cx="137.7" cy="355.0" r="3" fill="#cc79a7"/>
-<circle cx="197.8" cy="283.3" r="3" fill="#cc79a7"/>
-<circle cx="239.0" cy="283.3" r="3" fill="#cc79a7"/>
-<circle cx="281.9" cy="242.4" r="3" fill="#cc79a7"/>
-<circle cx="321.2" cy="242.4" r="3" fill="#cc79a7"/>
-<circle cx="384.8" cy="262.8" r="3" fill="#cc79a7"/>
-<circle cx="433.2" cy="242.4" r="3" fill="#cc79a7"/>
-<circle cx="470.9" cy="242.4" r="3" fill="#cc79a7"/>
-<circle cx="513.5" cy="191.2" r="3" fill="#cc79a7"/>
-<circle cx="563.8" cy="170.7" r="3" fill="#cc79a7"/>
-<circle cx="83.9" cy="365.2" r="5" fill="#111111"/>
-<rect x="559.3" y="166.2" width="9" height="9" fill="#111111"/>
-<polygon points="138.8,82.8 144.8,88.8 138.8,94.8 132.8,88.8" fill="#999999"/>
-<text x="335" y="440" text-anchor="middle" font-size="12" fill="#222222">cost per task (USD)</text>
-<text x="18" y="227" font-size="12" fill="#222222" transform="rotate(-90 18 227)" text-anchor="middle">accuracy</text>
-<line x1="604" y1="52" x2="628" y2="52" stroke="#0072b2" stroke-width="2.5"/>
-<text x="634" y="56" font-size="11" fill="#222222">cascade</text>
-<line x1="604" y1="71" x2="628" y2="71" stroke="#d55e00" stroke-width="2.5"/>
-<text x="634" y="75" font-size="11" fill="#222222">cascade_routing</text>
-<line x1="604" y1="90" x2="628" y2="90" stroke="#009e73" stroke-width="2.5" stroke-dasharray="6,4"/>
-<text x="634" y="94" font-size="11" fill="#222222">random</text>
-<line x1="604" y1="109" x2="628" y2="109" stroke="#cc79a7" stroke-width="2.5"/>
-<text x="634" y="113" font-size="11" fill="#222222">routellm</text>
-<line x1="604" y1="128" x2="628" y2="128" stroke="#111111" stroke-width="2.5"/>
-<text x="634" y="132" font-size="11" fill="#222222">always_cheap</text>
-<line x1="604" y1="147" x2="628" y2="147" stroke="#111111" stroke-width="2.5"/>
-<text x="634" y="151" font-size="11" fill="#222222">always_expensive</text>
-<line x1="604" y1="166" x2="628" y2="166" stroke="#999999" stroke-width="2.5"/>
-<text x="634" y="170" font-size="11" fill="#222222">oracle (not deployable)</text>
-<text x="78" y="461" font-size="10" fill="#888888">up and to the left is better; the dashed line is the random baseline every router must beat</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 540" width="860" height="540" font-family="Helvetica,Arial,sans-serif" role="img" aria-labelledby="t d">
+<title id="t">Cost-quality frontier on the `wide` ladder: policies are curves, not points</title>
+<desc id="d">measured on real models  |  v4-flash → opus-5 · n=209 held-out tasks · every policy swept across its whole knob range. Up and to the left is better. The bold line is each family's achievable frontier (upper hull); the faint marks behind it are the individual settings, including the ones a mix of two others beats. Comparing two routers at one setting each lets whoever set the knobs pick the winner, which is why this sweeps them instead.</desc>
+<style>@media (prefers-color-scheme:dark){.f-paper{fill:#0f1216}.f-ink{fill:#e9ecef}.f-muted{fill:#a8b0b8}.f-faint{fill:#8b939b}.f-grid{fill:#2a3038}.f-wash{fill:#1b2027}.f-base{fill:#98a1aa}.s-ink{stroke:#e9ecef}.s-muted{stroke:#a8b0b8}.s-faint{stroke:#8b939b}.s-grid{stroke:#333b45}.s-base{stroke:#98a1aa}.s-paper{stroke:#0f1216}}</style>
+<rect width="860" height="540" fill="#ffffff" class="f-paper"/>
+<text x="26" y="26" font-size="15" font-weight="bold" fill="#222222" class="f-ink">Cost-quality frontier on the `wide` ladder: policies are curves, not points</text>
+<text x="26" y="43" font-size="11" fill="#666666" class="f-muted">measured on real models  |  v4-flash → opus-5 · n=209 held-out tasks · every policy swept across its whole knob range</text>
+<line x1="78.0" y1="410.0" x2="606.3" y2="410.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="70.0" y="414.0" text-anchor="end" font-size="11" fill="#222222" class="f-ink">80%</text>
+<line x1="78.0" y1="348.8" x2="606.3" y2="348.8" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="70.0" y="352.8" text-anchor="end" font-size="11" fill="#222222" class="f-ink">84%</text>
+<line x1="78.0" y1="287.6" x2="606.3" y2="287.6" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="70.0" y="291.6" text-anchor="end" font-size="11" fill="#222222" class="f-ink">88%</text>
+<line x1="78.0" y1="226.4" x2="606.3" y2="226.4" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="70.0" y="230.4" text-anchor="end" font-size="11" fill="#222222" class="f-ink">92%</text>
+<line x1="78.0" y1="165.2" x2="606.3" y2="165.2" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="70.0" y="169.2" text-anchor="end" font-size="11" fill="#222222" class="f-ink">96%</text>
+<line x1="78.0" y1="104.0" x2="606.3" y2="104.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="70.0" y="108.0" text-anchor="end" font-size="11" fill="#222222" class="f-ink">100%</text>
+<line x1="130.8" y1="104.0" x2="130.8" y2="410.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="130.8" y="426.0" text-anchor="middle" font-size="11" fill="#222222" class="f-ink">$0.05</text>
+<line x1="197.7" y1="104.0" x2="197.7" y2="410.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="197.7" y="426.0" text-anchor="middle" font-size="11" fill="#222222" class="f-ink">$0.10</text>
+<line x1="264.7" y1="104.0" x2="264.7" y2="410.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="264.7" y="426.0" text-anchor="middle" font-size="11" fill="#222222" class="f-ink">$0.20</text>
+<line x1="353.1" y1="104.0" x2="353.1" y2="410.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="353.1" y="426.0" text-anchor="middle" font-size="11" fill="#222222" class="f-ink">$0.50</text>
+<line x1="420.0" y1="104.0" x2="420.0" y2="410.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="420.0" y="426.0" text-anchor="middle" font-size="11" fill="#222222" class="f-ink">$1</text>
+<line x1="486.9" y1="104.0" x2="486.9" y2="410.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="486.9" y="426.0" text-anchor="middle" font-size="11" fill="#222222" class="f-ink">$2</text>
+<line x1="575.4" y1="104.0" x2="575.4" y2="410.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="575.4" y="426.0" text-anchor="middle" font-size="11" fill="#222222" class="f-ink">$5</text>
+<rect x="78.0" y="104.0" width="528.3" height="306.0" fill="none" stroke="#222222" class="s-ink"/>
+<text x="342.2" y="444.0" text-anchor="middle" font-size="12" fill="#222222" class="f-ink">cost per 1,000 queries  (log scale)</text>
+<text x="30.0" y="257.0" text-anchor="middle" font-size="12" fill="#222222" class="f-ink" transform="rotate(-90 30.0 257.0)">accuracy on the held-out half</text>
+<g opacity="0.3">
+<circle cx="382.8" cy="177.2" r="2.4" fill="#0072b2"/>
+<circle cx="400.4" cy="169.9" r="2.4" fill="#0072b2"/>
+<circle cx="414.8" cy="169.9" r="2.4" fill="#0072b2"/>
+<circle cx="443.5" cy="162.6" r="2.4" fill="#0072b2"/>
+<circle cx="510.4" cy="162.6" r="2.4" fill="#0072b2"/>
+</g>
+<path d="M 382.8 177.2 L 400.4 169.9 L 443.5 162.6" fill="none" stroke="#0072b2" stroke-width="2.8" stroke-linejoin="round" stroke-linecap="round"/>
+<g opacity="0.3">
+<circle cx="242.4" cy="345.6" r="2.4" fill="#56b4e9"/>
+<circle cx="374.0" cy="184.5" r="2.4" fill="#56b4e9"/>
+<circle cx="414.8" cy="169.9" r="2.4" fill="#56b4e9"/>
+<circle cx="542.0" cy="191.8" r="2.4" fill="#56b4e9"/>
+<circle cx="555.1" cy="191.8" r="2.4" fill="#56b4e9"/>
+</g>
+<path d="M 242.4 345.6 L 374.0 184.5 L 414.8 169.9" fill="none" stroke="#56b4e9" stroke-width="2.8" stroke-linejoin="round" stroke-linecap="round"/>
+<g opacity="0.3">
+<circle cx="129.2" cy="360.2" r="2.4" fill="#009e73"/>
+<circle cx="327.7" cy="330.9" r="2.4" fill="#009e73"/>
+<circle cx="417.0" cy="309.0" r="2.4" fill="#009e73"/>
+<circle cx="448.3" cy="316.3" r="2.4" fill="#009e73"/>
+<circle cx="476.0" cy="309.0" r="2.4" fill="#009e73"/>
+<circle cx="487.3" cy="287.0" r="2.4" fill="#009e73"/>
+<circle cx="488.0" cy="257.7" r="2.4" fill="#009e73"/>
+<circle cx="527.1" cy="272.4" r="2.4" fill="#009e73"/>
+<circle cx="532.3" cy="250.4" r="2.4" fill="#009e73"/>
+<circle cx="542.7" cy="265.1" r="2.4" fill="#009e73"/>
+<circle cx="554.4" cy="221.1" r="2.4" fill="#009e73"/>
+</g>
+<path d="M 129.2 360.2 L 327.7 330.9 L 488.0 257.7 L 554.4 221.1" fill="none" stroke="#009e73" stroke-width="2.8" stroke-dasharray="6,4" stroke-linejoin="round" stroke-linecap="round"/>
+<g opacity="0.3">
+<circle cx="129.2" cy="360.2" r="2.4" fill="#cc79a7"/>
+<circle cx="352.0" cy="352.9" r="2.4" fill="#cc79a7"/>
+<circle cx="419.2" cy="301.7" r="2.4" fill="#cc79a7"/>
+<circle cx="447.8" cy="301.7" r="2.4" fill="#cc79a7"/>
+<circle cx="470.6" cy="272.4" r="2.4" fill="#cc79a7"/>
+<circle cx="487.6" cy="272.4" r="2.4" fill="#cc79a7"/>
+<circle cx="510.0" cy="287.0" r="2.4" fill="#cc79a7"/>
+<circle cx="524.1" cy="272.4" r="2.4" fill="#cc79a7"/>
+<circle cx="533.9" cy="272.4" r="2.4" fill="#cc79a7"/>
+<circle cx="543.8" cy="235.8" r="2.4" fill="#cc79a7"/>
+<circle cx="554.4" cy="221.1" r="2.4" fill="#cc79a7"/>
+</g>
+<path d="M 129.2 360.2 L 419.2 301.7 L 470.6 272.4 L 554.4 221.1" fill="none" stroke="#cc79a7" stroke-width="2.8" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="129.2" cy="360.2" r="5.5" fill="#111111" class="f-ink"/>
+<rect x="549.4" y="216.1" width="10.0" height="10.0" fill="#111111" class="f-ink"/>
+<polygon points="353.7,156.1 360.2,162.6 353.7,169.1 347.2,162.6" fill="#9a9a9a" class="f-faint"/>
+<line x1="78.0" y1="221.1" x2="606.3" y2="221.1" stroke="#666666" class="s-muted" stroke-width="1.2" stroke-dasharray="5,4"/>
+<line x1="554.4" y1="207.4" x2="390.8" y2="207.4" stroke="#222222" class="s-ink" stroke-width="1.6"/>
+<polygon points="382.8,207.4 391.8,202.4 391.8,212.4" fill="#222222" class="f-ink"/>
+<text x="468.6" y="198.4" text-anchor="middle" font-size="10.5" fill="#009e73" font-weight="bold">-83.1% at matched accuracy</text>
+<text x="84.0" y="215.1" text-anchor="start" font-size="9" fill="#666666" class="f-muted">always-expensive accuracy</text>
+<text x="614.0" y="101.0" text-anchor="start" font-size="10" fill="#666666" class="f-muted" font-weight="bold">policy families</text>
+<line x1="614.0" y1="116.0" x2="636.0" y2="116.0" stroke="#0072b2" stroke-width="2.5"/>
+<text x="644.0" y="120.0" text-anchor="start" font-size="11" fill="#222222" class="f-ink">cascade</text>
+<line x1="614.0" y1="134.0" x2="636.0" y2="134.0" stroke="#56b4e9" stroke-width="2.5"/>
+<text x="644.0" y="138.0" text-anchor="start" font-size="11" fill="#222222" class="f-ink">cascade_routing</text>
+<line x1="614.0" y1="152.0" x2="636.0" y2="152.0" stroke="#009e73" stroke-width="2.5" stroke-dasharray="6,4"/>
+<text x="644.0" y="156.0" text-anchor="start" font-size="11" fill="#222222" class="f-ink">random — the null to beat</text>
+<line x1="614.0" y1="170.0" x2="636.0" y2="170.0" stroke="#cc79a7" stroke-width="2.5"/>
+<text x="644.0" y="174.0" text-anchor="start" font-size="11" fill="#222222" class="f-ink">routellm</text>
+<circle cx="625.0" cy="188.0" r="5.0" fill="#111111" class="f-ink"/>
+<text x="644.0" y="192.0" text-anchor="start" font-size="11" fill="#222222" class="f-ink">always_cheap — the bottom rung</text>
+<rect x="620.5" y="201.5" width="9.0" height="9.0" fill="#111111" class="f-ink"/>
+<text x="644.0" y="210.0" text-anchor="start" font-size="11" fill="#222222" class="f-ink">always_expensive — the top rung</text>
+<polygon points="625.0,218.0 631.0,224.0 625.0,230.0 619.0,224.0" fill="#9a9a9a" class="f-faint"/>
+<text x="644.0" y="228.0" text-anchor="start" font-size="11" fill="#222222" class="f-ink">oracle — the bound, not deployable</text>
+<text x="26" y="502" font-size="10" fill="#8a8a8a" class="f-faint">Up and to the left is better. The bold line is each family's achievable frontier (upper hull); the faint marks behind it are the individual settings, including the ones a mix of two</text>
+<text x="26" y="515" font-size="10" fill="#8a8a8a" class="f-faint">others beats.</text>
+<text x="26" y="528" font-size="10" fill="#8a8a8a" class="f-faint">Comparing two routers at one setting each lets whoever set the knobs pick the winner, which is why this sweeps them instead.</text>
 </svg>

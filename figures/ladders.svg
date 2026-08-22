@@ -1,48 +1,99 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 470" width="760" height="470" font-family="Helvetica,Arial,sans-serif">
-<rect width="760" height="470" fill="white"/>
-<text x="78" y="24" font-size="15" font-weight="bold" fill="#222222">Cascade vs always paying for the best model</text>
-<text x="78" y="40" font-size="11" fill="#666666">measured on real models, n=209 per ladder</text>
-<line x1="78" y1="408.0" x2="592" y2="408.0" stroke="#dddddd" stroke-width="1"/>
-<text x="69" y="412.0" text-anchor="end" font-size="11" fill="#222222">76%</text>
-<line x1="78" y1="335.6" x2="592" y2="335.6" stroke="#dddddd" stroke-width="1"/>
-<text x="69" y="339.6" text-anchor="end" font-size="11" fill="#222222">81%</text>
-<line x1="78" y1="263.2" x2="592" y2="263.2" stroke="#dddddd" stroke-width="1"/>
-<text x="69" y="267.2" text-anchor="end" font-size="11" fill="#222222">85%</text>
-<line x1="78" y1="190.8" x2="592" y2="190.8" stroke="#dddddd" stroke-width="1"/>
-<text x="69" y="194.8" text-anchor="end" font-size="11" fill="#222222">90%</text>
-<line x1="78" y1="118.4" x2="592" y2="118.4" stroke="#dddddd" stroke-width="1"/>
-<text x="69" y="122.4" text-anchor="end" font-size="11" fill="#222222">95%</text>
-<line x1="78" y1="46.0" x2="592" y2="46.0" stroke="#dddddd" stroke-width="1"/>
-<text x="69" y="50.0" text-anchor="end" font-size="11" fill="#222222">100%</text>
-<rect x="78" y="46" width="514" height="362" fill="none" stroke="#222222" stroke-width="1"/>
-<rect x="119.1" y="160.2" width="41.1" height="247.8" fill="#999999"/>
-<text x="139.7" y="145.3" text-anchor="middle" font-size="10" fill="#222222">92.3%</text>
-<text x="139.7" y="193.0" text-anchor="middle" font-size="9" fill="#ffffff">$0.00402</text>
-<rect x="167.1" y="110.2" width="41.1" height="297.8" fill="#0072b2"/>
-<text x="187.7" y="95.3" text-anchor="middle" font-size="10" fill="#222222">95.7%</text>
-<text x="187.7" y="143.1" text-anchor="middle" font-size="9" fill="#ffffff">$0.00095</text>
-<text x="163.7" y="390.1" text-anchor="middle" font-size="10" fill="#009e73">$-0.00307/task</text>
-<rect x="290.5" y="160.2" width="41.1" height="247.8" fill="#999999"/>
-<text x="311.0" y="145.3" text-anchor="middle" font-size="10" fill="#222222">92.3%</text>
-<text x="311.0" y="193.0" text-anchor="middle" font-size="9" fill="#ffffff">$0.00402</text>
-<rect x="338.4" y="96.0" width="41.1" height="312.0" fill="#0072b2"/>
-<text x="359.0" y="81.0" text-anchor="middle" font-size="10" fill="#222222">96.7%</text>
-<text x="359.0" y="128.8" text-anchor="middle" font-size="9" fill="#ffffff">$0.00499</text>
-<text x="335.0" y="390.1" text-anchor="middle" font-size="10" fill="#d55e00">+$0.00097/task</text>
-<rect x="461.8" y="288.7" width="41.1" height="119.3" fill="#999999"/>
-<text x="482.3" y="273.7" text-anchor="middle" font-size="10" fill="#222222">83.7%</text>
-<text x="482.3" y="321.5" text-anchor="middle" font-size="9" fill="#ffffff">$0.00018</text>
-<rect x="509.8" y="245.8" width="41.1" height="162.2" fill="#0072b2"/>
-<text x="530.3" y="230.9" text-anchor="middle" font-size="10" fill="#222222">86.6%</text>
-<text x="530.3" y="278.7" text-anchor="middle" font-size="9" fill="#ffffff">$0.00018</text>
-<text x="506.3" y="390.1" text-anchor="middle" font-size="10" fill="#009e73">$-0.00000/task</text>
-<text x="163.7" y="426" text-anchor="middle" font-size="13" fill="#222222">wide</text>
-<text x="335.0" y="426" text-anchor="middle" font-size="13" fill="#222222">claude</text>
-<text x="506.3" y="426" text-anchor="middle" font-size="13" fill="#222222">deepseek</text>
-<text x="18" y="227" font-size="12" fill="#222222" transform="rotate(-90 18 227)" text-anchor="middle">accuracy on the held-out half</text>
-<line x1="604" y1="52" x2="628" y2="52" stroke="#999999" stroke-width="2.5"/>
-<text x="634" y="56" font-size="11" fill="#222222">always_expensive</text>
-<line x1="604" y1="71" x2="628" y2="71" stroke="#0072b2" stroke-width="2.5"/>
-<text x="634" y="75" font-size="11" fill="#222222">cascade</text>
-<text x="78" y="461" font-size="10" fill="#888888">green = the cascade also costs less; orange = it buys the accuracy at a premium</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 452" width="940" height="452" font-family="Helvetica,Arial,sans-serif" role="img" aria-labelledby="t d">
+<title id="t">Cascade against always paying for the best model</title>
+<desc id="d">measured on real models  |  n=209 held-out tasks per ladder · both panels share their rows, so each ladder is one line across the figure. Dots, not bars: the accuracy axis starts at 80%, so a bar drawn from it would encode the deepseek ladder's 2.9-point gain as a bar 77% longer. Cost is what serving the same 209 tasks cost, scaled to 1,000 queries. The arrow runs from always-expensive to the cascade.</desc>
+<style>@media (prefers-color-scheme:dark){.f-paper{fill:#0f1216}.f-ink{fill:#e9ecef}.f-muted{fill:#a8b0b8}.f-faint{fill:#8b939b}.f-grid{fill:#2a3038}.f-wash{fill:#1b2027}.f-base{fill:#98a1aa}.s-ink{stroke:#e9ecef}.s-muted{stroke:#a8b0b8}.s-faint{stroke:#8b939b}.s-grid{stroke:#333b45}.s-base{stroke:#98a1aa}.s-paper{stroke:#0f1216}}</style>
+<rect width="940" height="452" fill="#ffffff" class="f-paper"/>
+<text x="26" y="26" font-size="15" font-weight="bold" fill="#222222" class="f-ink">Cascade against always paying for the best model</text>
+<text x="26" y="43" font-size="11" fill="#666666" class="f-muted">measured on real models  |  n=209 held-out tasks per ladder · both panels share their rows, so each ladder is one line across the figure</text>
+<text x="186.0" y="93.0" text-anchor="start" font-size="12" fill="#222222" class="f-ink" font-weight="bold">accuracy on the held-out half</text>
+<text x="610.0" y="93.0" text-anchor="start" font-size="12" fill="#222222" class="f-ink" font-weight="bold">cost per 1,000 queries</text>
+<line x1="186.0" y1="137.0" x2="486.0" y2="137.0" stroke="#efefef" class="s-grid" stroke-width="1.0"/>
+<line x1="186.0" y1="197.0" x2="486.0" y2="197.0" stroke="#efefef" class="s-grid" stroke-width="1.0"/>
+<line x1="186.0" y1="257.0" x2="486.0" y2="257.0" stroke="#efefef" class="s-grid" stroke-width="1.0"/>
+<line x1="610.0" y1="137.0" x2="906.0" y2="137.0" stroke="#efefef" class="s-grid" stroke-width="1.0"/>
+<line x1="610.0" y1="197.0" x2="906.0" y2="197.0" stroke="#efefef" class="s-grid" stroke-width="1.0"/>
+<line x1="610.0" y1="257.0" x2="906.0" y2="257.0" stroke="#efefef" class="s-grid" stroke-width="1.0"/>
+<line x1="186.0" y1="104.0" x2="186.0" y2="290.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="186.0" y="306.0" text-anchor="middle" font-size="11" fill="#222222" class="f-ink">80%</text>
+<line x1="261.0" y1="104.0" x2="261.0" y2="290.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="261.0" y="306.0" text-anchor="middle" font-size="11" fill="#222222" class="f-ink">85%</text>
+<line x1="336.0" y1="104.0" x2="336.0" y2="290.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="336.0" y="306.0" text-anchor="middle" font-size="11" fill="#222222" class="f-ink">90%</text>
+<line x1="411.0" y1="104.0" x2="411.0" y2="290.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="411.0" y="306.0" text-anchor="middle" font-size="11" fill="#222222" class="f-ink">95%</text>
+<line x1="486.0" y1="104.0" x2="486.0" y2="290.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="486.0" y="306.0" text-anchor="middle" font-size="11" fill="#222222" class="f-ink">100%</text>
+<line x1="620.6" y1="104.0" x2="620.6" y2="290.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="620.6" y="306.0" text-anchor="middle" font-size="11" fill="#222222" class="f-ink">$0.10</text>
+<line x1="662.7" y1="104.0" x2="662.7" y2="290.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="662.7" y="306.0" text-anchor="middle" font-size="11" fill="#222222" class="f-ink">$0.20</text>
+<line x1="718.3" y1="104.0" x2="718.3" y2="290.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="718.3" y="306.0" text-anchor="middle" font-size="11" fill="#222222" class="f-ink">$0.50</text>
+<line x1="760.4" y1="104.0" x2="760.4" y2="290.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="760.4" y="306.0" text-anchor="middle" font-size="11" fill="#222222" class="f-ink">$1</text>
+<line x1="802.6" y1="104.0" x2="802.6" y2="290.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="802.6" y="306.0" text-anchor="middle" font-size="11" fill="#222222" class="f-ink">$2</text>
+<line x1="858.2" y1="104.0" x2="858.2" y2="290.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="858.2" y="306.0" text-anchor="middle" font-size="11" fill="#222222" class="f-ink">$5</text>
+<line x1="900.3" y1="104.0" x2="900.3" y2="290.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="900.3" y="306.0" text-anchor="middle" font-size="11" fill="#222222" class="f-ink">$10</text>
+<rect x="186.0" y="104.0" width="300.0" height="186.0" fill="none" stroke="#222222" class="s-ink"/>
+<rect x="610.0" y="104.0" width="296.0" height="186.0" fill="none" stroke="#222222" class="s-ink"/>
+<text x="170.0" y="135.0" text-anchor="end" font-size="13" fill="#0072b2" font-weight="bold">wide</text>
+<text x="170.0" y="150.0" text-anchor="end" font-size="9" fill="#666666" class="f-muted">v4-flash → opus-5</text>
+<line x1="371.2" y1="137.0" x2="413.4" y2="137.0" stroke="#0072b2" stroke-width="3"/>
+<polygon points="421.4,137.0 412.4,132.0 412.4,142.0" fill="#0072b2"/>
+<circle cx="371.2" cy="137.0" r="4.9" fill="#ffffff" stroke="#8d8d8d" stroke-width="2.2" class="f-paper s-base"/>
+<circle cx="421.4" cy="137.0" r="5.5" fill="#0072b2"/>
+<text x="360.2" y="141.0" text-anchor="end" font-size="9.5" fill="#666666" class="f-muted">92.3%</text>
+<text x="431.4" y="141.0" text-anchor="start" font-size="10" fill="#222222" class="f-ink" font-weight="bold">95.7%</text>
+<text x="396.3" y="126.0" text-anchor="middle" font-size="9" fill="#0072b2">+3.3 pts</text>
+<line x1="845.0" y1="137.0" x2="765.2" y2="137.0" stroke="#009e73" stroke-width="3"/>
+<polygon points="757.2,137.0 766.2,132.0 766.2,142.0" fill="#009e73"/>
+<circle cx="845.0" cy="137.0" r="4.9" fill="#ffffff" stroke="#8d8d8d" stroke-width="2.2" class="f-paper s-base"/>
+<circle cx="757.2" cy="137.0" r="5.5" fill="#009e73"/>
+<text x="747.2" y="141.0" text-anchor="end" font-size="9.5" fill="#666666" class="f-muted">$0.95</text>
+<text x="855.0" y="141.0" text-anchor="start" font-size="10" fill="#222222" class="f-ink" font-weight="bold">$4.02</text>
+<text x="801.1" y="126.0" text-anchor="middle" font-size="9" fill="#009e73">4.2x cheaper</text>
+<text x="170.0" y="195.0" text-anchor="end" font-size="13" fill="#d55e00" font-weight="bold">claude</text>
+<text x="170.0" y="210.0" text-anchor="end" font-size="9" fill="#666666" class="f-muted">haiku-4-5 → sonnet-5 → opus-5</text>
+<line x1="371.2" y1="197.0" x2="427.8" y2="197.0" stroke="#0072b2" stroke-width="3"/>
+<polygon points="435.8,197.0 426.8,192.0 426.8,202.0" fill="#0072b2"/>
+<circle cx="371.2" cy="197.0" r="4.9" fill="#ffffff" stroke="#8d8d8d" stroke-width="2.2" class="f-paper s-base"/>
+<circle cx="435.8" cy="197.0" r="5.5" fill="#0072b2"/>
+<text x="360.2" y="201.0" text-anchor="end" font-size="9.5" fill="#666666" class="f-muted">92.3%</text>
+<text x="445.8" y="201.0" text-anchor="start" font-size="10" fill="#222222" class="f-ink" font-weight="bold">96.7%</text>
+<text x="403.5" y="186.0" text-anchor="middle" font-size="9" fill="#0072b2">+4.3 pts</text>
+<line x1="845.0" y1="197.0" x2="850.1" y2="197.0" stroke="#d55e00" stroke-width="3"/>
+<polygon points="858.1,197.0 849.1,192.0 849.1,202.0" fill="#d55e00"/>
+<circle cx="845.0" cy="197.0" r="4.9" fill="#ffffff" stroke="#8d8d8d" stroke-width="2.2" class="f-paper s-base"/>
+<circle cx="858.1" cy="197.0" r="5.5" fill="#d55e00"/>
+<text x="835.0" y="201.0" text-anchor="end" font-size="9.5" fill="#666666" class="f-muted">$4.02</text>
+<text x="868.1" y="201.0" text-anchor="start" font-size="10" fill="#222222" class="f-ink" font-weight="bold">$4.99</text>
+<text x="851.5" y="186.0" text-anchor="middle" font-size="9" fill="#d55e00">24.1% dearer</text>
+<text x="170.0" y="255.0" text-anchor="end" font-size="13" fill="#009e73" font-weight="bold">deepseek</text>
+<text x="170.0" y="270.0" text-anchor="end" font-size="9" fill="#666666" class="f-muted">v4-flash → v4-pro</text>
+<line x1="242.0" y1="257.0" x2="277.0" y2="257.0" stroke="#0072b2" stroke-width="3"/>
+<polygon points="285.0,257.0 276.0,252.0 276.0,262.0" fill="#0072b2"/>
+<circle cx="242.0" cy="257.0" r="4.9" fill="#ffffff" stroke="#8d8d8d" stroke-width="2.2" class="f-paper s-base"/>
+<circle cx="285.0" cy="257.0" r="5.5" fill="#0072b2"/>
+<text x="231.0" y="261.0" text-anchor="end" font-size="9.5" fill="#666666" class="f-muted">83.7%</text>
+<text x="295.0" y="261.0" text-anchor="start" font-size="10" fill="#222222" class="f-ink" font-weight="bold">86.6%</text>
+<text x="263.5" y="246.0" text-anchor="middle" font-size="9" fill="#0072b2">+2.9 pts</text>
+<circle cx="657.9" cy="257.0" r="4.9" fill="#ffffff" stroke="#8d8d8d" stroke-width="2.2" class="f-paper s-base"/>
+<circle cx="657.9" cy="257.0" r="2.5" fill="#8a8a8a" class="f-faint"/>
+<text x="669.9" y="261.0" text-anchor="start" font-size="10" fill="#666666" class="f-muted">$0.18 either way</text>
+<text x="657.9" y="246.0" text-anchor="middle" font-size="9" fill="#8a8a8a" class="f-faint">no change</text>
+<text x="336.0" y="324.0" text-anchor="middle" font-size="12" fill="#222222" class="f-ink">accuracy</text>
+<text x="758.0" y="324.0" text-anchor="middle" font-size="12" fill="#222222" class="f-ink">USD per 1,000 queries  (log scale)</text>
+<circle cx="197.0" cy="372.0" r="4.4" fill="#ffffff" stroke="#8d8d8d" stroke-width="2.2" class="f-paper s-base"/>
+<text x="216.0" y="376.0" text-anchor="start" font-size="11" fill="#222222" class="f-ink">always_expensive — pay the top rung on every query</text>
+<circle cx="197.0" cy="390.0" r="5.0" fill="#0072b2"/>
+<text x="216.0" y="394.0" text-anchor="start" font-size="11" fill="#222222" class="f-ink">cascade — verify at the cheap rung, escalate when it fails</text>
+<line x1="610.0" y1="372.0" x2="632.0" y2="372.0" stroke="#009e73" stroke-width="2.5"/>
+<text x="640.0" y="376.0" text-anchor="start" font-size="11" fill="#222222" class="f-ink">cascade also costs less</text>
+<line x1="610.0" y1="390.0" x2="632.0" y2="390.0" stroke="#d55e00" stroke-width="2.5"/>
+<text x="640.0" y="394.0" text-anchor="start" font-size="11" fill="#222222" class="f-ink">cascade buys the accuracy at a premium</text>
+<text x="26" y="427" font-size="10" fill="#8a8a8a" class="f-faint">Dots, not bars: the accuracy axis starts at 80%, so a bar drawn from it would encode the deepseek ladder's 2.9-point gain as a bar 77% longer.</text>
+<text x="26" y="440" font-size="10" fill="#8a8a8a" class="f-faint">Cost is what serving the same 209 tasks cost, scaled to 1,000 queries. The arrow runs from always-expensive to the cascade.</text>
 </svg>

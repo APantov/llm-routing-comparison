@@ -1,57 +1,106 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 470" width="760" height="470" font-family="Helvetica,Arial,sans-serif">
-<rect width="760" height="470" fill="white"/>
-<text x="78" y="24" font-size="15" font-weight="bold" fill="#222222">The experiment: cascade quality against verifier quality</text>
-<text x="78" y="40" font-size="11" fill="#666666">measured  |  n=357 code tasks, seed 0</text>
-<line x1="78" y1="408.0" x2="592" y2="408.0" stroke="#dddddd" stroke-width="1"/>
-<text x="69" y="412.0" text-anchor="end" font-size="11" fill="#222222">0%</text>
-<line x1="78" y1="335.6" x2="592" y2="335.6" stroke="#dddddd" stroke-width="1"/>
-<text x="69" y="339.6" text-anchor="end" font-size="11" fill="#222222">20%</text>
-<line x1="78" y1="263.2" x2="592" y2="263.2" stroke="#dddddd" stroke-width="1"/>
-<text x="69" y="267.2" text-anchor="end" font-size="11" fill="#222222">40%</text>
-<line x1="78" y1="190.8" x2="592" y2="190.8" stroke="#dddddd" stroke-width="1"/>
-<text x="69" y="194.8" text-anchor="end" font-size="11" fill="#222222">60%</text>
-<line x1="78" y1="118.4" x2="592" y2="118.4" stroke="#dddddd" stroke-width="1"/>
-<text x="69" y="122.4" text-anchor="end" font-size="11" fill="#222222">80%</text>
-<line x1="78" y1="46.0" x2="592" y2="46.0" stroke="#dddddd" stroke-width="1"/>
-<text x="69" y="50.0" text-anchor="end" font-size="11" fill="#222222">100%</text>
-<line x1="78.0" y1="46" x2="78.0" y2="408" stroke="#dddddd" stroke-width="1"/>
-<text x="78.0" y="426" text-anchor="middle" font-size="11" fill="#222222">0.00</text>
-<line x1="180.8" y1="46" x2="180.8" y2="408" stroke="#dddddd" stroke-width="1"/>
-<text x="180.8" y="426" text-anchor="middle" font-size="11" fill="#222222">0.20</text>
-<line x1="283.6" y1="46" x2="283.6" y2="408" stroke="#dddddd" stroke-width="1"/>
-<text x="283.6" y="426" text-anchor="middle" font-size="11" fill="#222222">0.40</text>
-<line x1="386.4" y1="46" x2="386.4" y2="408" stroke="#dddddd" stroke-width="1"/>
-<text x="386.4" y="426" text-anchor="middle" font-size="11" fill="#222222">0.60</text>
-<line x1="489.2" y1="46" x2="489.2" y2="408" stroke="#dddddd" stroke-width="1"/>
-<text x="489.2" y="426" text-anchor="middle" font-size="11" fill="#222222">0.80</text>
-<line x1="592.0" y1="46" x2="592.0" y2="408" stroke="#dddddd" stroke-width="1"/>
-<text x="592.0" y="426" text-anchor="middle" font-size="11" fill="#222222">1.00</text>
-<rect x="78" y="46" width="514" height="362" fill="none" stroke="#222222" stroke-width="1"/>
-<path d="M 78.0 60.2 L 129.4 64.3 L 206.5 74.4 L 335.0 71.4 L 463.5 82.5 L 592.0 85.5" fill="none" stroke="#0072b2" stroke-width="2.2"/>
-<circle cx="78.0" cy="60.2" r="3" fill="#0072b2"/>
-<circle cx="129.4" cy="64.3" r="3" fill="#0072b2"/>
-<circle cx="206.5" cy="74.4" r="3" fill="#0072b2"/>
-<circle cx="335.0" cy="71.4" r="3" fill="#0072b2"/>
-<circle cx="463.5" cy="82.5" r="3" fill="#0072b2"/>
-<circle cx="592.0" cy="85.5" r="3" fill="#0072b2"/>
-<line x1="78.0" y1="63.9" x2="78.0" y2="56.5" stroke="#0072b2" stroke-width="1.2"/>
-<line x1="129.4" y1="68.4" x2="129.4" y2="60.1" stroke="#0072b2" stroke-width="1.2"/>
-<line x1="206.5" y1="79.5" x2="206.5" y2="69.2" stroke="#0072b2" stroke-width="1.2"/>
-<line x1="335.0" y1="76.2" x2="335.0" y2="66.5" stroke="#0072b2" stroke-width="1.2"/>
-<line x1="463.5" y1="88.3" x2="463.5" y2="76.7" stroke="#0072b2" stroke-width="1.2"/>
-<line x1="592.0" y1="91.5" x2="592.0" y2="79.6" stroke="#0072b2" stroke-width="1.2"/>
-<path d="M 78.0 346.1 L 129.4 339.0 L 206.5 313.7 L 335.0 291.4 L 463.5 251.8 L 592.0 236.6" fill="none" stroke="#d55e00" stroke-width="2.2" stroke-dasharray="6,4"/>
-<circle cx="78.0" cy="346.1" r="3" fill="#d55e00"/>
-<circle cx="129.4" cy="339.0" r="3" fill="#d55e00"/>
-<circle cx="206.5" cy="313.7" r="3" fill="#d55e00"/>
-<circle cx="335.0" cy="291.4" r="3" fill="#d55e00"/>
-<circle cx="463.5" cy="251.8" r="3" fill="#d55e00"/>
-<circle cx="592.0" cy="236.6" r="3" fill="#d55e00"/>
-<text x="335" y="440" text-anchor="middle" font-size="12" fill="#222222">verifier corruption p  (probability the verifier ignores the tests)</text>
-<text x="18" y="227" font-size="12" fill="#222222" transform="rotate(-90 18 227)" text-anchor="middle">rate</text>
-<line x1="604" y1="52" x2="628" y2="52" stroke="#0072b2" stroke-width="2.5"/>
-<text x="634" y="56" font-size="11" fill="#222222">accuracy</text>
-<line x1="604" y1="71" x2="628" y2="71" stroke="#d55e00" stroke-width="2.5" stroke-dasharray="6,4"/>
-<text x="634" y="75" font-size="11" fill="#222222">escalation rate</text>
-<text x="78" y="461" font-size="10" fill="#888888">p=0 is a perfect verifier; p=1 is a coin flip. Everything else is held fixed.</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 620" width="900" height="620" font-family="Helvetica,Arial,sans-serif" role="img" aria-labelledby="t d">
+<title id="t">The experiment: cascade quality and cost against verifier quality</title>
+<desc id="d">measured on real models  |  wide ladder, 357 code tasks, seed 0 · models, prompts, grader and tasks all held fixed. p is the probability the verifier ignores the test result and guesses. p=0 is a perfect verifier; p=1 is a coin flip. No cliff: there is no threshold below which verifier quality stops mattering, so it has to be budgeted for rather than assumed (RESULTS §2.8).</desc>
+<style>@media (prefers-color-scheme:dark){.f-paper{fill:#0f1216}.f-ink{fill:#e9ecef}.f-muted{fill:#a8b0b8}.f-faint{fill:#8b939b}.f-grid{fill:#2a3038}.f-wash{fill:#1b2027}.f-base{fill:#98a1aa}.s-ink{stroke:#e9ecef}.s-muted{stroke:#a8b0b8}.s-faint{stroke:#8b939b}.s-grid{stroke:#333b45}.s-base{stroke:#98a1aa}.s-paper{stroke:#0f1216}}</style>
+<rect width="900" height="620" fill="#ffffff" class="f-paper"/>
+<text x="26" y="26" font-size="15" font-weight="bold" fill="#222222" class="f-ink">The experiment: cascade quality and cost against verifier quality</text>
+<text x="26" y="43" font-size="11" fill="#666666" class="f-muted">measured on real models  |  wide ladder, 357 code tasks, seed 0 · models, prompts, grader and tasks all held fixed</text>
+<text x="88.0" y="89.0" text-anchor="start" font-size="12" fill="#222222" class="f-ink" font-weight="bold">what the verifier buys, and what it costs in escalations</text>
+<line x1="88.0" y1="290.0" x2="648.0" y2="290.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="80.0" y="294.0" text-anchor="end" font-size="11" fill="#222222" class="f-ink">0%</text>
+<line x1="88.0" y1="252.0" x2="648.0" y2="252.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="80.0" y="256.0" text-anchor="end" font-size="11" fill="#222222" class="f-ink">20%</text>
+<line x1="88.0" y1="214.0" x2="648.0" y2="214.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="80.0" y="218.0" text-anchor="end" font-size="11" fill="#222222" class="f-ink">40%</text>
+<line x1="88.0" y1="176.0" x2="648.0" y2="176.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="80.0" y="180.0" text-anchor="end" font-size="11" fill="#222222" class="f-ink">60%</text>
+<line x1="88.0" y1="138.0" x2="648.0" y2="138.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="80.0" y="142.0" text-anchor="end" font-size="11" fill="#222222" class="f-ink">80%</text>
+<line x1="88.0" y1="100.0" x2="648.0" y2="100.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="80.0" y="104.0" text-anchor="end" font-size="11" fill="#222222" class="f-ink">100%</text>
+<line x1="88.0" y1="100.0" x2="88.0" y2="290.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<line x1="144.0" y1="100.0" x2="144.0" y2="290.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<line x1="228.0" y1="100.0" x2="228.0" y2="290.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<line x1="368.0" y1="100.0" x2="368.0" y2="290.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<line x1="508.0" y1="100.0" x2="508.0" y2="290.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<line x1="648.0" y1="100.0" x2="648.0" y2="290.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<rect x="88.0" y="100.0" width="560.0" height="190.0" fill="none" stroke="#222222" class="s-ink"/>
+<path d="M 88.0 107.5 L 144.0 109.6 L 228.0 114.9 L 368.0 113.3 L 508.0 119.2 L 648.0 120.8" fill="none" stroke="#0072b2" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="88.0" cy="107.5" r="3.0" fill="#0072b2"/>
+<circle cx="144.0" cy="109.6" r="3.0" fill="#0072b2"/>
+<circle cx="228.0" cy="114.9" r="3.0" fill="#0072b2"/>
+<circle cx="368.0" cy="113.3" r="3.0" fill="#0072b2"/>
+<circle cx="508.0" cy="119.2" r="3.0" fill="#0072b2"/>
+<circle cx="648.0" cy="120.8" r="3.0" fill="#0072b2"/>
+<line x1="88.0" y1="109.4" x2="88.0" y2="105.5" stroke="#0072b2" stroke-width="1.2"/>
+<line x1="144.0" y1="111.8" x2="144.0" y2="107.4" stroke="#0072b2" stroke-width="1.2"/>
+<line x1="228.0" y1="117.6" x2="228.0" y2="112.2" stroke="#0072b2" stroke-width="1.2"/>
+<line x1="368.0" y1="115.9" x2="368.0" y2="110.7" stroke="#0072b2" stroke-width="1.2"/>
+<line x1="508.0" y1="122.2" x2="508.0" y2="116.1" stroke="#0072b2" stroke-width="1.2"/>
+<line x1="648.0" y1="123.9" x2="648.0" y2="117.6" stroke="#0072b2" stroke-width="1.2"/>
+<path d="M 88.0 257.5 L 144.0 253.8 L 228.0 240.5 L 368.0 228.8 L 508.0 208.0 L 648.0 200.1" fill="none" stroke="#d55e00" stroke-width="2.2" stroke-dasharray="6,4" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="88.0" cy="257.5" r="3.0" fill="#d55e00"/>
+<circle cx="144.0" cy="253.8" r="3.0" fill="#d55e00"/>
+<circle cx="228.0" cy="240.5" r="3.0" fill="#d55e00"/>
+<circle cx="368.0" cy="228.8" r="3.0" fill="#d55e00"/>
+<circle cx="508.0" cy="208.0" r="3.0" fill="#d55e00"/>
+<circle cx="648.0" cy="200.1" r="3.0" fill="#d55e00"/>
+<text x="97.0" y="111.5" text-anchor="start" font-size="10" fill="#0072b2" font-weight="bold">96.1%</text>
+<text x="639.0" y="124.8" text-anchor="end" font-size="10" fill="#0072b2" font-weight="bold">89.1%</text>
+<text x="639.0" y="204.1" text-anchor="end" font-size="10" fill="#d55e00" font-weight="bold">47.3%</text>
+<text x="42.0" y="195.0" text-anchor="middle" font-size="12" fill="#222222" class="f-ink" transform="rotate(-90 42.0 195.0)">rate</text>
+<text x="88.0" y="349.0" text-anchor="start" font-size="12" fill="#222222" class="f-ink" font-weight="bold">what it costs in money</text>
+<line x1="88.0" y1="510.0" x2="648.0" y2="510.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="80.0" y="514.0" text-anchor="end" font-size="11" fill="#222222" class="f-ink">$0.25</text>
+<line x1="88.0" y1="480.0" x2="648.0" y2="480.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="80.0" y="484.0" text-anchor="end" font-size="11" fill="#222222" class="f-ink">$0.50</text>
+<line x1="88.0" y1="450.0" x2="648.0" y2="450.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="80.0" y="454.0" text-anchor="end" font-size="11" fill="#222222" class="f-ink">$0.75</text>
+<line x1="88.0" y1="420.0" x2="648.0" y2="420.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="80.0" y="424.0" text-anchor="end" font-size="11" fill="#222222" class="f-ink">$1.00</text>
+<line x1="88.0" y1="390.0" x2="648.0" y2="390.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="80.0" y="394.0" text-anchor="end" font-size="11" fill="#222222" class="f-ink">$1.25</text>
+<line x1="88.0" y1="360.0" x2="648.0" y2="360.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="80.0" y="364.0" text-anchor="end" font-size="11" fill="#222222" class="f-ink">$1.50</text>
+<line x1="88.0" y1="360.0" x2="88.0" y2="510.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="88.0" y="526.0" text-anchor="middle" font-size="11" fill="#222222" class="f-ink">0.00</text>
+<line x1="144.0" y1="360.0" x2="144.0" y2="510.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="144.0" y="526.0" text-anchor="middle" font-size="11" fill="#222222" class="f-ink">0.10</text>
+<line x1="228.0" y1="360.0" x2="228.0" y2="510.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="228.0" y="526.0" text-anchor="middle" font-size="11" fill="#222222" class="f-ink">0.25</text>
+<line x1="368.0" y1="360.0" x2="368.0" y2="510.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="368.0" y="526.0" text-anchor="middle" font-size="11" fill="#222222" class="f-ink">0.50</text>
+<line x1="508.0" y1="360.0" x2="508.0" y2="510.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="508.0" y="526.0" text-anchor="middle" font-size="11" fill="#222222" class="f-ink">0.75</text>
+<line x1="648.0" y1="360.0" x2="648.0" y2="510.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="648.0" y="526.0" text-anchor="middle" font-size="11" fill="#222222" class="f-ink">1.00</text>
+<rect x="88.0" y="360.0" width="560.0" height="150.0" fill="none" stroke="#222222" class="s-ink"/>
+<path d="M 88.0 469.9 L 144.0 465.7 L 228.0 447.2 L 368.0 427.6 L 508.0 410.7 L 648.0 391.3" fill="none" stroke="#cc79a7" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="88.0" cy="469.9" r="3.0" fill="#cc79a7"/>
+<circle cx="144.0" cy="465.7" r="3.0" fill="#cc79a7"/>
+<circle cx="228.0" cy="447.2" r="3.0" fill="#cc79a7"/>
+<circle cx="368.0" cy="427.6" r="3.0" fill="#cc79a7"/>
+<circle cx="508.0" cy="410.7" r="3.0" fill="#cc79a7"/>
+<circle cx="648.0" cy="391.3" r="3.0" fill="#cc79a7"/>
+<text x="88.0" y="459.9" text-anchor="start" font-size="10" fill="#cc79a7">$0.58</text>
+<text x="648.0" y="381.3" text-anchor="end" font-size="10" fill="#cc79a7" font-weight="bold">$1.24</text>
+<text x="368.0" y="544.0" text-anchor="middle" font-size="12" fill="#222222" class="f-ink">verifier corruption p</text>
+<text x="42.0" y="435.0" text-anchor="middle" font-size="12" fill="#222222" class="f-ink" transform="rotate(-90 42.0 435.0)">USD per 1,000 queries</text>
+<text x="690.0" y="101.0" text-anchor="start" font-size="10" fill="#666666" class="f-muted" font-weight="bold">measured</text>
+<line x1="690.0" y1="116.0" x2="712.0" y2="116.0" stroke="#0072b2" stroke-width="2.5"/>
+<text x="720.0" y="120.0" text-anchor="start" font-size="11" fill="#222222" class="f-ink">accuracy</text>
+<line x1="690.0" y1="134.0" x2="712.0" y2="134.0" stroke="#d55e00" stroke-width="2.5" stroke-dasharray="6,4"/>
+<text x="720.0" y="138.0" text-anchor="start" font-size="11" fill="#222222" class="f-ink">escalation rate</text>
+<line x1="690.0" y1="152.0" x2="712.0" y2="152.0" stroke="#cc79a7" stroke-width="2.5"/>
+<text x="720.0" y="156.0" text-anchor="start" font-size="11" fill="#222222" class="f-ink">cost</text>
+<text x="690.0" y="372.0" text-anchor="start" font-size="11" fill="#222222" class="f-ink" font-weight="bold">The trap</text>
+<text x="690.0" y="392.0" text-anchor="start" font-size="9.5" fill="#666666" class="f-muted">A cascade with a worthless verifier still</text>
+<text x="690.0" y="406.0" text-anchor="start" font-size="9.5" fill="#666666" class="f-muted">looks good on cost per correct answer: at</text>
+<text x="690.0" y="420.0" text-anchor="start" font-size="9.5" fill="#666666" class="f-muted">p=1.00 a coin flip sends half the traffic to</text>
+<text x="690.0" y="434.0" text-anchor="start" font-size="9.5" fill="#666666" class="f-muted">the cheap rung and saves money doing it.</text>
+<text x="690.0" y="448.0" text-anchor="start" font-size="9.5" fill="#666666" class="f-muted">Only the accuracy-matched comparison</text>
+<text x="690.0" y="462.0" text-anchor="start" font-size="9.5" fill="#666666" class="f-muted">separates a good verifier from no verifier,</text>
+<text x="690.0" y="476.0" text-anchor="start" font-size="9.5" fill="#666666" class="f-muted">and the sweep prints both.</text>
+<text x="26" y="595" font-size="10" fill="#8a8a8a" class="f-faint">p is the probability the verifier ignores the test result and guesses. p=0 is a perfect verifier; p=1 is a coin flip.</text>
+<text x="26" y="608" font-size="10" fill="#8a8a8a" class="f-faint">No cliff: there is no threshold below which verifier quality stops mattering, so it has to be budgeted for rather than assumed (RESULTS §2.8).</text>
 </svg>

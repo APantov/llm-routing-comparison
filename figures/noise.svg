@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 442" width="760" height="442" font-family="Helvetica,Arial,sans-serif" role="img" aria-labelledby="t d">
+<title id="t">A sixth of the routing opportunity does not reproduce</title>
+<desc id="d">measured on real models  |  wide ladder · 71 decisive tasks redrawn 3x at both rungs · n=416 graded. A router credited against the observed fraction is being paid for mass it cannot capture twice running. This is a LOWER bound on the correction: `both_ok` and `inverted` were not redrawn, so flakiness hidden in them is still uncounted (RESULTS §2.6).</desc>
+<style>@media (prefers-color-scheme:dark){.f-paper{fill:#0f1216}.f-ink{fill:#e9ecef}.f-muted{fill:#a8b0b8}.f-faint{fill:#8b939b}.f-grid{fill:#2a3038}.f-wash{fill:#1b2027}.f-base{fill:#98a1aa}.s-ink{stroke:#e9ecef}.s-muted{stroke:#a8b0b8}.s-faint{stroke:#8b939b}.s-grid{stroke:#333b45}.s-base{stroke:#98a1aa}.s-paper{stroke:#0f1216}}</style>
+<rect width="760" height="442" fill="#ffffff" class="f-paper"/>
+<text x="26" y="26" font-size="15" font-weight="bold" fill="#222222" class="f-ink">A sixth of the routing opportunity does not reproduce</text>
+<text x="26" y="43" font-size="11" fill="#666666" class="f-muted">measured on real models  |  wide ladder · 71 decisive tasks redrawn 3x at both rungs · n=416 graded</text>
+<line x1="150.0" y1="316.0" x2="570.0" y2="316.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="142.0" y="320.0" text-anchor="end" font-size="11" fill="#222222" class="f-ink">0%</text>
+<line x1="150.0" y1="264.0" x2="570.0" y2="264.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="142.0" y="268.0" text-anchor="end" font-size="11" fill="#222222" class="f-ink">5%</text>
+<line x1="150.0" y1="212.0" x2="570.0" y2="212.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="142.0" y="216.0" text-anchor="end" font-size="11" fill="#222222" class="f-ink">10%</text>
+<line x1="150.0" y1="160.0" x2="570.0" y2="160.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="142.0" y="164.0" text-anchor="end" font-size="11" fill="#222222" class="f-ink">15%</text>
+<line x1="150.0" y1="108.0" x2="570.0" y2="108.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="142.0" y="112.0" text-anchor="end" font-size="11" fill="#222222" class="f-ink">20%</text>
+<rect x="150.0" y="108.0" width="420.0" height="208.0" fill="none" stroke="#222222" class="s-ink"/>
+<text x="102.0" y="212.0" text-anchor="middle" font-size="12" fill="#222222" class="f-ink" transform="rotate(-90 102.0 212.0)">routable fraction of the task set</text>
+<rect x="197.1" y="176.0" width="71.3" height="140.0" fill="#0072b2"/>
+<text x="232.7" y="166.0" text-anchor="middle" font-size="13" fill="#222222" class="f-ink" font-weight="bold">13.5%</text>
+<rect x="324.4" y="189.3" width="71.3" height="126.7" fill="#5ba3d0"/>
+<text x="360.0" y="179.3" text-anchor="middle" font-size="13" fill="#222222" class="f-ink" font-weight="bold">12.2%</text>
+<rect x="451.6" y="198.5" width="71.3" height="117.5" fill="#9ec9e4"/>
+<text x="487.3" y="188.5" text-anchor="middle" font-size="13" fill="#222222" class="f-ink" font-weight="bold">11.3%</text>
+<text x="232.7" y="333.0" text-anchor="middle" font-size="11.5" fill="#222222" class="f-ink">observed</text>
+<text x="360.0" y="333.0" text-anchor="middle" font-size="11.5" fill="#222222" class="f-ink">expected</text>
+<text x="487.3" y="333.0" text-anchor="middle" font-size="11.5" fill="#222222" class="f-ink">reproducible</text>
+<text x="232.7" y="349.0" text-anchor="middle" font-size="8.5" fill="#666666" class="f-muted">one draw per cell — what a probe</text>
+<text x="232.7" y="361.0" text-anchor="middle" font-size="8.5" fill="#666666" class="f-muted">publishes</text>
+<text x="360.0" y="349.0" text-anchor="middle" font-size="8.5" fill="#666666" class="f-muted">mean over fresh draws</text>
+<text x="487.3" y="349.0" text-anchor="middle" font-size="8.5" fill="#666666" class="f-muted">cheap reliably fails AND top rung</text>
+<text x="487.3" y="361.0" text-anchor="middle" font-size="8.5" fill="#666666" class="f-muted">reliably succeeds</text>
+<text x="296.4" y="146.0" text-anchor="middle" font-size="10" fill="#d55e00" font-weight="bold">−1.3 pts</text>
+<line x1="269.6" y1="152.0" x2="323.1" y2="152.0" stroke="#d55e00" stroke-width="1.2"/>
+<text x="423.6" y="159.3" text-anchor="middle" font-size="10" fill="#d55e00" font-weight="bold">−0.9 pts</text>
+<line x1="396.9" y1="165.3" x2="450.4" y2="165.3" stroke="#d55e00" stroke-width="1.2"/>
+<text x="596.0" y="150.0" text-anchor="start" font-size="11" fill="#222222" class="f-ink" font-weight="bold">The headline</text>
+<text x="596.0" y="172.0" text-anchor="start" font-size="10.5" fill="#222222" class="f-ink" font-weight="bold">13.5% → 11.3%</text>
+<text x="596.0" y="188.0" text-anchor="start" font-size="10.5" fill="#666666" class="f-muted">a drop of 2.2 points,</text>
+<text x="596.0" y="204.0" text-anchor="start" font-size="10.5" fill="#666666" class="f-muted">or 16% of the</text>
+<text x="596.0" y="220.0" text-anchor="start" font-size="10.5" fill="#666666" class="f-muted">apparent opportunity.</text>
+<text x="26" y="417" font-size="10" fill="#8a8a8a" class="f-faint">A router credited against the observed fraction is being paid for mass it cannot capture twice running.</text>
+<text x="26" y="430" font-size="10" fill="#8a8a8a" class="f-faint">This is a LOWER bound on the correction: `both_ok` and `inverted` were not redrawn, so flakiness hidden in them is still uncounted (RESULTS §2.6).</text>
+</svg>

@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 556" width="920" height="556" font-family="Helvetica,Arial,sans-serif" role="img" aria-labelledby="t d">
+<title id="t">Predictive routing does not beat a coin flip</title>
+<desc id="d">measured on real models  |  exact McNemar over paired outcomes, n=209 held-out tasks per ladder. `random_matched` flips a coin at the LLM router's own escalation rate, so the comparison holds spend roughly fixed and isolates skill rather than budget. The distinction is when the decision is made: a predictive router commits before seeing an attempt, a cascade decides after verifying one (RESULTS §2.3).</desc>
+<style>@media (prefers-color-scheme:dark){.f-paper{fill:#0f1216}.f-ink{fill:#e9ecef}.f-muted{fill:#a8b0b8}.f-faint{fill:#8b939b}.f-grid{fill:#2a3038}.f-wash{fill:#1b2027}.f-base{fill:#98a1aa}.s-ink{stroke:#e9ecef}.s-muted{stroke:#a8b0b8}.s-faint{stroke:#8b939b}.s-grid{stroke:#333b45}.s-base{stroke:#98a1aa}.s-paper{stroke:#0f1216}}</style>
+<rect width="920" height="556" fill="#ffffff" class="f-paper"/>
+<text x="26" y="26" font-size="15" font-weight="bold" fill="#222222" class="f-ink">Predictive routing does not beat a coin flip</text>
+<text x="26" y="43" font-size="11" fill="#666666" class="f-muted">measured on real models  |  exact McNemar over paired outcomes, n=209 held-out tasks per ladder</text>
+<text x="277.5" y="89.0" text-anchor="start" font-size="12" fill="#222222" class="f-ink" font-weight="bold">Is the difference detectable at all?</text>
+<rect x="277.5" y="100.0" width="284.5" height="116.0" fill="#dff0e6" opacity="0.9"/>
+<line x1="364.9" y1="100.0" x2="364.9" y2="216.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="364.9" y="232.0" text-anchor="middle" font-size="11" fill="#222222" class="f-ink">0.005</text>
+<line x1="424.2" y1="100.0" x2="424.2" y2="216.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="424.2" y="232.0" text-anchor="middle" font-size="11" fill="#222222" class="f-ink">0.01</text>
+<line x1="561.9" y1="100.0" x2="561.9" y2="216.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="561.9" y="232.0" text-anchor="middle" font-size="11" fill="#222222" class="f-ink">0.05</text>
+<line x1="621.3" y1="100.0" x2="621.3" y2="216.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="621.3" y="232.0" text-anchor="middle" font-size="11" fill="#222222" class="f-ink">0.1</text>
+<line x1="759.0" y1="100.0" x2="759.0" y2="216.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="759.0" y="232.0" text-anchor="middle" font-size="11" fill="#222222" class="f-ink">0.5</text>
+<line x1="818.3" y1="100.0" x2="818.3" y2="216.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="818.3" y="232.0" text-anchor="middle" font-size="11" fill="#222222" class="f-ink">1</text>
+<rect x="277.5" y="100.0" width="566.5" height="116.0" fill="none" stroke="#222222" class="s-ink"/>
+<line x1="561.9" y1="100.0" x2="561.9" y2="216.0" stroke="#1c7a4a" stroke-width="1.2" stroke-dasharray="5,4"/>
+<text x="555.9" y="209.0" text-anchor="end" font-size="9.5" fill="#1c7a4a" font-style="italic">detectable — p &lt; 0.05</text>
+<text x="263.5" y="125.8" text-anchor="end" font-size="10.5" fill="#666666" class="f-muted">LLM-as-router  vs  cost-matched coin flip</text>
+<circle cx="665.2" cy="121.8" r="5.4" fill="#ffffff" stroke="#0072b2" stroke-width="2.2" class="f-paper"/>
+<circle cx="767.0" cy="121.8" r="5.4" fill="#ffffff" stroke="#d55e00" stroke-width="2.2" class="f-paper"/>
+<circle cx="818.3" cy="121.8" r="5.4" fill="#ffffff" stroke="#009e73" stroke-width="2.2" class="f-paper"/>
+<text x="854.0" y="125.8" text-anchor="start" font-size="11" fill="#d55e00" font-weight="bold">0/3</text>
+<text x="263.5" y="162.0" text-anchor="end" font-size="10.5" fill="#666666" class="f-muted">RouteLLM (pretrained BERT)  vs  same coin flip</text>
+<circle cx="750.8" cy="158.0" r="5.4" fill="#ffffff" stroke="#0072b2" stroke-width="2.2" class="f-paper"/>
+<circle cx="818.3" cy="158.0" r="5.4" fill="#ffffff" stroke="#d55e00" stroke-width="2.2" class="f-paper"/>
+<circle cx="791.0" cy="158.0" r="5.4" fill="#ffffff" stroke="#009e73" stroke-width="2.2" class="f-paper"/>
+<text x="854.0" y="162.0" text-anchor="start" font-size="11" fill="#d55e00" font-weight="bold">0/3</text>
+<text x="263.5" y="198.2" text-anchor="end" font-size="10.5" fill="#222222" class="f-ink" font-weight="bold">cascade  vs  LLM-as-router</text>
+<circle cx="332.3" cy="194.2" r="6.0" fill="#0072b2"/>
+<circle cx="385.3" cy="194.2" r="6.0" fill="#d55e00"/>
+<circle cx="437.8" cy="194.2" r="6.0" fill="#009e73"/>
+<text x="854.0" y="198.2" text-anchor="start" font-size="11" fill="#1c7a4a" font-weight="bold">3/3</text>
+<text x="560.7" y="248.0" text-anchor="middle" font-size="12" fill="#222222" class="f-ink">McNemar p  (log scale)</text>
+<text x="277.5" y="274.0" text-anchor="start" font-size="11.5" fill="#d55e00" font-weight="bold">0 of 6 predictive-routing comparisons clear p&lt;0.05. The cascade clears it on every ladder.</text>
+<text x="277.5" y="311.0" text-anchor="start" font-size="12" fill="#222222" class="f-ink" font-weight="bold">...and at every budget, not just the tuned one</text>
+<rect x="277.5" y="322.0" width="113.3" height="132.0" fill="#fbe6da" opacity="0.8"/>
+<line x1="277.5" y1="322.0" x2="277.5" y2="454.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="277.5" y="470.0" text-anchor="middle" font-size="11" fill="#222222" class="f-ink">-0.02</text>
+<line x1="390.8" y1="322.0" x2="390.8" y2="454.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="390.8" y="470.0" text-anchor="middle" font-size="11" fill="#222222" class="f-ink">+0.00</text>
+<line x1="504.1" y1="322.0" x2="504.1" y2="454.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="504.1" y="470.0" text-anchor="middle" font-size="11" fill="#222222" class="f-ink">+0.02</text>
+<line x1="617.4" y1="322.0" x2="617.4" y2="454.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="617.4" y="470.0" text-anchor="middle" font-size="11" fill="#222222" class="f-ink">+0.04</text>
+<line x1="730.7" y1="322.0" x2="730.7" y2="454.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="730.7" y="470.0" text-anchor="middle" font-size="11" fill="#222222" class="f-ink">+0.06</text>
+<line x1="844.0" y1="322.0" x2="844.0" y2="454.0" stroke="#dddddd" class="s-grid" stroke-width="1.0"/>
+<text x="844.0" y="470.0" text-anchor="middle" font-size="11" fill="#222222" class="f-ink">+0.08</text>
+<rect x="277.5" y="322.0" width="566.5" height="132.0" fill="none" stroke="#222222" class="s-ink"/>
+<line x1="390.8" y1="322.0" x2="390.8" y2="454.0" stroke="#222222" class="s-ink" stroke-width="1.4"/>
+<text x="384.8" y="447.0" text-anchor="end" font-size="9.5" fill="#a8461a" font-style="italic">worse than the null</text>
+<text x="263.5" y="350.8" text-anchor="end" font-size="12" fill="#0072b2" font-weight="bold">wide</text>
+<rect x="380.6" y="334.0" width="10.2" height="11.6" fill="#cc79a7"/>
+<text x="371.6" y="343.7" text-anchor="end" font-size="9.5" fill="#222222" class="f-ink">-0.0018</text>
+<rect x="390.8" y="348.0" width="390.1" height="11.6" fill="#0072b2"/>
+<text x="789.8" y="357.8" text-anchor="start" font-size="9.5" fill="#222222" class="f-ink">+0.0688</text>
+<text x="263.5" y="392.0" text-anchor="end" font-size="12" fill="#d55e00" font-weight="bold">claude</text>
+<rect x="388.6" y="375.2" width="2.1" height="11.6" fill="#cc79a7"/>
+<text x="379.6" y="385.0" text-anchor="end" font-size="9.5" fill="#222222" class="f-ink">-0.0004</text>
+<rect x="390.8" y="389.2" width="298.4" height="11.6" fill="#0072b2"/>
+<text x="698.2" y="399.0" text-anchor="start" font-size="9.5" fill="#222222" class="f-ink">+0.0527</text>
+<text x="263.5" y="433.2" text-anchor="end" font-size="12" fill="#009e73" font-weight="bold">deepseek</text>
+<rect x="323.4" y="416.5" width="67.3" height="11.6" fill="#cc79a7"/>
+<text x="314.4" y="426.2" text-anchor="end" font-size="9.5" fill="#222222" class="f-ink">-0.0119</text>
+<rect x="390.8" y="430.5" width="126.1" height="11.6" fill="#0072b2"/>
+<text x="525.9" y="440.3" text-anchor="start" font-size="9.5" fill="#222222" class="f-ink">+0.0223</text>
+<text x="560.7" y="486.0" text-anchor="middle" font-size="12" fill="#222222" class="f-ink">frontier AUC minus the cost-matched null  (accuracy points)</text>
+<circle cx="37.0" cy="502.0" r="5.0" fill="#0072b2"/>
+<text x="56.0" y="506.0" text-anchor="start" font-size="10.5" fill="#222222" class="f-ink">wide</text>
+<circle cx="114.6" cy="502.0" r="5.0" fill="#d55e00"/>
+<text x="133.6" y="506.0" text-anchor="start" font-size="10.5" fill="#222222" class="f-ink">claude</text>
+<circle cx="201.5" cy="502.0" r="5.0" fill="#009e73"/>
+<text x="220.5" y="506.0" text-anchor="start" font-size="10.5" fill="#222222" class="f-ink">deepseek</text>
+<circle cx="303.0" cy="502.0" r="4.4" fill="#ffffff" stroke="#666666" stroke-width="2.2" class="f-paper s-muted"/>
+<text x="322.0" y="506.0" text-anchor="start" font-size="10.5" fill="#222222" class="f-ink">hollow — no skill shown</text>
+<circle cx="470.5" cy="502.0" r="5.0" fill="#222222" class="f-ink"/>
+<text x="489.5" y="506.0" text-anchor="start" font-size="10.5" fill="#222222" class="f-ink">filled — skill shown</text>
+<rect x="604.2" y="497.0" width="22.0" height="10.0" fill="#cc79a7"/>
+<text x="634.2" y="506.0" text-anchor="start" font-size="10.5" fill="#222222" class="f-ink">routellm AUC</text>
+<rect x="722.6" y="497.0" width="22.0" height="10.0" fill="#0072b2"/>
+<text x="752.6" y="506.0" text-anchor="start" font-size="10.5" fill="#222222" class="f-ink">cascade AUC</text>
+<text x="26" y="531" font-size="10" fill="#8a8a8a" class="f-faint">`random_matched` flips a coin at the LLM router's own escalation rate, so the comparison holds spend roughly fixed and isolates skill rather than budget.</text>
+<text x="26" y="544" font-size="10" fill="#8a8a8a" class="f-faint">The distinction is when the decision is made: a predictive router commits before seeing an attempt, a cascade decides after verifying one (RESULTS §2.3).</text>
+</svg>
