@@ -5,8 +5,8 @@
   "cells": {
     "both_ok": 166,
     "routable": 27,
-    "inverted": 8,
-    "both_fail": 8
+    "both_fail": 8,
+    "inverted": 8
   },
   "policies": {
     "always_cheap": {

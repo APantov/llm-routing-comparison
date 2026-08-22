@@ -11,6 +11,10 @@ ROUTER_MODE=replay python scripts/run_all_ladders.py
 
 That is how the current figures were produced. 0 calls reached a backend.
 
+The driver runs every writer below except the paid tools, which is a recent
+correction: it used to skip `routable` and `scorecard`, so a from-scratch run
+left two artefacts missing and `plot` quietly drew seven of the nine figures.
+
 ## One file per ladder, and why
 
 | stem | written by | what it holds |
@@ -19,7 +23,7 @@ That is how the current figures were produced. 0 calls reached a backend.
 | `frontier.<ladder>.jsonl` | `frontier` | cost-quality curves, achievable frontiers, AUC |
 | `sweep_degraded.wide.jsonl` | `sweep_degraded` | the verifier-degradation curve. **One ladder only** — the sweep holds the ladder fixed and varies verifier fidelity inside the code domain, so the ladder is the control rather than the variable |
 | `scorecard.<ladder>.{json,txt}` | `scorecard` | per-policy error attribution against the cross-tab |
-| `routable.<ladder>.txt` | `routable` | the cheap/expensive cross-tab |
+| `routable.<ladder>.txt` | `routable` | the cheap/expensive cross-tab — the committed file is that run's transcript |
 | `redraw.<ladder>*.json` | `scripts/provenance/redraw_decisive.py` | per-rung p̂ from multi-draw redraws — **paid for** |
 | `screen.<ladder>.<pool>.json` | `scripts/provenance/redraw_decisive.py` | a screen of a candidate task pool — **paid for** |
 | `triage.<ladder>.json` | `scripts/provenance/triage_both_fail.py` | evidence for a quarantine decision |
@@ -44,17 +48,18 @@ reader now names the ladder it wants.
 **Committed:** the per-ladder `results`, `frontier` and `sweep_degraded` files,
 the scorecards, the cross-tabs, the redraws, the screens and the triage. The
 first three are force-added past `.gitignore`, deliberately — `git add -f` is
-the act that publishes a run, so a mock run's output can never be staged by
-accident. The redraws and screens are committed for a second reason: they cost
+the act that publishes a run, so nothing lands here without being meant. The redraws and screens are committed for a second reason: they cost
 money, and this repository does not delete real data.
 
 **Not committed:** `run_all_ladders.log`, which is a transcript of the last
 driver run rather than a result.
 
-A file here whose rows say `"simulated": true` is mock output. It is fabricated,
-it means nothing about any model, and it should never have been committed —
-every committed row in this directory that carries the field says
-`"simulated": false`. The redraws, screens and triage records do not carry it:
+A file here whose rows say `"simulated": true` is mock output: fabricated, and
+meaningless about any model. Nothing in the repository can write one any more.
+`models.require_measured_mode` stops a mock run before it has rows,
+`run_eval.assert_measured` aborts without writing if a finished run somehow
+produced any, and `scorecard`, `stats` and `plot` refuse to read such a file.
+Every committed row here that carries the field says `"simulated": false`. The redraws, screens and triage records do not carry it:
 the first two are written only by `redraw_decisive.py`, which exits rather than
 run outside real mode — a redraw in replay would re-read one cached answer k
 times and report perfect reproducibility — and the triage record is evidence

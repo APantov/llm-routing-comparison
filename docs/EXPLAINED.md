@@ -43,6 +43,17 @@ the whole point:
 To measure that you need a verifier whose quality you can turn up and down like
 a dial. That is what this repository builds.
 
+Before any of that, though: there has to be something to route. Sort every
+question by what each rung got right, and only one of the four boxes is winnable
+— the one where the cheap model fails and the expensive one succeeds. Everything
+else is a question both rungs agree on, and no routing decision changes it.
+
+![The cheap/top cross-tab on each ladder: only the routable cell can be won](../figures/routable.svg)
+
+The third ladder is the cautionary one. Its two rungs are about equally good, so
+its winnable box is a third the size of its hopeless one — which is why no
+policy does well there, however clever it is.
+
 ## 4. Why there are two kinds of task
 
 The 417 questions come in two flavours, chosen because they sit at opposite ends
@@ -127,6 +138,8 @@ beat a coin flip that spends the same money". This repo calls that
 > comparisons, three ladders, not one of them significant.** The cascade beats
 > both on every ladder.
 
+![Six comparisons against a cost-matched coin flip, and the same question at every budget](../figures/predictive.svg)
+
 The reason is structural rather than a criticism of those routers. A predictive
 router commits before seeing an attempt. A cascade decides after verifying one.
 Looking is worth more than guessing.
@@ -144,17 +157,29 @@ no API key and no network, for **$0.00**.
 
 There are three modes:
 
-| mode | what it does | costs money? |
-|---|---|---|
-| **replay** | re-reads answers a real run already paid for | no |
-| **real** | actually calls the API | **yes** |
-| **mock** | makes up replies from a formula, for testing plumbing | no |
+| mode | what it does | costs money? | can it produce a result? |
+|---|---|---|---|
+| **replay** | re-reads answers a real run already paid for | no | yes — **the default** |
+| **real** | actually calls the API | **yes** | yes |
+| **mock** | makes up replies from a formula | no | **no** |
 
-Mock mode exists so the pipeline can be developed and tested without spending —
-it is what CI runs. Its numbers are fabricated and labelled as such everywhere
-they appear: a banner at the top and bottom of every run, a tag above every
-table, and a `"simulated": true` field on every output row. Nothing fabricated
-is committed.
+Replay is the default, so the first command anyone runs on a fresh clone is
+served by real model output. Mock mode is the test suite's stand-in model and
+nothing else: every analysis module refuses to start in it, because a mock run
+computes a frontier out of a constant and prints it in the layout of a
+measurement.
+
+That refusal replaced a set of labels — a banner at the top and bottom of every
+run, a tag above every table, a `SIMULATED` subtitle under every figure, a
+`"simulated": true` field on every row. The labels were accurate and they were
+not enough. A chart gets cropped, a table gets pasted into a slide, and this
+project has a documented case of constants recorded from mock runs reaching the
+shipping code with two of three ladders' verdicts backwards. Refusing to compute
+the number is the version of that guard that survives a screenshot.
+
+The `"simulated"` field is still written on every row, and it now always reads
+`false`. It is checked rather than displayed: `run_eval` aborts without writing
+if any row says otherwise, and the plotting code refuses to draw such a file.
 
 ## 8. Why the same call is never made twice
 
@@ -206,7 +231,7 @@ This is where sample size bites. An earlier version of this project ran on 100
 tasks and found **zero of eight** comparisons significant, and honestly reported
 that accuracy differences were undetectable. Growing the code half from 35 tasks
 to 357 changed it to **four of eight** — because the number of tasks that can
-tell two routers apart at all rose from 7 to 74.
+tell two routers apart at all rose from 7 to 73.
 
 The lesson is worth more than the result: *most of the tasks in a routing
 benchmark are doing no work.* Both models get them right, or both get them
@@ -302,8 +327,9 @@ python -m llm_routing.sweep_degraded    # 7. the verifier-quality curve
 python -m llm_routing.plot              # 8. write figures/*.svg
 ```
 
-Add `ROUTER_MODE=replay` to any of them to run against the real committed
-responses instead of the mock.
+None of them needs a mode: replay is the default, so they run against the real
+committed responses. `ROUTER_MODE=real` with a key re-derives them from scratch
+and spends money.
 
 Step 2 is the one to care about: if a grader cannot score a *known correct*
 answer then every number after it is garbage, so it exits with an error rather

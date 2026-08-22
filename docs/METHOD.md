@@ -82,9 +82,10 @@ machine the expectations were generated on. Task 590 (`polar_rect`, expected
 `(tuple, complex)`) passes on Linux and fails on Windows.
 `scripts/provenance/fetch_mbppplus.py` therefore validates every reference
 solution against its own expanded suite **on the machine that will run the
-evaluation**, and drops the failures with a reason. Dropping is not tidying: the
-mock emits the reference as its "correct" answer, so a task whose own reference
-fails would have every mock-correct answer graded wrong.
+evaluation**, and drops the failures with a reason. Dropping is not tidying: an
+unpassable reference caps every policy at once, so the task measures the suite
+rather than the models. It also breaks the test suite's stand-in model, which
+emits the reference as its "correct" answer.
 
 ```bash
 python scripts/provenance/fetch_mbppplus.py                 # writes data/mbppplus.json
@@ -107,8 +108,9 @@ carries no signal at all — which is what killed the original hand-written
 predictive policy. Its predicate `level >= 5` was true for every maths task, so
 it was `always_expensive` on that half by construction while being reported as a
 router. Predictive routing is now measured with `llm_router` and `routellm`,
-neither of which reads a difficulty label. Recoverable with `--min-math-level 3`,
-which restores two distinct levels.
+neither of which reads a difficulty label. Recoverable with `--min-math-level 4`,
+which restores two distinct levels (134 level-5 candidates and 128 level-4);
+`--min-math-level 3` restores three.
 
 **What was rejected, and why:**
 
@@ -125,7 +127,7 @@ which restores two distinct levels.
 reference answer at full marks; on a new maths set this is the step that catches
 unmatched answer formats, and it exits non-zero so it cannot be skipped by
 accident. Then the two-arm probe (`run_eval --policy always_cheap --policy
-always_expensive --split all`, then `routable --real`), because a new dataset
+always_expensive --split all`, then `routable`), because a new dataset
 changes the routable fraction and if there is nothing to route there is nothing
 to measure. Only then, the full run. Change one thing at a time: each step moves
 the failure rate, and doing two together means not knowing which one worked — the
@@ -182,7 +184,8 @@ one it would fail too, and only the first kind is worth routing.
 cheap model cannot do this" from "the cheap model usually can and missed once".
 Redrawing the decisive cells three times put about a sixth of the apparent
 opportunity down to one model having a bad draw (13.5% → 11.3%) — see
-[RESULTS.md §2.6](RESULTS.md), which is the number to quote.
+[how much of the routing opportunity is noise](RESULTS.md#26-a-sixth-of-the-routing-opportunity-is-noise), which is the number
+to quote.
 
 ## The model ladder is the main variable
 
@@ -228,34 +231,17 @@ price gap it exploits, because a cascade always pays for the cheap call *and*
 for verifying it, and what those fixed costs buy is the *chance* to skip an
 expensive one. Below some ratio the fixed costs swamp the saving.
 
-The measurement, from each ladder's own frontier run (n=209, real responses):
+It is not what the three ladders show. The measurement, the figure and the
+reason are in
+[RESULTS.md](RESULTS.md#25-the-price-ratio-does-not-decide-whether-to-cascade),
+along with the confound three ladders cannot separate.
 
-| ladder | effective ratio | cascade vs always-best, matched accuracy | AUC over the coin flip | verdict |
-|---|---|---|---|---|
-| `deepseek` | 3.11x | **−4.4%** (cheaper) | +2.2 | cascade |
-| `claude` | 6.5x | **+11.7%** (dearer) | +5.3 | route |
-| `wide` | 46.4x | **−83.1%** (much cheaper) | +6.9 | cascade |
-
-**That is not monotonic, and the middle row is the interesting one.** `claude`
-has the *higher* price ratio of the two close ladders and is the one where
-cascading costs more, because what decides the outcome is not the price gap
-alone but how much verification costs on that ladder. On `claude` the cheap
-rung is Haiku and the maths half draws five samples from it, and the middle rung
-does not accept a temperature so it cannot be verified at all. On `deepseek`
-both rungs accept one, and the top rung is barely better, so the cascade rarely
-escalates and rarely pays twice.
-
-The router therefore *computes* this rather than quoting it:
+The consequence for this file is that the ratio cannot be a constant anywhere:
 `router_agent/findings.py` reads `runs/frontier.<ladder>.jsonl`, which is
 committed for every ladder, and refuses to guess a verdict for a ladder that has
-none.
-
-> **A confound this design cannot separate.** What the data distinguishes is the
-> **capability gap** between rungs as much as the price gap, and here the two
-> move together: the ladder with the small price ratio is also the ladder whose
-> rungs are equally capable. Three ladders cannot tell them apart. The supported
-> claim is *"cascading pays when the top rung is genuinely better and
-> verification is cheap."* See [RESULTS.md §2.4](RESULTS.md).
+none. The same run also reports each family's AUC over the cost-matched coin
+flip — +2.2 points on `deepseek`, +5.3 on `claude`, +6.9 on `wide` — which is
+the ordering a price-ratio rule would have to reproduce and does not.
 
 ## The policies
 
@@ -278,8 +264,8 @@ is constant, so the policy sent all 60 maths tasks to the expensive rung and was
 `always_expensive` on the maths half by construction while being reported as a
 router. Predictive routing is half of this repository's subject and has not gone
 anywhere; it is now measured with the two implementations above, neither of
-which reads a difficulty label. The reasoning is preserved as a tombstone at
-`DECISION #4` in `llm_routing/policies.py`.
+which reads a difficulty label. The reasoning is preserved as a tombstone in
+`llm_routing/policies.py`.
 
 Four of these exist for reasons worth stating outright:
 
@@ -305,7 +291,8 @@ Four of these exist for reasons worth stating outright:
   plain `cascade` on every ladder — 95.2% against 95.7% on `wide`, 96.2% against
   96.7% on `claude`, 84.2% against 86.6% on `deepseek`. The paper's result turns
   on a good **ex-ante** quality estimator, and this task set has none: the only
-  pre-call feature available was constant (`DECISION #4`), so `_Q_EXANTE` carries
+  pre-call feature available was constant (the deleted heuristic's), so
+  `_Q_EXANTE` carries
   a domain prior and an empty slot. Read these rows as the unified strategy with
   only its post-hoc half working — which is the paper's own prediction. Every
   figure above is in `runs/results.<ladder>.jsonl`.
@@ -428,7 +415,7 @@ threshold — 0.5, "escalate when the strong model is favoured" — routes **416
 `always_expensive`: exactly the failure the old `predictive` policy was deleted
 for. The threshold used instead is a declared constant, **0.80**, which splits
 the set 189/228 and is derived from nothing else in this repository. See
-`DECISION #8b` in `llm_routing/routellm_router.py`.
+`FIXED_THRESHOLD` in `llm_routing/routellm_router.py`.
 
 That compression is what "out of distribution" looks like in practice.
 `bert_gpt4_augmented` was trained to predict which answer a human would *prefer*
@@ -445,9 +432,8 @@ every prompt, and `causal_llm` needs a gated 16GB checkpoint.
 ## Why there is a response cache
 
 Not for speed. Every policy calls the models independently, so the same cheap
-greedy call is made several times per task. In mock mode the duplicates are
-identical for free; in real mode they would be hundreds of extra paid calls
-returning *different* answers.
+greedy call is made several times per task. In real mode those duplicates would
+be hundreds of extra paid calls returning *different* answers.
 
 That is a validity problem rather than a cost one. Every paired statistic this
 project wants assumes the policies are compared on the same model outputs.
@@ -461,36 +447,48 @@ what the run actually spent.
 
 The key hashes everything that determines a response and nothing that does not —
 mode, model id, prompt, temperature, sample index, max tokens, mock seed.
+
+**Serving writes to a different file.** A real-mode live query lands in
+`cache/serving.<ladder>.jsonl`; only the benchmark writes to
+`cache/raw_calls.<ladder>.jsonl`. Both are real, but only the second is
+evidence, and mixing them moves the response count and total spend that
+RESULTS publishes — which it did, before the split. Serving still reads the
+benchmark cache, so a benchmark prompt asked as a live query is still free.
 **Deliberately absent: the ladder.** That is what makes three ladders
 affordable: `wide`'s Opus answers serve `claude`'s top rung and `wide`'s flash
 answers serve `deepseek`'s bottom rung, for nothing. Cross-ladder reuse is worth
-about $1.70 of the $8.51 spent.
+$1.77 of the $8.51 spent, $1.70 of it on the Opus rung alone.
 
 ## The tuneable decisions
 
-Each is marked `DECISION #n` in the source next to the code it controls. Change
-one, re-run, and the report shows what moved.
+Each is a named constant, with the reasoning in a comment block directly above
+it. Change one, re-run, and the report shows what moved.
 
-1. **Model ladder** (`models.py`) — the price ratio drives the whole economics
-2. **Self-consistency k** (`policies.py`) — failure detection against cost, linear
-3. **Agreement threshold** (`policies.py`) — when to accept the cheap answer
-4. ~~**Predictive heuristic**~~ — **retracted**, tombstoned in
-   place rather than renumbered. The feature was constant; see `policies.py`
-5. **Verifier corruption rate** (`policies.py`) — the manipulated variable
-6. **Random baseline rate** (`policies.py`) — the null, anchored to `llm_router`
-7. **LLM-as-router** (`policies.py`) — the option decision 4 rejected, now measured
-8. **RouteLLM variant** (`routellm_router.py`) — which learned router, and why
-   `bert` — and **8b**, its operating threshold, fixed at 0.80 rather than
-   calibrated
-9. **Cascade routing λ** (`policies.py`) — the unified strategy's quality/cost price
+| constant | in | what it decides |
+|---|---|---|
+| `LADDERS` | `models.py` | the model ladder — the price ratio drives the whole economics, and this is the knob that changes the conclusion rather than the numbers |
+| `SELF_CONSISTENCY_K` | `policies.py` | how many samples the maths verifier draws — failure detection against cost, linear in k |
+| `AGREEMENT_THRESHOLD` | `policies.py` | how much agreement accepts the cheap answer |
+| `VERIFIER_CORRUPTION` | `policies.py` | **the manipulated variable** |
+| `RANDOM_MATCHED_RATES` | `policies.py` | the null, anchored to `llm_router`'s own escalation rate |
+| `FIXED_THRESHOLD` | `routellm_router.py` | RouteLLM's operating threshold, fixed at 0.80 rather than calibrated |
+| `CASCADE_ROUTING_LAMBDA` | `policies.py` | the unified strategy's quality-for-cost price |
 
-The ladder itself is the tenth and largest knob, and the one that changes the
-conclusion rather than the numbers.
+Two more decisions have no constant because they are policies rather than
+settings: `policy_llm_router` (whether to spend a call asking the model to
+classify itself) and `policy_routellm` (which of RouteLLM's five variants, and
+why `bert`). Both carry their reasoning in the same shape of comment block.
+
+The one deleted decision keeps its comment block as a tombstone: the
+hand-written predictive heuristic that routed on MATH-500's shipped difficulty
+label. What it got wrong is the most useful thing that block records.
 
 ## Running it
 
-Mock mode needs nothing installed. It is pure standard library, offline, and
-byte-deterministic — including the figures.
+Replay is the default and needs nothing installed. It is pure standard library,
+offline, byte-deterministic — including the figures — and made of real model
+output, because the responses were bought once and committed. None of the
+commands below name a mode.
 
 ```bash
 python -m llm_routing.build_taskset     # data/taskset.jsonl from data/
@@ -506,7 +504,9 @@ python -m llm_routing.plot              # figures/*.svg, no matplotlib
 
 Everything derived lands in `runs/`. Every writer takes an output override, so a
 second ladder cannot silently overwrite the first — `scripts/run_all_ladders.py`
-is the driver that does all three properly.
+is the driver that does all three properly. `plot` reads those artefacts and
+writes one figure per published claim; [figures/README.md](../figures/README.md)
+lists which chart comes from which file.
 
 Switch model ladders with one variable. This is the main experimental knob:
 
@@ -526,12 +526,66 @@ ROUTER_LADDER=wide     python -m llm_routing.run_eval   # 1x / 46x, cross-provid
 > ROUTER_MODE=replay
 > ```
 
-Replay mode reruns everything above against the committed responses, with no
-key and no network, for $0.00:
+`scripts/run_all_ladders.py` reruns everything above for all three ladders,
+with no key and no network, for $0.00:
 
 ```bash
-ROUTER_MODE=replay python scripts/run_all_ladders.py
+python scripts/run_all_ladders.py
 ```
+
+### The three modes, and why one of them cannot produce a number
+
+| `ROUTER_MODE` | responses come from | spends | produces a result |
+|---|---|---|---|
+| `replay` *(default)* | `cache/raw_calls.<ladder>.jsonl` | nothing | yes |
+| `real` | the provider | money | yes |
+| `mock` | a hash of (seed, task, tier, temperature, sample index) | nothing | **no** |
+
+There are two guards, because there are two ways a fabricated number could get
+in. Anything that makes model calls — `routable`, `run_eval`, `frontier`,
+`scorecard`, `sweep_degraded` — calls `models.require_measured_mode` before it
+does anything, and exits non-zero under `mock`:
+
+```
+REFUSING TO RUN.
+  run_eval produces a published artefact, and ROUTER_MODE=mock
+  fabricates every response it would be derived from. The result
+  would restate models.MOCK_SKILL, not measure any model.
+```
+
+The same refusal covers `ROUTER_REPLAY_FALLBACK=1`, which serves fabricated
+responses for whatever the real cache is missing — a mixture that once put 240
+fabricated self-consistency samples into a results file whose every row read
+`simulated: false`.
+
+Anything that reads an artefact rather than calling a model — `stats`, `plot`,
+and `scorecard` again for the results file it joins against — checks the
+artefact instead, via `models.refuse_simulated_artefact`. A mode guard would be
+ceremony there: `stats` does arithmetic on a file and never touches a cache, so
+what matters is the provenance of the file. Between them the two guards close
+the loop, and `run_eval.assert_measured` is the belt-and-braces third: it aborts
+a *finished* run without writing if any row came back stamped `simulated: true`,
+which should be unreachable and is checked anyway.
+
+**What the mock is still for.** The test suite, and nothing else. Two files ask
+for it — `tests/conftest.py` and `scripts/check_core_unchanged.py` — and both
+need the same property: a model that answers *any* prompt, where replay knows
+only the 5,075 that were bought. A test routes synthetic tasks, live queries and
+self-consistency draws nobody purchased. And the mock is deterministic in its
+inputs, which is what lets `check_core_unchanged.py` fingerprint every response
+it can emit — 417 tasks × 3 ladders × 4 samples × 2 temperatures — and compare
+against a frozen baseline, proving the serving layer's edits to `models.py`
+cannot reach a benchmark number.
+
+**What it used to be for, and why that ended.** Mock was the default, and mock
+could run the whole pipeline. What kept its output from being read as a
+measurement was a set of labels: a banner top and bottom, a tag over every
+table, a `SIMULATED` subtitle on every figure, `simulated: true` on every row.
+The labels were accurate. They were also croppable, and a screenshot of one
+table carries none of them. The failure is on the record: constants recorded
+from mock runs reached `router_agent/findings.py` and shipped with two of three
+ladders' verdicts backwards. Refusing to compute the number is the only version
+of that guard a screenshot cannot defeat.
 
 ## Running it for real
 
@@ -559,7 +613,7 @@ ROUTER_MODE=real python -m llm_routing.run_eval --limit 10
 # 2. the two-arm probe: is there anything for a router to decide?
 ROUTER_MODE=real python -m llm_routing.run_eval \
     --policy always_cheap --policy always_expensive --split all
-ROUTER_MODE=replay python -m llm_routing.routable --real --ladders wide
+python -m llm_routing.routable --ladders wide
 ```
 
 Ten tasks cannot answer question 2 either — at n=10 the routable rate carries a
@@ -580,11 +634,9 @@ Every response from a paid run lands in `cache/raw_calls.<ladder>.jsonl`, one
 file per ladder so they never mix. Afterwards everything is free forever, and
 reproducible by anyone with no key at all.
 
-**Estimates run low.** The `claude` ladder buy came in 52% over its estimate:
-the call count was exact (1489 against 1491) and the per-call cost was 53% high,
-because the estimate used Opus token counts as a length proxy and weaker models
-write longer answers to the same question. A cheaper model is not a
-proportionally cheaper call.
+**Estimates run low, and by more than a safety margin covers.** The `claude`
+ladder buy came in 52% over its estimate. Budget for it; the arithmetic of why
+is in [RESULTS.md](RESULTS.md#4-what-it-cost).
 
 ## Serving it
 
@@ -663,6 +715,7 @@ byte.
 - LLMRouterBench, [2601.07206](https://arxiv.org/abs/2601.07206) — published routers often fail to beat a simple baseline
 - Agreement-Based Cascading, [2407.02348](https://arxiv.org/abs/2407.02348) — **states this repo's crossover as a threshold**
 - Routing-gap decomposition, [2607.03436](https://arxiv.org/abs/2607.03436) — **and qualifies its headline**
+- Resample or Reroute?, [2607.08665](https://arxiv.org/abs/2607.08665) — more cheap draws against one expensive call, as competing uses of one budget
 
 Two of those deserve more than a line.
 
@@ -684,7 +737,8 @@ measurement into reproducible specialist advantage and single-draw label noise,
 and puts the noise share highest on MATH-500 — which is what the maths half of
 this task set is. That prediction was tested here on independent data and it
 held: redrawing the decisive cells moved the routable fraction from 13.5%
-observed to 11.3% reproducible. See [RESULTS.md §2.6](RESULTS.md).
+observed to 11.3% reproducible. See
+[how much of the routing opportunity is noise](RESULTS.md#26-a-sixth-of-the-routing-opportunity-is-noise).
 
 "Isn't this just FrugalGPT?" — largely yes, and deliberately: a replication with
 2026 models. What is added is the manipulation. FrugalGPT and AutoMix take their

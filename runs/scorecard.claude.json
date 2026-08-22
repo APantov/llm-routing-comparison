@@ -3,10 +3,10 @@
   "ladder": "claude",
   "simulated": false,
   "cells": {
+    "inverted": 9,
     "both_ok": 171,
-    "both_fail": 7,
     "routable": 22,
-    "inverted": 9
+    "both_fail": 7
   },
   "policies": {
     "always_cheap": {

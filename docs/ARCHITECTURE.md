@@ -221,11 +221,26 @@ the build fails.
 
 ## Modes
 
-| mode | what it does | costs | can serve a live query? |
-|---|---|---|---|
-| `mock` | fabricates responses | nothing | yes, but the text is a labelled placeholder |
-| `replay` | serves from `cache/raw_calls.*.jsonl` | nothing | only prompts that were actually paid for |
-| `real` | calls the provider | money | yes |
+| mode | what it does | costs | can serve a live query? | can produce a result? |
+|---|---|---|---|---|
+| `replay` | serves from `cache/raw_calls.*.jsonl` | nothing | only prompts that were actually paid for | yes — **the default** |
+| `real` | calls the provider | money | yes | yes |
+| `mock` | fabricates responses | nothing | yes, but the text is a labelled placeholder | **no** |
+
+`llm_routing.models.require_measured_mode` is what makes the last column true.
+Every module that writes into `runs/` or `figures/` calls it first and exits
+non-zero under `mock`, or under `ROUTER_REPLAY_FALLBACK`, which is the same
+hazard wearing a replay label. The mock survives as the test suite's stand-in
+model — it answers any prompt deterministically, where replay knows only the
+5,075 that were bought — and `tests/conftest.py` is now the only place that
+asks for it.
+
+Serving reads those caches and writes to a different one. Anything the router
+buys for a live query lands in `cache/serving.<ladder>.jsonl`, which is not
+committed; `cache/raw_calls.<ladder>.jsonl` stays the closed set the published
+tables are computed from. Both hold real responses — only one is evidence, and
+before the split a single served query moved the response count RESULTS quotes
+and put an n=1 price ratio into `findings.realized_ratio`.
 
 The interesting one is **replay**. The response cache is keyed on the *prompt
 text*, not the task id, so feeding a benchmark question in as a live query
@@ -257,8 +272,10 @@ trace.
 | `router_agent/engine.py` | the façade |
 | `router_agent/cli.py` | `llm-router` |
 | `router_agent/mcp_server.py` | tools, resources, prompts |
+| `llm_routing/response_cache.py` | which file a response is read from and written to — including the benchmark/serving split |
 | `scripts/check_core_unchanged.py` | proves the research core is untouched |
-| `scripts/check_mcp_server.py` | MCP registration smoke test |
+| `scripts/check_mcp_server.py` | MCP smoke test: registration in-process, then JSON-RPC over a real stdio subprocess |
+| `scripts/mcp_call.py` | one-shot MCP client: call a tool or read a resource from a terminal |
 
 ### The experiment, in the order data flows through it
 
@@ -298,7 +315,7 @@ runs/results.<ladder>.jsonl   <-- one row per (task, policy)
     +---> frontier.py         sweep every knob, compare curves not points
     +---> sweep_degraded.py   the actual experiment
     +---> scorecard.py        what each policy got right and wrong, and why
-    +---> plot.py             figures/*.svg
+    +---> plot.py             figures/*.svg  (9 charts, one claim each)
 ```
 
 | file | owns | does NOT own |
@@ -313,14 +330,16 @@ runs/results.<ladder>.jsonl   <-- one row per (task, policy)
 | `llm_routing/stats.py` | significance testing | producing results |
 | `llm_routing/frontier.py` | sweeping knobs, cost-quality curves | single operating points |
 | `llm_routing/sweep_degraded.py` | the verifier-degradation experiment | anything not about verifiers |
-| `llm_routing/plot.py` | SVG figures | computing anything |
+| `llm_routing/plot.py` | SVG figures, one per published claim | computing anything a run has not already written to `runs/` |
 | `llm_routing/sanity_check.py` | proving the graders work | everything else |
 
 The rule the whole layout follows: **a policy never knows what mode it is in.**
 `llm_routing/policies.py` calls `models.call("cheap", task)` and gets a reply.
 Whether that reply came from a real API, a hash function, or a file on disk is
 entirely `llm_routing/models.py`'s business. That is why the same policy code
-produces the mock run and the paid run with no branching.
+serves the test suite and the paid run with no branching — and why the guard
+against reporting fabricated numbers lives at the entry points rather than
+inside the policies, which cannot tell and should not have to.
 
 ---
 
@@ -388,8 +407,14 @@ matter which model it picked.
 - **Never delete `archive/`.** It holds superseded real data that cost money.
 - **A quarantined task is never counted again**, in any rerun, ladder, or figure.
   Responses are deleted, not filtered; `TestQuarantine` is the tripwire.
-- **CI can never spend.** `ROUTER_MODE: mock` is hard-set and no keys are
-  configured.
+- **CI can never spend.** No keys are configured, and replay — the default —
+  refuses to touch the network. `ROUTER_MODE` is deliberately *not* set at the
+  workflow level: it used to be `mock`, which beat the `setdefault("replay")`
+  in `scripts/demo.py` and left the step guarding the committed traces running
+  against the simulator, where a cache miss cannot happen.
+- **A mock run cannot produce a result.** The `research core` job asserts it,
+  by requiring `run_eval`, `frontier` and `sweep_degraded` to exit non-zero
+  with `REFUSING TO RUN` under `ROUTER_MODE=mock`.
 
 ---
 

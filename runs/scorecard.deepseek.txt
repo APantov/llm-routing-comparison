@@ -2,9 +2,9 @@
   !! 2 greedy response(s) hit max_tokens and are UNMEASURED, not failures.
      math-400         expensive  dropped from the cross-tab
      math-96          cheap      dropped from the cross-tab
-     n falls by that many pairs. Raising models.MAX_TOKENS re-charges every
-     cached response
-     (docs/ARCHITECTURE.md (standing invariants)), so the task is excluded instead.
+     n falls by that many pairs. Raising models.MAX_TOKENS re-charges every cached
+     response - see the standing invariants in docs/ARCHITECTURE.md - so
+     the task is excluded instead.
 
 scorecard: results.deepseek.jsonl  |  ladder deepseek  |  209 tasks classified
 

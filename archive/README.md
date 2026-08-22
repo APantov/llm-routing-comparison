@@ -17,7 +17,7 @@ up with `data/taskset.jsonl`.
 |---|---|---|
 | `results.2026-07-30.jsonl` | 47 rows from the first plumbing run. Every row is `"simulated": false` — **real model output**, and part of the $1.36 the experiment had spent by then. | All 5 of its task ids (`code-475`, `math-105`, …) are gone from the current task set. At the time, `llm_routing/stats.py` and `llm_routing/frontier.py` both defaulted to one fixed `runs/results.jsonl`, so leaving it in place meant they would have analysed it as though it were current. |
 | `routellm_scores.2026-07-31.jsonl` | 100 RouteLLM `bert` scores, computed locally before the rebuild. No API key was involved; regenerating needs torch (~1GB) but no money. | Scores are keyed on the prompt, so after the rebuild only **10 of 100** matched. `routellm_router.CALIBRATED` correctly refuses to run uncalibrated, so the policy was silently sitting out every run while the file looked present and healthy. |
-| `redraw.wide.2026-08-07.json` | A **10-draw** redraw of 15 decisive `wide` tasks — paid for, and the deepest per-task estimate this project has. | Superseded as *the* redraw by `runs/redraw.wide.json`, which covers 71 tasks but only 3 draws each, and is what §2.6 of RESULTS reports. This file is kept rather than deleted precisely because it is **not** a subset: all 15 of its tasks appear in the current file at a third of the draws, so it holds evidence the current run cannot reproduce without spending again. Do not quote its 14.9% next to the current 13.5% — different n, different depth. |
+| `redraw.wide.2026-08-07.json` | A **10-draw** redraw of 15 decisive `wide` tasks — paid for, and the deepest per-task estimate this project has. | Superseded as *the* redraw by `runs/redraw.wide.json`, which covers 71 tasks but only 3 draws each, and is what RESULTS reports. This file is kept rather than deleted precisely because it is **not** a subset: all 15 of its tasks appear in the current file at a third of the draws, so it holds evidence the current run cannot reproduce without spending again. Do not quote its 14.9% next to the current 13.5% — different n, different depth. |
 
 ## What this changed
 
@@ -41,7 +41,7 @@ set, and a reproduced artefact is worth more than a restored one:
 pip install routellm==0.2.0
 python -m llm_routing.routellm_router --score
 
-# the paid run itself. Read docs/RESULTS.md section 4 (what it cost) first.
+# the paid run itself. Read what it cost first: ../docs/RESULTS.md
 ROUTER_MODE=real python -m llm_routing.run_eval
 ```
 
