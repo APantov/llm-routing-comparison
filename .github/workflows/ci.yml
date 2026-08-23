@@ -203,3 +203,13 @@ jobs:
       - run: python -m llm_routing.build_taskset
       - name: Registers in-process, then answers over real stdio
         run: python scripts/check_mcp_server.py
+
+      # The walkthrough is the entry point most readers meet the server
+      # through, and it is the only thing that exercises route_query and
+      # resume_routing against a live client session over two server
+      # processes. It asserts its own pauses, so a cache miss or a broken
+      # approval loop fails the job rather than printing a shorter demo.
+      - name: The MCP walkthrough replays from committed data
+        run: python scripts/demo_mcp.py
+      - name: Listing renders every description whole
+        run: python scripts/mcp_call.py --list

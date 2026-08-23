@@ -21,7 +21,7 @@ choosing between, and this repository measures it on three real ladders.
 |---|---|
 | **What runs** | A LangGraph state machine — `classify → answer → verify → escalate ⟲` — with human-in-the-loop approval *inside* the escalation loop and checkpointed resume, served over MCP with five tools and four resources. |
 | **What decides its policy** | 417 tasks (MBPP+ code, MATH-500 level 5), 9 policies, 3 price ladders, **all measured on real models**: cost–quality frontiers, exact McNemar, paired bootstrap. |
-| **Built with** | Python 3.10–3.13 · LangGraph · MCP · Anthropic + DeepSeek APIs · pytest (256 tests) · GitHub Actions. The research core is **pure standard library** — no dependency can change a benchmark number. |
+| **Built with** | Python 3.10–3.13 · LangGraph · MCP · Anthropic + DeepSeek APIs · pytest (268 tests) · GitHub Actions. The research core is **pure standard library** — no dependency can change a benchmark number. |
 | **Evidence** | **5,075 real model responses**, committed. **$8.51** spent. Every figure and table regenerates offline, with no API key, for **$0.00**. |
 
 ---

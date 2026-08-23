@@ -604,6 +604,29 @@ Work through this in order, using the `llm-routing` MCP server:
 
 
 def main() -> None:
+    # Declare which task ids are live before the first cache read.
+    #
+    # `response_cache` cannot tell a duplicate that invalidates a paired
+    # comparison from one on a task the set no longer contains, so left to
+    # itself it hedges with a note on stderr - and on stdio that note is the
+    # first thing a client's log shows, on every single call. The server can
+    # answer the question instead: it has the task set on disk. `cli.py` and
+    # `demo.py` already do exactly this, for exactly this reason.
+    #
+    # Tolerant of a missing task set: a clone that has not run build_taskset
+    # yet should still start, and the note is the correct behaviour then.
+    from llm_routing import paths, response_cache
+
+    if paths.TASKSET.exists():
+        try:
+            response_cache.LIVE_TASK_IDS = {
+                json.loads(line)["id"]
+                for line in paths.TASKSET.open(encoding="utf-8")
+                if line.strip()
+            }
+        except (OSError, ValueError, KeyError):
+            pass  # a malformed task set is build_taskset's problem, not the server's
+
     mcp.run(transport="stdio")
 
 

@@ -22,7 +22,7 @@ for $0.00 with no API key.
 | policies | **9**, including an oracle bound and a cost-matched random null |
 | real responses | **5,075** |
 | total spend | **$8.5146** |
-| tests | **256 passing**, plus one end-to-end reconciliation against the committed results behind `pytest -m slow` |
+| tests | **268 passing**, plus one end-to-end reconciliation against the committed results behind `pytest -m slow` |
 
 ---
 
