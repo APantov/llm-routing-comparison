@@ -7,9 +7,21 @@ empty or vague one is a functional defect, not a documentation nit.
 
 from __future__ import annotations
 
+import importlib.util
 import json
+import pathlib
 
 import pytest
+
+REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
+
+
+def _import_mcp_call():
+    spec = importlib.util.spec_from_file_location(
+        "mcp_call", REPO_ROOT / "scripts" / "mcp_call.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 pytestmark = pytest.mark.anyio
 
@@ -227,6 +239,62 @@ class TestHumanApproval:
         )
         assert tool.annotations.read_only_hint is False
         assert "approved=false" in (tool.description or "")
+
+
+class TestListingRenders:
+    """`--list` is the first thing anyone runs, and it used to lie.
+
+    It took `description[:78]` and appended a full stop, so any description
+    longer than that came back chopped mid-word wearing a period:
+    `compare what each return.` reads as a finished sentence and is not one.
+    The resource rows were cut at 100 characters with no indicator at all.
+    Both rendered without error, which is exactly why nothing caught them -
+    the same gap tests/test_figures.py exists to close for the charts.
+    """
+
+    @pytest.fixture(scope="class")
+    def cli(self):
+        return _import_mcp_call()
+
+    def test_a_decimal_does_not_end_a_sentence(self, cli):
+        assert cli.first_sentence(
+            "Ratios run to 3.11x here. Then more."
+        ) == "Ratios run to 3.11x here."
+
+    def test_text_with_no_sentence_end_survives_whole(self, cli):
+        assert cli.first_sentence("no full stop here") == "no full stop here"
+
+    def test_entry_never_invents_or_drops_a_word(self, cli):
+        text = (
+            "Route one query through a cost-aware cascade and return the "
+            "answer with a full cost and verification trace."
+        )
+        rendered = cli.entry("route_query", text, 18)
+        # Strip the label column, then the row must be the text back verbatim.
+        body = " ".join(rendered.replace("route_query", "", 1).split())
+        assert body == text
+
+    def test_entry_wraps_rather_than_truncates(self, cli):
+        text = "word " * 60
+        rendered = cli.entry("tool", text.strip(), 18)
+        assert chr(10) in rendered, "a long description must wrap, not vanish"
+        assert len(" ".join(rendered.split())) >= len(text.strip())
+
+    async def test_every_advertised_description_renders_complete(self, server, cli):
+        """No rendered row may end mid-sentence."""
+        rows = [(t.name, t.description or "") for t in await server.list_tools()]
+        rows += [
+            (str(r.uri), r.description or "") for r in await server.list_resources()
+        ]
+        for name, desc in rows:
+            shown = cli.first_sentence(desc)
+            assert shown.endswith("."), f"{name}: rendered row does not end a sentence"
+            assert shown in " ".join(desc.split()), (
+                f"{name}: rendered text is not a verbatim prefix of the description"
+            )
+            rendered = cli.entry(name, shown, 30)
+            body = " ".join(rendered.replace(name, "", 1).split())
+            assert body == shown, f"{name}: wrapping altered the text"
 
 
 class TestResources:

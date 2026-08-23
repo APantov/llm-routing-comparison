@@ -32,7 +32,10 @@ import argparse
 import asyncio
 import json
 import os
+import re
+import shutil
 import sys
+import textwrap
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -71,6 +74,39 @@ and anything else is a string.
     p.add_argument("--raw", action="store_true",
                    help="print the whole payload, not the summary")
     return p.parse_args(argv)
+
+
+def first_sentence(text: str) -> str:
+    """The first whole sentence of a description, or all of it if it has none.
+
+    Splitting on `.` alone would cut `deepseek at 3.11x` in half, so a sentence
+    ends at a period followed by whitespace or by nothing - which a decimal
+    point never is.
+    """
+    text = " ".join(text.split())
+    match = re.search(r"\.(?:\s|$)", text)
+    return text[:match.start() + 1] if match else text
+
+
+def entry(label: str, text: str, label_width: int) -> str:
+    """One `label   description` row, wrapped rather than cut.
+
+    The previous version took `description[:78]` and appended a full stop, so a
+    description longer than that came back chopped mid-word and wearing a
+    period - `compare what each return.` reads as a finished sentence and is
+    not one. Truncation that cannot be seen is worse than a wrapped line: this
+    listing is the first thing anyone runs against the server, and it is the
+    only place most callers ever read what a tool does.
+    """
+    width = min(max(shutil.get_terminal_size((100, 24)).columns, 60), 100)
+    gutter = 2 + label_width + 1
+    # Wrapped against the space left AFTER the label column, not the full
+    # width, or the first line overruns by exactly the gutter.
+    lines = textwrap.wrap(text, width=width - gutter) or [""]
+    return "\n".join(
+        [f"  {label:<{label_width}} {lines[0]}"]
+        + [" " * gutter + line for line in lines[1:]]
+    )
 
 
 def parse_tool_args(pairs: list[str]) -> dict:
@@ -179,12 +215,11 @@ async def run(ns: argparse.Namespace) -> int:
                 tools = await session.list_tools()
                 print("tools:")
                 for t in sorted(tools.tools, key=lambda x: x.name):
-                    first = (t.description or "").split(".")[0]
-                    print(f"  {t.name:<18} {first[:78]}.")
+                    print(entry(t.name, first_sentence(t.description or ""), 18))
                 res = await session.list_resources()
                 print("\nresources:")
                 for r in sorted(res.resources, key=lambda x: str(x.uri)):
-                    print(f"  {str(r.uri):<30} {r.description or ''}"[:100])
+                    print(entry(str(r.uri), first_sentence(r.description or ""), 30))
                 prompts = await session.list_prompts()
                 print("\nprompts:")
                 for p in prompts.prompts:
