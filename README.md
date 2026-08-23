@@ -204,6 +204,25 @@ that spawns one per call, `scripts/mcp_call.py` included, can never resume what
 the previous one paused. A `thread_id` that no longer exists comes back as
 `no_suspended_run` rather than a `KeyError` from inside LangGraph.
 
+### Seeing the whole surface at once
+
+```bash
+python scripts/demo_mcp.py
+```
+
+A scripted walkthrough of the server over a real stdio client session — what it
+advertises and which of its own calls spend, a resource, the ladder flip, a free
+projection, a routed answer, and the approval loop answered both ways. No key,
+no spend; it ends by printing what the queries would have cost in production
+against what actually left the account.
+
+It starts **two** servers, and the reason is the point of `ROUTER_K`:
+self-consistency samples are cached per sample index, so `k` is pinned at
+start-up to what the responses were bought under — k=3 for the query that
+verifies at the cheap rung, k=4 for the one whose fourth draw disagrees and
+triggers the escalation. `demo.py` shows what the router does; this shows what
+the server does.
+
 ### Driving it from a terminal
 
 `scripts/mcp_call.py` is a one-shot MCP client — it starts the server, does the
