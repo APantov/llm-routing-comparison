@@ -67,12 +67,13 @@ Two things to understand before reading its output:
 Call `explain_routing` first if you are choosing a policy. Whether cascading is
 the right architecture is a measured property of the ladder you loaded, and on
 that ladder it may be the wrong answer. Do not infer it from the price ratio
-between the rungs: the three measured ladders are non-monotonic in that ratio,
-so a threshold rule gets two of the three backwards.
+between the rungs: the three measured ladders are non-monotonic in that ratio
+- `claude` sits between the other two and is the one that does not want a
+cascade - so no threshold rule separates them.
 """
 
 # What a client may cache, and for how long. Every list this server serves is
-# fixed at import time by the decorators below - four tools, four resources,
+# fixed at import time by the decorators below - five tools, four resources,
 # one prompt - so a client re-listing on each connection is asking again for
 # something that cannot have changed. Left unset, the SDK sends
 # `ttlMs=0, cacheScope=private`, which tells a client exactly the opposite.
@@ -384,8 +385,8 @@ def compare_policies(
         "repository's measurements. Call this BEFORE choosing a policy: "
         "whether cascading is cheaper is a property of the specific ladder, "
         "and it is NOT predictable from the price ratio between the rungs - "
-        "the measured ladders are non-monotonic in it, so a ratio threshold "
-        "gets two of three backwards. The deciding term is what verification "
+        "the measured ladders are non-monotonic in it, so no ratio threshold "
+        "separates them. The deciding term is what verification "
         "costs on that ladder. Returns the measured verdict for a ladder, the "
         "two-arm probe cross-tab, and how much of the benchmark is real versus "
         "simulated. A ladder with no frontier run gets no verdict rather than "

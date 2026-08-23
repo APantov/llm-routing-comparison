@@ -605,8 +605,10 @@ def summary(ladder: str) -> dict:
         "crossover_ratio_note": (
             "The literature's rule of thumb, reported for comparison and used "
             "for nothing. These three ladders are not monotonic in the price "
-            "ratio, so a threshold gets two of them backwards. `ratio.verdict` "
-            "is the measured answer."
+            "ratio - `claude` sits between the other two and is the one that "
+            "does NOT want a cascade - so no threshold separates them, and at "
+            "this one `claude` is the ladder it gets backwards. "
+            "`ratio.verdict` is the measured answer."
         ),
         "probe": probe.to_dict() if probe else None,
         "probe_note": (

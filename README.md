@@ -13,8 +13,8 @@ best model is not a matter of opinion — it depends on the models you are
 choosing between, and this repository measures it on three real ladders.
 
 > **The finding, in one sentence: cascade when the top rung is genuinely better
-> and verification is cheap — the price ratio alone gets two of three ladders
-> backwards.** The shipped router computes that verdict per ladder from the
+> and verification is cheap — no price-ratio threshold gets all three ladders
+> right.** The shipped router computes that verdict per ladder from the
 > committed measurements, and refuses to answer for a ladder it has no data on.
 
 | | |
