@@ -29,7 +29,8 @@ class TestRegistration:
     async def test_expected_tools_are_registered(self, server):
         names = {t.name for t in await server.list_tools()}
         assert names == {
-            "route_query", "estimate_cost", "compare_policies", "explain_routing"
+            "route_query", "resume_routing", "estimate_cost",
+            "compare_policies", "explain_routing",
         }
 
     async def test_expected_resources_are_registered(self, server):
@@ -118,6 +119,114 @@ class TestTools:
         assert len(d["results"]) == 2
         assert d["cheapest_policy"] == "always_cheap"
         assert d["caveat"]
+
+
+class TestHumanApproval:
+    """The pause is only useful if the client can also finish the run."""
+
+    @pytest.fixture
+    def approving(self, monkeypatch):
+        """A server whose escalations all need a human."""
+        monkeypatch.setenv("ROUTER_APPROVAL_USD", "0")
+        from router_agent.mcp_server import mcp
+        return mcp
+
+    async def _paused(self, server):
+        r = await server.call_tool(
+            "route_query",
+            {"query": "Compute the integral of x^2", "domain": "math"},
+        )
+        d = r.structured_content
+        assert d["stop_reason"] == "awaiting_approval", d["stop_reason"]
+        return d
+
+    async def test_route_query_pauses_with_a_resumable_handle(self, approving):
+        d = await self._paused(approving)
+        assert d["thread_id"], "a paused run must hand back something to resume"
+        assert d["interrupted"]["kind"] == "escalation_approval"
+        # The caller is being asked to approve a SPEND, so the payload has to
+        # say how much before they can answer.
+        assert d["interrupted"]["projected_usd"] > 0
+        assert d["escalations"] == 0
+
+    async def test_approving_escalates_and_denying_does_not(self, approving):
+        paused = await self._paused(approving)
+        denied = await approving.call_tool(
+            "resume_routing",
+            {"thread_id": paused["thread_id"], "approved": False},
+        )
+        assert denied.structured_content["stop_reason"] == "approval_denied"
+        assert denied.structured_content["escalations"] == 0
+
+        paused = await self._paused(approving)
+        ok = await approving.call_tool(
+            "resume_routing",
+            {"thread_id": paused["thread_id"], "approved": True},
+        )
+        assert ok.structured_content["escalations"] >= 1
+        assert ok.structured_content["cost_usd"] > denied.structured_content["cost_usd"]
+
+    async def test_every_escalation_needs_its_own_approval(self, approving):
+        """Regression: resume used to report the next pause as a finished run.
+
+        Approval is per-escalation - the escalate node clears `approved` on the
+        way through - so on the three-rung claude ladder the first approval
+        walks the graph straight into the second interrupt. `resume` did not
+        check `__interrupt__` the way `route` did, and returned an outcome with
+        `interrupted=None` and an EMPTY stop_reason, which any drain loop reads
+        as finished. A two-rung ladder never reaches the second pause, which is
+        why this went unnoticed.
+        """
+        paused = await self._paused(approving)
+        again = (await approving.call_tool(
+            "resume_routing",
+            {"thread_id": paused["thread_id"], "approved": True},
+        )).structured_content
+        assert again["stop_reason"] == "awaiting_approval"
+        assert again["interrupted"]["to_tier"] == "expensive"
+        assert again["escalations"] == 1
+
+    async def test_a_fully_approved_run_finishes_at_the_top_rung(self, approving):
+        d = await self._paused(approving)
+        approvals = 0
+        while d["stop_reason"] == "awaiting_approval":
+            approvals += 1
+            assert approvals <= 4, "drain loop is not terminating"
+            d = (await approving.call_tool(
+                "resume_routing",
+                {"thread_id": d["thread_id"], "approved": True},
+            )).structured_content
+
+        assert approvals == 2, "three rungs is two escalations to approve"
+        assert d["escalations"] == 2
+        # Same shape as a route_query that never paused.
+        assert d["trace"][-1]["node"] == "finalize"
+        assert set(d["trace"][0]) == {"node", "detail"}, "trace must be summarised"
+        assert "correct" not in d, "serving has no ground truth"
+        assert d["verified_meaning"]
+
+    async def test_unknown_thread_is_explained_not_crashed(self, approving):
+        """LangGraph answers an unknown thread with a bare KeyError('config')."""
+        r = await approving.call_tool(
+            "resume_routing", {"thread_id": "deadbeefcafe", "approved": True},
+        )
+        assert not r.is_error
+        assert r.structured_content["error"] == "no_suspended_run"
+
+    async def test_resume_is_refused_when_nothing_can_pause(self, server, monkeypatch):
+        monkeypatch.delenv("ROUTER_APPROVAL_USD", raising=False)
+        r = await server.call_tool(
+            "resume_routing", {"thread_id": "whatever", "approved": True},
+        )
+        assert r.structured_content["error"] == "approval_not_enabled"
+
+    async def test_resume_is_annotated_as_spending(self, server):
+        """It authorises an escalation, so it is not read-only."""
+        tool = next(
+            t for t in await server.list_tools() if t.name == "resume_routing"
+        )
+        assert tool.annotations.read_only_hint is False
+        assert "approved=false" in (tool.description or "")
 
 
 class TestResources:

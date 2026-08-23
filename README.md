@@ -19,7 +19,7 @@ choosing between, and this repository measures it on three real ladders.
 
 | | |
 |---|---|
-| **What runs** | A LangGraph state machine — `classify → answer → verify → escalate ⟲` — with human-in-the-loop approval *inside* the escalation loop and checkpointed resume, served over MCP with four tools and four resources. |
+| **What runs** | A LangGraph state machine — `classify → answer → verify → escalate ⟲` — with human-in-the-loop approval *inside* the escalation loop and checkpointed resume, served over MCP with five tools and four resources. |
 | **What decides its policy** | 417 tasks (MBPP+ code, MATH-500 level 5), 9 policies, 3 price ladders, **all measured on real models**: cost–quality frontiers, exact McNemar, paired bootstrap. |
 | **Built with** | Python 3.10–3.13 · LangGraph · MCP · Anthropic + DeepSeek APIs · pytest (256 tests) · GitHub Actions. The research core is **pure standard library** — no dependency can change a benchmark number. |
 | **Evidence** | **5,075 real model responses**, committed. **$8.51** spent. Every figure and table regenerates offline, with no API key, for **$0.00**. |
@@ -153,9 +153,10 @@ keep it that way. Module by module:
 
 ## Use it from an MCP client
 
-The router is an MCP server: four tools (`route_query`, `estimate_cost`,
-`compare_policies`, `explain_routing`), four read-only resources under
-`routing://`, and one prompt that walks a client through choosing a policy.
+The router is an MCP server: five tools (`route_query`, `resume_routing`,
+`estimate_cost`, `compare_policies`, `explain_routing`), four read-only
+resources under `routing://`, and one prompt that walks a client through
+choosing a policy.
 A `.mcp.json` is committed, so Claude Code picks the server up on `pip install
 -e ".[agent,mcp]"` and nothing else. For Claude Desktop or any other client,
 the same block registers it by hand:
@@ -180,6 +181,28 @@ prompts that were actually paid for — anything else comes back as a structured
 match the parameters those responses were bought under; the default of 5 would
 ask the cache for samples nobody purchased. `ROUTER_MODE=real` with a key
 serves arbitrary queries and bills them.
+
+### Approving an escalation
+
+Unset by default. Add `ROUTER_APPROVAL_USD` and an escalation projected dearer
+than it suspends the graph instead of spending: `route_query` returns
+`stop_reason: awaiting_approval` with a `thread_id` and an `interrupted`
+payload naming the model and the price, and `resume_routing` carries the
+human's answer back in.
+
+```json
+"env": {"ROUTER_LADDER": "wide", "ROUTER_MODE": "replay",
+        "ROUTER_K": "3", "ROUTER_AGREEMENT": "1.0",
+        "ROUTER_APPROVAL_USD": "0.001"}
+```
+
+Approval is **per escalation** — the `escalate` node clears it on the way
+through — so a three-rung ladder asks twice, and a client has to resume until
+`stop_reason` is something else. The checkpoint is an `InMemorySaver` living in
+the server process, so both calls must reach the same running server: a client
+that spawns one per call, `scripts/mcp_call.py` included, can never resume what
+the previous one paused. A `thread_id` that no longer exists comes back as
+`no_suspended_run` rather than a `KeyError` from inside LangGraph.
 
 ### Driving it from a terminal
 

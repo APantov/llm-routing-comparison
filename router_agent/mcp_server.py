@@ -11,6 +11,12 @@ All three MCP primitives, each for a distinct reason:
     resources  the benchmark's findings, read-only, addressable by URI
     prompts    a workflow that walks a client through choosing a policy
 
+`route_query` can pause: with ROUTER_APPROVAL_USD set, an escalation dearer
+than that suspends the graph and comes back `awaiting_approval` with a
+`thread_id`, and `resume_routing` carries the human's answer back in. The
+checkpoint lives in this process, so both calls have to reach the same running
+server - a client that spawns one per call cannot resume.
+
 Run it:
 
     llm-router-mcp                          # stdio, the usual transport
@@ -129,6 +135,31 @@ def _ladder() -> str:
     return os.environ.get("ROUTER_LADDER", "claude")
 
 
+# Replay can only serve prompts that were paid for. Both tools that call the
+# graph can hit it, and a caller who reads one wording here and a different one
+# there has to work out whether they are the same condition. They are.
+REPLAY_NOTE = (
+    "This server is in replay mode - the default - which can only serve "
+    "prompts that were actually paid for (the 417 benchmark tasks). Set "
+    "ROUTER_MODE=real with an API key to serve arbitrary queries."
+)
+
+
+def _summarised(out) -> dict[str, Any]:
+    """An outcome as a tool result.
+
+    The trace is valuable but long, and a client that wanted every token of it
+    can read the events itself. Summarise by default - and in ONE place, so
+    `route_query` and `resume_routing` cannot drift into returning differently
+    shaped results for the two halves of the same run.
+    """
+    result = out.to_dict()
+    result["trace"] = [
+        {"node": e["node"], "detail": e["detail"]} for e in result["trace"]
+    ]
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Tools
 # ---------------------------------------------------------------------------
@@ -181,27 +212,87 @@ def route_query(
     # ReplayMiss, not KeyError: a genuine KeyError raised inside the graph is a
     # bug in this server, and returning it to the caller as "no cached response"
     # would describe a defect as a configuration issue.
-    except_note = (
-        "This server is in replay mode - the default - which can only serve "
-        "prompts that were actually paid for (the 417 benchmark tasks). Set "
-        "ROUTER_MODE=real with an API key to serve arbitrary queries."
-    )
     try:
         out = route(query, cfg=cfg, tests=tests)
     except models.ReplayMiss as exc:
         return {
             "error": "no_cached_response",
-            "detail": except_note,
+            "detail": REPLAY_NOTE,
             "raw": str(exc)[:300],
         }
 
-    result = out.to_dict()
-    # The trace is valuable but long, and a client that wanted every token of
-    # it can read the events itself. Summarise by default.
-    result["trace"] = [
-        {"node": e["node"], "detail": e["detail"]} for e in result["trace"]
-    ]
-    return result
+    return _summarised(out)
+
+
+@mcp.tool(
+    annotations=SPENDS,
+    description=(
+        "Finish a run that `route_query` paused for human approval. A "
+        "route_query returning `stop_reason: awaiting_approval` has NOT "
+        "answered yet - it is holding at the cheap rung with the escalation "
+        "unpaid, and its `interrupted` payload names the model and the "
+        "projected cost waiting on a decision. Pass that run's `thread_id` "
+        "with approved=true to authorise the escalation and the spend, or "
+        "approved=false to decline it and finalise on the answer already in "
+        "hand. The whole point of the pause is that a human decides how their "
+        "money is spent: ask them, and do not answer on their behalf."
+    ),
+)
+def resume_routing(thread_id: str, approved: bool) -> dict[str, Any]:
+    """
+    Args:
+        thread_id: From a `route_query` result whose stop_reason was
+            `awaiting_approval`.
+        approved: True authorises the escalation and the cost it projected.
+            False declines it; the run finalises with `approval_denied` on
+            the rung it already paid for.
+    """
+    from llm_routing import models
+    from router_agent.engine import resume
+    from router_agent.graph import compiled
+
+    # Only `cascade` reaches the escalate node - the one-shot policies return
+    # "accept" from the router edge - so a paused run is always a cascade, and
+    # the default config reports its policy correctly without the caller
+    # having to echo back what they started it with.
+    cfg = _cfg()
+    if cfg.require_approval_above_usd is None:
+        return {
+            "error": "approval_not_enabled",
+            "detail": (
+                "This server was started without ROUTER_APPROVAL_USD, so no "
+                "run can pause and there is nothing to resume. Set it and "
+                "restart the server - 0 asks before every escalation."
+            ),
+        }
+
+    # Look the thread up before invoking. LangGraph answers an unknown one
+    # with a bare KeyError('config') from inside the pregel loop, and catching
+    # that around the call would swallow a genuine KeyError from a node too -
+    # the same distinction route_query draws for ReplayMiss.
+    saver = compiled(with_checkpointer=True).checkpointer
+    if saver.get_tuple({"configurable": {"thread_id": thread_id}}) is None:
+        return {
+            "error": "no_suspended_run",
+            "detail": (
+                f"No paused run under thread_id {thread_id!r}. Checkpoints are "
+                "held in memory for the life of this server process, so a run "
+                "paused before a restart is gone and the query has to be sent "
+                "again. A client that starts a fresh server per call can never "
+                "resume one."
+            ),
+        }
+
+    try:
+        out = resume(thread_id, approved=approved, cfg=cfg)
+    except models.ReplayMiss as exc:
+        return {
+            "error": "no_cached_response",
+            "detail": REPLAY_NOTE,
+            "raw": str(exc)[:300],
+        }
+
+    return _summarised(out)
 
 
 @mcp.tool(

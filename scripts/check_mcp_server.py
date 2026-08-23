@@ -46,7 +46,10 @@ if str(REPO) not in sys.path:
 os.environ.setdefault("ROUTER_LADDER", "wide")
 os.environ.setdefault("ROUTER_MODE", "replay")
 
-EXPECTED_TOOLS = {"route_query", "estimate_cost", "compare_policies", "explain_routing"}
+EXPECTED_TOOLS = {
+    "route_query", "resume_routing", "estimate_cost",
+    "compare_policies", "explain_routing",
+}
 EXPECTED_RESOURCES = {
     "routing://ladders",
     "routing://findings/probe",

@@ -158,7 +158,7 @@ def _outcome_from_state(
     tier = models.TIERS[min(final.get("rung_index", 0), len(models.TIERS) - 1)]
     calls = final.get("calls", [])
 
-    return RouteOutcome(
+    outcome = RouteOutcome(
         query=final["query"],
         answer=final.get("answer"),
         domain=final["task"]["domain"],
@@ -184,6 +184,22 @@ def _outcome_from_state(
         policy=cfg.policy,
         thread_id=thread_id,
     )
+
+    # A paused run surfaces as `__interrupt__` in the returned state. Reporting
+    # it explicitly beats returning a half-finished answer that looks complete.
+    #
+    # Checked HERE rather than in `route`, because `resume` needs it just as
+    # much and used not to have it: approval is per-escalation, so on a
+    # three-rung ladder the first approval walks the graph straight into the
+    # second interrupt. `resume` reported that as a finished run with an empty
+    # `stop_reason`, and the CLI's `while out.interrupted` loop believed it and
+    # printed a mid-cascade answer as final. Two rungs never showed it.
+    if "__interrupt__" in final:
+        interrupts = final["__interrupt__"]
+        outcome.interrupted = interrupts[0].value if interrupts else None
+        outcome.stop_reason = "awaiting_approval"
+
+    return outcome
 
 
 def route(
@@ -217,19 +233,9 @@ def route(
 
     final = app.invoke(state, config=run_config)
 
-    outcome = _outcome_from_state(
+    return _outcome_from_state(
         final, cfg, tid if needs_checkpointer else None
     )
-
-    # A paused run surfaces as `__interrupt__` in the returned state. Reporting
-    # it explicitly beats returning a half-finished answer that looks complete.
-    if "__interrupt__" in final:
-        interrupts = final["__interrupt__"]
-        payload = interrupts[0].value if interrupts else None
-        outcome.interrupted = payload
-        outcome.stop_reason = "awaiting_approval"
-
-    return outcome
 
 
 def resume(thread_id: str, approved: bool, cfg: RouterConfig | None = None) -> RouteOutcome:
