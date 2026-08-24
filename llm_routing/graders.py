@@ -24,6 +24,30 @@ from pathlib import Path
 # between an accidental infinite loop and a hung evaluation run.
 CODE_TIMEOUT_S = 10
 
+# The MBPP+ path gets its own budget rather than a multiple of the one above,
+# because the two are sized against different things. CODE_TIMEOUT_S guards
+# against generated code that loops forever; this one has to fit the SHIPPED
+# TEST SUITE, which is a measured quantity and much larger than it looks.
+#
+# codeplus-599 is the worst case by a wide margin. Its reference solution is a
+# three-line `sum(range(1, number+1))`, but the expanded suite calls it on
+# inputs up to 100,000,007 across 90 cases - about 1.6 BILLION interpreted loop
+# iterations for one task, ~14s on a fast machine where the other 356 tasks
+# average well under a second.
+#
+# The old budget was CODE_TIMEOUT_S * 3, and its comment claimed the tests ran
+# "about 0.1s each" and that the headroom existed "for pathological generated
+# code rather than for the tests themselves". That was false: at 30s the
+# repo's own REFERENCE solution had 2.1x headroom, against 5.9x for the
+# next-slowest task and 18x for the remaining 351. A timeout returns False,
+# which is indistinguishable from a wrong answer, so a slow runner would not
+# have reported "too slow" - it would have reported the reference solution
+# failing its own tests, and every accuracy number in the repo with it.
+#
+# 90s restores ~6x on the worst case, which is the headroom the rest of the set
+# already had.
+TEST_PROGRAM_TIMEOUT_S = 90
+
 # Memoisation of grade(), which is pure - the same response cannot grade two
 # ways. Two hot paths grade twice: the code cascade grades inside verify_code and
 # again after acceptance, and the degradation sweep replays the same cheap
@@ -356,11 +380,9 @@ def grade_test_program(response: str, payload: dict) -> bool:
             proc = subprocess.run(
                 [sys.executable, str(path)],
                 capture_output=True,
-                # The expanded suites run far more cases than the originals, so
-                # they get more room. Measured at about 0.1s each on the shipped
-                # tasks; the headroom is for pathological generated code rather
-                # than for the tests themselves.
-                timeout=CODE_TIMEOUT_S * 3,
+                # See TEST_PROGRAM_TIMEOUT_S: sized against the slowest
+                # shipped suite, not against a multiple of the assert budget.
+                timeout=TEST_PROGRAM_TIMEOUT_S,
             )
             return proc.returncode == 0
         except subprocess.TimeoutExpired:

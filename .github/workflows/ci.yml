@@ -44,8 +44,22 @@ jobs:
       # Nothing is installed on purpose. The core claim of the research half is
       # that it reproduces on a bare interpreter with no network and no key; a
       # CI job that pip-installs first would never notice that breaking.
-      - name: numpy only (the MBPP+ graders need it)
-        run: python -m pip install numpy
+      #
+      # PINNED, and the pin is load-bearing rather than tidiness. Every one of
+      # the 357 code tasks opens its test program with `import numpy as np` and
+      # 354 of them decide correctness with np.allclose, so numpy is not a
+      # convenience here - it is part of the grader, and an unpinned grader is a
+      # grader that can change its verdict without a commit. It did: an
+      # unpinned `numpy` resolves per interpreter, and because numpy 2.5 dropped
+      # Python 3.11 the matrix silently split (3.10 -> 2.2.6, 3.11 -> 2.4.6,
+      # 3.12/3.13 -> 2.5.2). The two legs that got 2.5 went red on a
+      # LICENSE-only commit while the other two stayed green.
+      #
+      # 2.2.6 is the newest release whose wheels cover all four interpreters, so
+      # one exact version means every leg now grades against the same numpy - and
+      # a numpy release can no longer turn main red overnight.
+      - name: numpy only (the MBPP+ graders need it), pinned
+        run: python -m pip install numpy==2.2.6
 
       - name: Build the task set
         run: python -m llm_routing.build_taskset
@@ -117,7 +131,7 @@ jobs:
       # If tests/test_experiment.py ever imports router_agent, this job fails
       # and the agent-layer job below would not have noticed.
       - name: pytest and numpy only
-        run: python -m pip install "pytest>=8" "numpy>=2.0"
+        run: python -m pip install "pytest>=8" "numpy==2.2.6"
 
       - name: Build the task set
         run: python -m llm_routing.build_taskset
@@ -140,7 +154,10 @@ jobs:
           cache: pip
 
       - name: Install
-        run: python -m pip install -e ".[dev]" anyio
+        # numpy pinned alongside the extras for the same reason as every other
+        # job here: this one runs the grader tests too, so it has to grade
+        # against the same numpy the rest of the matrix does.
+        run: python -m pip install -e ".[dev]" anyio numpy==2.2.6
 
       - name: Build the task set
         run: python -m llm_routing.build_taskset
@@ -169,7 +186,7 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - run: python -m pip install -e ".[agent]" numpy
+      - run: python -m pip install -e ".[agent]" numpy==2.2.6
       - run: python -m llm_routing.build_taskset
 
       # The property worth protecting: someone who clones this repository with
@@ -199,7 +216,7 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - run: python -m pip install -e ".[agent,mcp]" numpy
+      - run: python -m pip install -e ".[agent,mcp]" numpy==2.2.6
       - run: python -m llm_routing.build_taskset
       - name: Registers in-process, then answers over real stdio
         run: python scripts/check_mcp_server.py

@@ -57,7 +57,21 @@ real = ["anthropic==0.120.2"]
 
 # Grading the MBPP+ code half. Every expanded evalplus test program opens with
 # `import numpy as np` and compares floats with np.allclose.
-code = ["numpy>=2.0"]
+#
+# The upper bound comes from a CI failure, and it is worth stating exactly how
+# far the evidence goes. numpy 2.5 dropped Python 3.11, so an unpinned install
+# split the test matrix by interpreter: 3.10 got 2.2.6, 3.11 got 2.4.6, and
+# 3.12/3.13 got 2.5.2. The regression gate then failed on precisely the two
+# legs that received 2.5 - twice, once on a commit that touched only LICENSE.
+# The correlation is exact. The mechanism is NOT confirmed: 2.5.2 grades the
+# shipped task set 357/357 on Windows, so whatever differs is specific to the
+# CI platform and was never reproduced off it.
+#
+# So this ceiling is drawn at the last version observed to be good, not at a
+# diagnosed break. Raising it means running llm_routing.sanity_check against the
+# newer numpy ON LINUX - that gate exists to answer exactly this question, and
+# passing it locally is not the same answer.
+code = ["numpy>=2.0,<2.5"]
 
 dev = ["pytest>=8", "llm-routing[agent,mcp,code]"]
 
