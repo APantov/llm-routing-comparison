@@ -83,6 +83,7 @@ cache/*.bak
 .DS_Store
 Thumbs.db
 *.swp
+*.stackdump
 
 # Personal prep notes, never published.
 BRIEFING.local.md
